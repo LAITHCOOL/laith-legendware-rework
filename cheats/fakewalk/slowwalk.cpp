@@ -2,10 +2,14 @@
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
 #include "slowwalk.h"
+#include "../prediction/EnginePrediction.h"
 
 void slowwalk::autostop(CUserCmd* m_pcmd, float custom_speed)
 {
-	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+	//if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+	//	return;
+
+	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 		return;
 
 	auto weapon_info = g_ctx.globals.weapon->get_csweapon_info();
@@ -56,7 +60,7 @@ void slowwalk::autostop(CUserCmd* m_pcmd, float custom_speed)
 
 void slowwalk::create_move(CUserCmd* m_pcmd, float custom_speed)
 {
-	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 		return;
 
 	auto weapon_info = g_ctx.globals.weapon->get_csweapon_info();

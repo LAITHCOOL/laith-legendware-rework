@@ -90,11 +90,12 @@ const char* RCSType[] =
 
 const char* selection[] =
 {
-	"Cycle",
+	"Nearest distance",
 	"Near crosshair",
-	"Lowest distance",
+	"Highest damage",
 	"Lowest health",
-	"Highest damage"
+	"Least lag",
+	"Lowest height"
 };
 const char* autoscope_type[] =
 {
@@ -133,23 +134,11 @@ const char* headaimonlycond[] =
 
 const char* autostop_modifiers[] =
 {
-	"Between shots",
-	"On lethal",
-	"Only Visible",
-	"Only Center",
-	"Force accuracy"
-};
-
-const char* hitboxes[] =
-{
-	"Head",
-	"Upper chest",
-	"Chest",
-	"Lower chest",
-	"Stomach",
-	"Pelvis",
-	"Arms",
-	"Legs",
+	"Between shot",
+	"Hitchance fail",
+	"Lethal",
+	"Center",
+	"Early"
 };
 
 const char* multipoint_hitboxes[] =
@@ -160,16 +149,32 @@ const char* multipoint_hitboxes[] =
 	"Legs",
 	"Feet"
 };
+const char* prioritized_hitbox[] =
+{
+	"None",
+	"Head",
+	"Body",
+	"Stomach"
+};
 
-
-const char* m_hitboxes[] =
+const char* prefer_bodyaim_options[] =
+{
+	"Always",
+	"Lethal",
+	"In air"
+};
+const char* force_bodyaim_options[] =
+{
+	"Always",
+	"HP below X number",
+	"In air"
+};
+const char* hitboxes[] =
 {
 	"Head",
-	"Upper chest",
+	"Neck",
 	"Chest",
-	"Lower chest",
 	"Stomach",
-	"Pelvis",
 	"Arms",
 	"Legs",
 	"Feet"

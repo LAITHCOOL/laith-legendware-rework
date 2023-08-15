@@ -1,9 +1,13 @@
 #include <tuple>
 #include "LocalAnimFix.hpp"
 
-void C_LocalAnimations::OnCreateMove(CUserCmd* m_pCmd)
+
+void C_LocalAnimations::OnCreateMove()
 {
-	// g_LocalAnimations->StoreAnimationRecord(m_pCmd);
+	if (!g_ctx.local()->is_alive())
+		return;
+
+	g_LocalAnimations->StoreAnimationRecord();
 	if (!g_ctx.send_packet)
 		return;
 
@@ -47,7 +51,7 @@ void C_LocalAnimations::OnCreateMove(CUserCmd* m_pCmd)
 	std::tuple < Vector, bool > m_ShotData = std::make_tuple < Vector, bool >(Vector(0, 0, 0), false);
 
 	/* copy data */
-	// g_LocalAnimations->CopyPlayerAnimationData(false);
+	g_LocalAnimations->CopyPlayerAnimationData(false);
 
 	/* UpdatePlayerAnimations */
 	for (int nSimulationTick = 1; nSimulationTick <= m_LocalData.m_nSimulationTicks; nSimulationTick++)
@@ -61,11 +65,12 @@ void C_LocalAnimations::OnCreateMove(CUserCmd* m_pCmd)
 		m_globals()->m_framecount = nTickBase;
 		m_globals()->m_tickcount = nTickBase;
 
-		AnimationRecord_t* m_Record = &m_LocalData.m_AnimRecords[(m_pCmd->m_command_number - m_LocalData.m_nSimulationTicks + nSimulationTick) % MULTIPLAYER_BACKUP];
+		AnimationRecord_t* m_Record = &m_LocalData.m_AnimRecords[(g_ctx.get_command()->m_command_number - m_LocalData.m_nSimulationTicks + nSimulationTick) % MULTIPLAYER_BACKUP];
 		if (m_Record)
 		{
+			static auto recoil_scale = m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
 			/* set player data from the animation record */
-			g_ctx.local()->m_flThirdpersonRecoil() = m_Record->m_angAimPunch.x * m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
+			g_ctx.local()->m_flThirdpersonRecoil() = m_Record->m_angAimPunch.x * recoil_scale;
 			g_ctx.local()->m_vecVelocity() = m_Record->m_vecVelocity;
 			g_ctx.local()->m_vecAbsVelocity() = m_Record->m_vecVelocity;
 			g_ctx.local()->m_flDuckAmount() = m_Record->m_flDuckAmount;
@@ -76,8 +81,8 @@ void C_LocalAnimations::OnCreateMove(CUserCmd* m_pCmd)
 			g_ctx.local()->GetMoveType() = m_Record->m_nMoveType;
 
 			/* fix localplayer strafe and sequences */
-			//// g_LocalAnimations->SimulateStrafe(m_Record->m_nButtons);
-			//// g_LocalAnimations->DoAnimationEvent(m_Record->m_nButtons);
+			g_LocalAnimations->SimulateStrafe(m_Record->m_nButtons);
+			g_LocalAnimations->DoAnimationEvent(m_Record->m_nButtons);
 
 			/* set shot angle */
 			if (nSimulationTick == m_LocalData.m_nSimulationTicks)
@@ -99,12 +104,12 @@ void C_LocalAnimations::OnCreateMove(CUserCmd* m_pCmd)
 		}
 
 		/* Fix framecount and time */
-		g_ctx.local()->get_animation_state1()->m_iLastClientSideAnimationUpdateFramecount = 0;
-		g_ctx.local()->get_animation_state1()->m_iLastClientSideAnimationUpdateFramecount = m_globals()->m_curtime - m_globals()->m_intervalpertick;
+		g_ctx.local()->get_animation_state1()->m_nLastUpdateFrame = 0;
+		g_ctx.local()->get_animation_state1()->m_flLastUpdateTime = m_globals()->m_curtime - m_globals()->m_intervalpertick;
 
 		/* set player and weapon */
-		g_ctx.local()->get_animation_state1()->m_pBaseEntity = g_ctx.local();
-		g_ctx.local()->get_animation_state1()->m_pActiveWeapon = g_ctx.local()->m_hActiveWeapon();
+		g_ctx.local()->get_animation_state1()->m_pBasePlayer = g_ctx.local();
+		g_ctx.local()->get_animation_state1()->m_pWeapon = g_ctx.local()->m_hActiveWeapon();
 
 		/* force client-side animation */
 		bool m_bClientSideAnimation = g_ctx.local()->m_bClientSideAnimation();
@@ -125,15 +130,9 @@ void C_LocalAnimations::OnCreateMove(CUserCmd* m_pCmd)
 
 	g_ctx.local()->set_abs_origin(m_LocalData.m_vecAbsOrigin);
 	//if ( !g_Globals->m_Packet.m_bSkipMatrix )
-	//// g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Real.m_Matrix.data(), BONE_USED_BY_ANYTHING);
+	g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Real.m_Matrix.data(), BONE_USED_BY_ANYTHING);
+	g_LocalAnimations->UpdateDesyncAnimations();
 
-	// setup bones
-	g_ctx.globals.setuping_bones = true;
-	// now we setup the bones after everything is done.
-	g_ctx.local()->setup_bones_local(m_LocalData.m_Real.m_Matrix.data(), MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, 0);
-	g_ctx.globals.setuping_bones = false;
-
-	// g_LocalAnimations->UpdateDesyncAnimations(m_pCmd);
 
 	/* restore globals */
 	m_globals()->m_curtime = std::get < 0 >(m_Globals);
@@ -183,7 +182,7 @@ void C_LocalAnimations::CopyPlayerAnimationData(bool bFake)
 		sizeof(AnimationLayer)
 	);
 }
-void C_LocalAnimations::UpdateDesyncAnimations(CUserCmd* m_pCmd)
+void C_LocalAnimations::UpdateDesyncAnimations()
 {
 	C_CSGOPlayerAnimationState m_AnimationState;
 	std::memcpy(&m_AnimationState, g_ctx.local()->get_animation_state1(), sizeof(C_CSGOPlayerAnimationState));
@@ -224,11 +223,12 @@ void C_LocalAnimations::UpdateDesyncAnimations(CUserCmd* m_pCmd)
 		m_globals()->m_framecount = nTickBase;
 		m_globals()->m_tickcount = nTickBase;
 
-		AnimationRecord_t* m_Record = &m_LocalData.m_AnimRecords[(m_pCmd->m_command_number - m_LocalData.m_nSimulationTicks + nSimulationTick) % MULTIPLAYER_BACKUP];
+		AnimationRecord_t* m_Record = &m_LocalData.m_AnimRecords[(g_ctx.get_command()->m_command_number - m_LocalData.m_nSimulationTicks + nSimulationTick) % MULTIPLAYER_BACKUP];
 		if (m_Record)
 		{
+			static auto recoil_scale = m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
 			/* set player data from the animation record */
-			g_ctx.local()->m_flThirdpersonRecoil() = m_Record->m_angAimPunch.x * m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
+			g_ctx.local()->m_flThirdpersonRecoil() = m_Record->m_angAimPunch.x * recoil_scale;
 			g_ctx.local()->m_vecVelocity() = m_Record->m_vecVelocity;
 			g_ctx.local()->m_vecAbsVelocity() = m_Record->m_vecVelocity;
 			g_ctx.local()->m_flDuckAmount() = m_Record->m_flDuckAmount;
@@ -239,8 +239,8 @@ void C_LocalAnimations::UpdateDesyncAnimations(CUserCmd* m_pCmd)
 			g_ctx.local()->GetMoveType() = m_Record->m_nMoveType;
 
 			/* fix localplayer strafe and sequences */
-			//// g_LocalAnimations->SimulateStrafe(m_Record->m_nButtons);
-			//// g_LocalAnimations->DoAnimationEvent(m_Record->m_nButtons, true);
+			g_LocalAnimations->SimulateStrafe(m_Record->m_nButtons);
+			g_LocalAnimations->DoAnimationEvent(m_Record->m_nButtons, true);
 
 			/* set shot angle */
 			if (nSimulationTick == m_LocalData.m_nSimulationTicks)
@@ -262,11 +262,11 @@ void C_LocalAnimations::UpdateDesyncAnimations(CUserCmd* m_pCmd)
 		}
 
 		/* Fix framecount */
-		g_ctx.local()->get_animation_state1()->m_iLastClientSideAnimationUpdateFramecount = 0;
+		g_ctx.local()->get_animation_state1()->m_nLastUpdateFrame = 0;
 
 		/* set player and weapon */
-		g_ctx.local()->get_animation_state1()->m_pBaseEntity = g_ctx.local();
-		g_ctx.local()->get_animation_state1()->m_pActiveWeapon = g_ctx.local()->m_hActiveWeapon();
+		g_ctx.local()->get_animation_state1()->m_pBasePlayer = g_ctx.local();
+		g_ctx.local()->get_animation_state1()->m_pWeapon = g_ctx.local()->m_hActiveWeapon();
 
 		/* force client-side animation */
 		bool m_bClientSideAnimation = g_ctx.local()->m_bClientSideAnimation();
@@ -301,45 +301,38 @@ void C_LocalAnimations::UpdateDesyncAnimations(CUserCmd* m_pCmd)
 	g_ctx.local()->m_flPoseParameter()[1] = m_LocalData.m_Real.m_PoseParameters[1];
 	std::memcpy(&g_ctx.local()->get_animlayers()[7], &m_LocalData.m_Real.m_Layers[7], sizeof(AnimationLayer));
 
-	m_LocalData.m_flYawDelta = std::roundf(math::AngleDiff(math::normalize_yaw(g_ctx.local()->get_animation_state1()->m_flGoalFeetYaw), math::normalize_yaw(m_AnimationState.m_flGoalFeetYaw)));
+	m_LocalData.m_flYawDelta = std::roundf(math::AngleDiff(math::normalize_yaw(g_ctx.local()->get_animation_state1()->m_flFootYaw), math::normalize_yaw(m_AnimationState.m_flFootYaw)));
 
-	//// g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Fake.m_Matrix.data(), BONE_USED_BY_ANYTHING);
-
-	// setup bones
-	g_ctx.globals.setuping_bones = true;
-	// now we setup the bones after everything is done.
-	g_ctx.local()->setup_bones_local(m_LocalData.m_Fake.m_Matrix.data(), MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, 0);
-	g_ctx.local()->setup_bones_local(g_ctx.globals.fake_matrix, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, 0);
-	g_ctx.globals.setuping_bones = false;
+	g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Fake.m_Matrix.data(), BONE_USED_BY_ANYTHING);
 
 	std::memcpy(g_ctx.local()->get_animation_state1(), &m_AnimationState, sizeof(C_CSGOPlayerAnimationState));
 	std::memcpy(g_ctx.local()->get_animlayers(), m_LocalData.m_Real.m_Layers.data(), sizeof(AnimationLayer) * 13);
 	std::memcpy(g_ctx.local()->m_flPoseParameter().data(), m_LocalData.m_Real.m_PoseParameters.data(), sizeof(float) * MAXSTUDIOPOSEPARAM);
 }
-//void C_LocalAnimations::SimulateStrafe(int nButtons)
-//{
-//	Vector vecForward;
-//	Vector vecRight;
-//	Vector vecUp;
-//
-//	math::AngleVectorsAnims(QAngle(0, g_ctx.local()->get_animation_state1()->m_flGoalFeetYaw, 0), vecForward, vecRight, vecUp);
-//	vecRight.NormalizeInPlace();
-//
-//	float flVelToRightDot = math::dot_product(g_ctx.local()->get_animation_state1()->m_vLastVelocity, vecRight);
-//	float flVelToForwardDot = math::dot_product(g_ctx.local()->get_animation_state1()->m_vLastVelocity, vecForward);
-//
-//	bool bMoveRight = (nButtons & (IN_MOVERIGHT)) != 0;
-//	bool bMoveLeft = (nButtons & (IN_MOVELEFT)) != 0;
-//	bool bMoveForward = (nButtons & (IN_FORWARD)) != 0;
-//	bool bMoveBackward = (nButtons & (IN_BACK)) != 0;
-//
-//	bool bStrafeRight = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.73f && bMoveRight && !bMoveLeft && flVelToRightDot < -0.63f);
-//	bool bStrafeLeft = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.73f && bMoveLeft && !bMoveRight && flVelToRightDot > 0.63f);
-//	bool bStrafeForward = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.65f && bMoveForward && !bMoveBackward && flVelToForwardDot < -0.55f);
-//	bool bStrafeBackward = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.65f && bMoveBackward && !bMoveForward && flVelToForwardDot > 0.55f);
-//
-//	g_ctx.local()->m_bStrafing() = (bStrafeRight || bStrafeLeft || bStrafeForward || bStrafeBackward);
-//}
+void C_LocalAnimations::SimulateStrafe(int nButtons)
+{
+	Vector vecForward;
+	Vector vecRight;
+	Vector vecUp;
+
+	math::AngleVectorsAnims(QAngle(0, g_ctx.local()->get_animation_state1()->m_flFootYaw, 0), vecForward, vecRight, vecUp);
+	vecRight.NormalizeInPlace();
+
+	float flVelToRightDot = math::dot_product(g_ctx.local()->get_animation_state1()->m_vecVelocityNormalizedNonZero, vecRight);
+	float flVelToForwardDot = math::dot_product(g_ctx.local()->get_animation_state1()->m_vecVelocityNormalizedNonZero, vecForward);
+
+	bool bMoveRight = (nButtons & (IN_MOVERIGHT)) != 0;
+	bool bMoveLeft = (nButtons & (IN_MOVELEFT)) != 0;
+	bool bMoveForward = (nButtons & (IN_FORWARD)) != 0;
+	bool bMoveBackward = (nButtons & (IN_BACK)) != 0;
+
+	bool bStrafeRight = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.73f && bMoveRight && !bMoveLeft && flVelToRightDot < -0.63f);
+	bool bStrafeLeft = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.73f && bMoveLeft && !bMoveRight && flVelToRightDot > 0.63f);
+	bool bStrafeForward = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.65f && bMoveForward && !bMoveBackward && flVelToForwardDot < -0.55f);
+	bool bStrafeBackward = (g_ctx.local()->get_animation_state1()->m_flSpeedAsPortionOfWalkTopSpeed >= 0.65f && bMoveBackward && !bMoveForward && flVelToForwardDot > 0.55f);
+
+	g_ctx.local()->m_bStrafing() = (bStrafeRight || bStrafeLeft || bStrafeForward || bStrafeBackward);
+}
 void C_LocalAnimations::DoAnimationEvent(int nButtons, bool bIsFakeAnimations)
 {
 	AnimationLayer* pLandOrClimbLayer = &g_ctx.local()->get_animlayers()[ANIMATION_LAYER_MOVEMENT_LAND_OR_CLIMB];
@@ -359,26 +352,26 @@ void C_LocalAnimations::DoAnimationEvent(int nButtons, bool bIsFakeAnimations)
 		nCurrentMoveType = m_LocalData.m_Fake.m_nMoveType;
 
 	if (nCurrentMoveType != MOVETYPE_LADDER && g_ctx.local()->GetMoveType() == MOVETYPE_LADDER)
-		g_ctx.local()->get_animation_state1()->SetLayerSequence(pLandOrClimbLayer, ACT_CSGO_CLIMB_LADDER);
+		g_ctx.local()->get_animation_state1()->set_layer_sequence(pLandOrClimbLayer, ACT_CSGO_CLIMB_LADDER);
 	else if (nCurrentMoveType == MOVETYPE_LADDER && g_ctx.local()->GetMoveType() != MOVETYPE_LADDER)
-		g_ctx.local()->get_animation_state1()->SetLayerSequence(pJumpOrFallLayer, ACT_CSGO_FALL);
+		g_ctx.local()->get_animation_state1()->set_layer_sequence(pJumpOrFallLayer, ACT_CSGO_FALL);
 	else
 	{
 		if (g_ctx.local()->m_fFlags() & FL_ONGROUND)
 		{
 			if (!(nCurrentFlags & FL_ONGROUND))
-				g_ctx.local()->get_animation_state1()->SetLayerSequence
+				g_ctx.local()->get_animation_state1()->set_layer_sequence
 				(
 					pLandOrClimbLayer,
-					g_ctx.local()->get_animation_state1()->m_flInAirTime() > 1.0f ? ACT_CSGO_LAND_HEAVY : ACT_CSGO_LAND_LIGHT
+					g_ctx.local()->get_animation_state1()->m_flDurationInAir > 1.0f ? ACT_CSGO_LAND_HEAVY : ACT_CSGO_LAND_LIGHT
 				);
 		}
 		else if (nCurrentFlags & FL_ONGROUND)
 		{
 			if (g_ctx.local()->m_vecVelocity().z > 0.0f)
-				g_ctx.local()->get_animation_state1()->SetLayerSequence(pJumpOrFallLayer, ACT_CSGO_JUMP);
+				g_ctx.local()->get_animation_state1()->set_layer_sequence(pJumpOrFallLayer, ACT_CSGO_JUMP);
 			else
-				g_ctx.local()->get_animation_state1()->SetLayerSequence(pJumpOrFallLayer, ACT_CSGO_FALL);
+				g_ctx.local()->get_animation_state1()->set_layer_sequence(pJumpOrFallLayer, ACT_CSGO_FALL);
 		}
 	}
 
@@ -393,10 +386,7 @@ void C_LocalAnimations::DoAnimationEvent(int nButtons, bool bIsFakeAnimations)
 		m_LocalData.m_Real.m_nFlags = g_ctx.local()->m_fFlags();
 	}
 }
-
-
-
-void C_LocalAnimations::StoreAnimationRecord(CUserCmd* m_pCmd)
+void C_LocalAnimations::StoreAnimationRecord()
 {
 	AnimationRecord_t m_AnimRecord;
 
@@ -406,10 +396,10 @@ void C_LocalAnimations::StoreAnimationRecord(CUserCmd* m_pCmd)
 	m_AnimRecord.m_vecVelocity = g_ctx.local()->m_vecVelocity();
 	m_AnimRecord.m_flDuckAmount = g_ctx.local()->m_flDuckAmount();
 	m_AnimRecord.m_flDuckSpeed = g_ctx.local()->m_flDuckSpeed();
-	m_AnimRecord.m_angRealAngles = m_pCmd->m_viewangles;
-	m_AnimRecord.m_angFakeAngles = g_ctx.globals.m_angFakeAngles;
+	m_AnimRecord.m_angRealAngles = g_ctx.get_command()->m_viewangles;
+	m_AnimRecord.m_angFakeAngles = temp_fakeangle;
 	m_AnimRecord.m_angAimPunch = g_ctx.local()->m_aimPunchAngle();
-	m_AnimRecord.m_nButtons = m_pCmd->m_buttons;
+	m_AnimRecord.m_nButtons = g_ctx.get_command()->m_buttons;
 	m_AnimRecord.m_nMoveType = g_ctx.local()->GetMoveType();
 
 	weapon_t* pWeapon = g_ctx.local()->m_hActiveWeapon();
@@ -420,23 +410,23 @@ void C_LocalAnimations::StoreAnimationRecord(CUserCmd* m_pCmd)
 			if (!pWeapon->m_bPinPulled() && pWeapon->m_fThrowTime() > 0.0f)
 				m_AnimRecord.m_bIsShooting = true;
 		}
-		else
+		else if ((pWeapon->can_fire(false) && pWeapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER) || (pWeapon->can_fire(true) && pWeapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER))
 		{
-			if (m_pCmd->m_buttons & IN_ATTACK)
+			if (g_ctx.get_command()->m_buttons & IN_ATTACK)
 				m_AnimRecord.m_bIsShooting = true;
 
 			if (pWeapon->is_knife())
-				if ((m_pCmd->m_buttons & IN_ATTACK) || (m_pCmd->m_buttons & IN_ATTACK2))
+				if ((g_ctx.get_command()->m_buttons & IN_ATTACK) || (g_ctx.get_command()->m_buttons & IN_ATTACK2))
 					m_AnimRecord.m_bIsShooting = true;
 		}
 	}
 
 	if (m_AnimRecord.m_bIsShooting)
-		m_AnimRecord.m_angFakeAngles = m_pCmd->m_viewangles;
+		m_AnimRecord.m_angFakeAngles = g_ctx.get_command()->m_viewangles;
 	m_AnimRecord.m_angFakeAngles.z = 0.0f;
 
 	/* proper roll aa display */
-	m_LocalData.m_AnimRecords[m_pCmd->m_command_number % MULTIPLAYER_BACKUP] = m_AnimRecord;
+	m_LocalData.m_AnimRecords[g_ctx.get_command()->m_command_number % MULTIPLAYER_BACKUP] = m_AnimRecord;
 }
 void C_LocalAnimations::BeforePrediction()
 {
@@ -451,7 +441,7 @@ void C_LocalAnimations::BeforePrediction()
 	}
 	m_LocalData.m_flSpawnTime = g_ctx.local()->m_flSpawnTime();
 }
-void C_LocalAnimations::SetupShootPosition(CUserCmd* m_pCmd)
+void C_LocalAnimations::SetupShootPosition()
 {
 	/* fix view offset */
 	Vector vecViewOffset = g_ctx.local()->m_vecViewOffset();
@@ -468,11 +458,11 @@ void C_LocalAnimations::SetupShootPosition(CUserCmd* m_pCmd)
 
 	/* force LocalPlayer data */
 	g_ctx.local()->set_abs_origin(g_ctx.local()->m_vecOrigin());
-	g_ctx.local()->m_angEyeAngles() = m_pCmd->m_viewangles;
+	g_ctx.local()->m_angEyeAngles() = g_ctx.get_command()->m_viewangles;
 
 	/* normalize angles */
-	math::normalize_angles(m_pCmd->m_viewangles);
-	math::clamp_angles(m_pCmd->m_viewangles);
+	math::normalize_angles(g_ctx.get_command()->m_viewangles);
+	math::clamp_angles(g_ctx.get_command()->m_viewangles);
 
 	/* modify eye position rebuild */
 	{
@@ -502,33 +492,30 @@ void C_LocalAnimations::SetupShootPosition(CUserCmd* m_pCmd)
 		{
 			/* store old body pitch */
 			const float m_flOldBodyPitch = g_ctx.local()->m_flPoseParameter()[12];
-
+			static auto recoil_scale = m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
 			/* determine m_flThirdpersonRecoil */
-			const float m_flThirdpersonRecoil = g_ctx.local()->m_aimPunchAngle().x * m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
+			const float m_flThirdpersonRecoil = g_ctx.local()->m_aimPunchAngle().x * recoil_scale;
 
 			/* set body pitch */
 			g_ctx.local()->m_flPoseParameter()[12] = std::clamp(math::AngleDiff(math::AngleNormalizeAnims(m_flThirdpersonRecoil), 0.0f), 0.0f, 1.0f);
 
 			/* build matrix */
-			//// g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Shoot.m_Matrix.data(), BONE_USED_BY_HITBOX);
-
-			// setup bones
-			g_ctx.globals.setuping_bones = true;
-			// now we setup the bones after everything is done.
-			g_ctx.local()->setup_bones_local(m_LocalData.m_Shoot.m_Matrix.data(), MAXSTUDIOBONES, BONE_USED_BY_HITBOX, 0);
-			g_ctx.globals.setuping_bones = false;
+			g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Shoot.m_Matrix.data(), BONE_USED_BY_HITBOX);
 
 			/* reset body pitch */
 			g_ctx.local()->m_flPoseParameter()[12] = m_flOldBodyPitch;
 
 			/* C_CSGOPlayerAnimationState::ModifyEyePosition rebuild */
-			// g_LocalAnimations->ModifyEyePosition(m_LocalData.m_vecShootPosition, m_LocalData.m_Shoot.m_Matrix.data());
+			g_LocalAnimations->ModifyEyePosition(m_LocalData.m_vecShootPosition, m_LocalData.m_Shoot.m_Matrix.data());
 		}
 	}
 
 	/* restore LocalPlayer data */
 	g_ctx.local()->set_abs_origin(std::get < 0 >(m_Backup));
 	g_ctx.local()->m_angEyeAngles() = std::get < 1 >(m_Backup);
+
+	g_ctx.globals.eye_pos = GetShootPosition();
+	//g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
 }
 void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 {
@@ -573,7 +560,7 @@ void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 	}
 
 	// get simulation time
-	float flSimulationTime = TICKS_TO_TIME(m_globals()->m_tickcount);
+	float flSimulationTime = TICKS_TO_TIME(g_ctx.get_command()->m_tickcount);
 
 	// setup globals
 	m_globals()->m_curtime = flSimulationTime;
@@ -581,7 +568,7 @@ void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 	m_globals()->m_frametime = m_globals()->m_intervalpertick;
 	m_globals()->m_absoluteframetime = m_globals()->m_intervalpertick;
 	m_globals()->m_interpolation_amount = 0.0f;
-	//m_globals()->m_tickcount = g_Networking->GetServerTick();
+	m_globals()->m_tickcount = g_ctx.get_command()->m_tickcount;
 
 	// fix skipanimframe ( part 1 )
 	m_globals()->m_framecount = INT_MAX;
@@ -610,8 +597,7 @@ void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 
 	// setup bones
 	g_ctx.globals.setuping_bones = true;
-	// now we setup the bones after everything is done.
-	g_ctx.local()->setup_bones_local(aMatrix, MAXSTUDIOBONES, nMask, m_globals()->m_curtime);
+	g_ctx.local()->SetupBones(aMatrix, MAXSTUDIOBONES, nMask, 0.0f);
 	g_ctx.globals.setuping_bones = false;
 
 	// restore animation layers
@@ -649,8 +635,8 @@ void C_LocalAnimations::ModifyEyePosition(Vector& vecInputEyePos, matrix3x4_t* a
 		return;
 
 	float flLerp = math::RemapValClamped(abs(vecInputEyePos.z - vecHeadPos.z),
-		4.0f,
-		10.0f,
+		FIRSTPERSON_TO_THIRDPERSON_VERTICAL_TOLERANCE_MIN,
+		FIRSTPERSON_TO_THIRDPERSON_VERTICAL_TOLERANCE_MAX,
 		0.0f, 1.0f);
 
 	vecInputEyePos.z = math::lerp(flLerp, vecInputEyePos.z, vecHeadPos.z);
@@ -658,7 +644,7 @@ void C_LocalAnimations::ModifyEyePosition(Vector& vecInputEyePos, matrix3x4_t* a
 void C_LocalAnimations::InterpolateMatricies()
 {
 	// correct matrix
-	// g_LocalAnimations->TransformateMatricies();
+	g_LocalAnimations->TransformateMatricies();
 
 	// copy bones
 	std::memcpy(g_ctx.local()->m_CachedBoneData().Base(), m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * g_ctx.local()->m_CachedBoneData().Count());
@@ -688,10 +674,8 @@ void C_LocalAnimations::TransformateMatricies()
 }
 bool C_LocalAnimations::CopyCachedMatrix(matrix3x4_t* aInMatrix, int nBoneCount)
 {
-	//std::memcpy(aInMatrix, m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * nBoneCount);
-
-	return m_LocalData.m_Real.m_Matrix.data();
-	//return true;
+	std::memcpy(aInMatrix, m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * nBoneCount);
+	return true;
 }
 void C_LocalAnimations::CleanSnapshots()
 {
@@ -725,27 +709,4 @@ void C_LocalAnimations::ResetData()
 	m_LocalData.m_Shoot.m_Matrix = { };
 	m_LocalData.m_Shoot.m_Layers = { };
 	m_LocalData.m_Shoot.m_PoseParameters = { };
-}
-
-
-void C_LocalAnimations::OnUPD_ClientSideAnims(player_t* local)
-{
-	float pose_parameter[24];
-	std::memcpy(pose_parameter, g_ctx.local()->m_flPoseParameter().data(), 24 * sizeof(float));
-
-	// interpolate our real matrix.
-	for (int i = 0; i < 128; i++)
-		m_LocalData.m_Real.m_Matrix.data()[i].SetOrigin(g_ctx.local()->GetAbsOrigin() - m_LocalData.m_Real.m_vecMatrixOrigin[i]);
-
-	local->force_bone_rebuild();
-
-	std::memcpy(g_ctx.local()->m_flPoseParameter().data(), m_LocalData.m_Real.m_PoseParameters.data(), 24 * sizeof(float));
-	local->set_abs_angles(Vector(0, m_LocalData.m_flYawDelta, 0));
-	std::memcpy(g_ctx.local()->get_animlayers(), m_LocalData.m_Shoot.m_Layers.data(), g_ctx.local()->animlayer_count() * sizeof(AnimationLayer));
-
-	// set our cached bone to our matrix.
-	std::memcpy(g_ctx.local()->m_CachedBoneData().Base(), m_LocalData.m_Real.m_Matrix.data(), g_ctx.local()->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-
-	local->setup_bones_rebuilt(m_LocalData.m_Real.m_Matrix.data(), 0xFFF00);
-	std::memcpy(g_ctx.local()->m_flPoseParameter().data(), pose_parameter, 24 * sizeof(float));
 }

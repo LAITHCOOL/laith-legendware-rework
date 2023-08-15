@@ -7,7 +7,7 @@
 #include "..\..\cheats\visuals\player_esp.h"
 // hitchams ../../cheats/visual/hitchams.h
 #include "../../cheats/visuals/hitchams.h"
-
+#include "../../cheats/lagcompensation/LocalAnimFix.hpp"
 
 
 IMaterial* CreateMaterial(bool lit, const std::string& material_data)
@@ -627,15 +627,9 @@ void __stdcall hooks::hooked_dme(IMatRenderContext* ctx, const DrawModelState_t&
 
 			if (g_cfg.player.fake_chams_enable)
 			{
-				if (!local_animations::get().local_data.visualize_lag)
-				{
-					for (auto& i : g_ctx.globals.fake_matrix)
-					{
-						i[0][3] += info.origin.x;
-						i[1][3] += info.origin.y;
-						i[2][3] += info.origin.z;
-					}
-				}
+				
+					
+				
 
 				auto alpha = (float)g_cfg.player.fake_chams_color.a() / 255.0f;
 				material = materials[g_cfg.player.fake_chams_type];
@@ -654,7 +648,7 @@ void __stdcall hooks::hooked_dme(IMatRenderContext* ctx, const DrawModelState_t&
 				material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ, false);
 
 				m_modelrender()->ForcedMaterialOverride(material);
-				original_fn(m_modelrender(), ctx, state, info, g_ctx.globals.fake_matrix);
+				original_fn(m_modelrender(), ctx, state, info, g_LocalAnimations->GetDesyncMatrix().data());
 				m_modelrender()->ForcedMaterialOverride(nullptr);
 
 				if (g_cfg.player.fake_double_material && g_cfg.player.fake_chams_type != 6 && double_material)
@@ -675,19 +669,10 @@ void __stdcall hooks::hooked_dme(IMatRenderContext* ctx, const DrawModelState_t&
 					double_material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ, false);
 
 					m_modelrender()->ForcedMaterialOverride(double_material);
-					original_fn(m_modelrender(), ctx, state, info, g_ctx.globals.fake_matrix);
+					original_fn(m_modelrender(), ctx, state, info, g_LocalAnimations->GetDesyncMatrix().data());
 					m_modelrender()->ForcedMaterialOverride(nullptr);
 				}
-
-				if (!local_animations::get().local_data.visualize_lag)
-				{
-					for (auto& i : g_ctx.globals.fake_matrix)
-					{
-						i[0][3] -= info.origin.x;
-						i[1][3] -= info.origin.y;
-						i[2][3] -= info.origin.z;
-					}
-				}
+				
 			}
 
 			if (!called_original && !g_cfg.player.layered)

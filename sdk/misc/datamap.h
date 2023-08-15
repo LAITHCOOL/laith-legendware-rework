@@ -62,18 +62,38 @@ enum {
 	TD_OFFSET_COUNT,
 };
 
-struct typedescription_t 
+struct typedescription_t
 {
-	int fieldType; //0x0000
-	char* fieldName; //0x0004
-	int fieldOffset[TD_OFFSET_COUNT]; //0x0008
-	short fieldSize_UNKNWN; //0x0010
-	short flags_UNKWN; //0x0012
-	char pad_0014[12]; //0x0014
-	datamap_t* td; //0x0020
-	char pad_0024[24]; //0x0024
-}; //Size: 0x003C
+	int			fieldType;
+	const char* fieldName;
+	int					fieldOffset; // Local offset value
+	unsigned short		fieldSize;
+	short				flags;
+	// the name of the variable in the map/fgd data, or the name of the action
+	const char* externalName;
+	// pointer to the function set for save/restoring of custom data types
+	void* pSaveRestoreOps;
+	// for associating function with string names
+	void* inputFunc;
+	// For embedding additional datatables inside this one
+	datamap_t* td;
 
+	// Stores the actual member variable size in bytes
+	int					fieldSizeInBytes;
+
+	// FTYPEDESC_OVERRIDE point to first baseclass instance if chains_validated has occurred
+	typedescription_t* override_field;
+
+	// Used to track exclusion of baseclass fields
+	int					override_count;
+
+	// Tolerance for field errors for float fields
+	float				fieldTolerance;
+
+	// For raw fields (including children of embedded stuff) this is the flattened offset
+	int					flatOffset[TD_OFFSET_COUNT];
+	unsigned short		flatGroup;
+}; //Size: 0x003C
 // See predictioncopy.h for implementation and notes
 struct optimized_datamap_t;
 

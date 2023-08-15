@@ -1,5 +1,6 @@
 #include "..\hooks.hpp"
 #include "../../cheats/misc/prediction_system.h"
+#include "../../cheats/prediction/EnginePrediction.h"
 
 using PacketStart_t = void(__thiscall*)(void*, int, int);
 
@@ -102,7 +103,8 @@ void __fastcall hooks::hooked_packetend(void* ecx, void* edx)
 
 			g_ctx.globals.last_velocity_modifier = g_ctx.local()->m_flVelocityModifier();
 		}
-		engineprediction::get().restore_netvars(m_clientstate()->nLastCommandAck);
+		//engineprediction::get().restore_netvars(m_clientstate()->nLastCommandAck);
+		g_EnginePrediction->OnPostNetworkDataReceived();
 	}
 
 	return original_fn(ecx);

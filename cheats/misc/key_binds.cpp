@@ -34,30 +34,30 @@ void key_binds::update_key_bind(key_bind* key_bind, int key_bind_id)
 			break;
 		case 13:
 			if (is_button_down)
-				antiaim::get().manual_side = SIDE_BACK;
-			else if (antiaim::get().manual_side == SIDE_BACK)
-				antiaim::get().manual_side = SIDE_NONE;
+				g_AntiAim->manual_side = SIDE_BACK;
+			else if (g_AntiAim->manual_side == SIDE_BACK)
+				g_AntiAim->manual_side = SIDE_NONE;
 
 			break;
 		case 14:
 			if (is_button_down)
-				antiaim::get().manual_side = SIDE_LEFT;
-			else if (antiaim::get().manual_side == SIDE_LEFT)
-				antiaim::get().manual_side = SIDE_NONE;
+				g_AntiAim->manual_side = SIDE_LEFT;
+			else if (g_AntiAim->manual_side == SIDE_LEFT)
+				g_AntiAim->manual_side = SIDE_NONE;
 
 			break;
 		case 15:
 			if (is_button_down)
-				antiaim::get().manual_side = SIDE_RIGHT;
-			else if (antiaim::get().manual_side == SIDE_RIGHT)
-				antiaim::get().manual_side = SIDE_NONE;
+				g_AntiAim->manual_side = SIDE_RIGHT;
+			else if (g_AntiAim->manual_side == SIDE_RIGHT)
+				g_AntiAim->manual_side = SIDE_NONE;
 
 			break;
 		case 27:
 			if (is_button_down)
-				antiaim::get().manual_side = SIDE_FORWARD;
-			else if (antiaim::get().manual_side == SIDE_FORWARD)
-				antiaim::get().manual_side = SIDE_NONE;
+				g_AntiAim->manual_side = SIDE_FORWARD;
+			else if (g_AntiAim->manual_side == SIDE_FORWARD)
+				g_AntiAim->manual_side = SIDE_NONE;
 
 			break;
 		default:
@@ -89,31 +89,31 @@ void key_binds::update_key_bind(key_bind* key_bind, int key_bind_id)
 
 				break;
 			case 13:
-				if (antiaim::get().manual_side == SIDE_BACK)
-					antiaim::get().manual_side = SIDE_NONE;
+				if (g_AntiAim->manual_side == SIDE_BACK)
+					g_AntiAim->manual_side = SIDE_NONE;
 				else
-					antiaim::get().manual_side = SIDE_BACK;
+					g_AntiAim->manual_side = SIDE_BACK;
 
 				break;
 			case 14:
-				if (antiaim::get().manual_side == SIDE_LEFT)
-					antiaim::get().manual_side = SIDE_NONE;
+				if (g_AntiAim->manual_side == SIDE_LEFT)
+					g_AntiAim->manual_side = SIDE_NONE;
 				else
-					antiaim::get().manual_side = SIDE_LEFT;
+					g_AntiAim->manual_side = SIDE_LEFT;
 
 				break;
 			case 15:
-				if (antiaim::get().manual_side == SIDE_RIGHT)
-					antiaim::get().manual_side = SIDE_NONE;
+				if (g_AntiAim->manual_side == SIDE_RIGHT)
+					g_AntiAim->manual_side = SIDE_NONE;
 				else
-					antiaim::get().manual_side = SIDE_RIGHT;
+					g_AntiAim->manual_side = SIDE_RIGHT;
 
 				break;
 			case 27:
-				if (antiaim::get().manual_side == SIDE_FORWARD)
-					antiaim::get().manual_side = SIDE_NONE;
+				if (g_AntiAim->manual_side == SIDE_FORWARD)
+					g_AntiAim->manual_side = SIDE_NONE;
 				else
-					antiaim::get().manual_side = SIDE_FORWARD;
+					g_AntiAim->manual_side = SIDE_FORWARD;
 
 				break;
 			default:
@@ -193,13 +193,13 @@ bool key_binds::get_key_bind_state_lua(int key_bind_id)
 	case 12:
 		return tickbase::get().hide_shots_key;
 	case 13:
-		return antiaim::get().manual_side == SIDE_BACK;
+		return g_AntiAim->manual_side == SIDE_BACK;
 	case 14:
-		return antiaim::get().manual_side == SIDE_LEFT;
+		return g_AntiAim->manual_side == SIDE_LEFT;
 	case 15:
-		return antiaim::get().manual_side == SIDE_RIGHT;
+		return g_AntiAim->manual_side == SIDE_RIGHT;
 	case 27:
-		return antiaim::get().manual_side == SIDE_FORWARD;
+		return g_AntiAim->manual_side == SIDE_FORWARD;
 	default:
 		return keys[key_bind_id];
 	}

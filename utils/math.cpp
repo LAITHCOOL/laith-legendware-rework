@@ -424,6 +424,65 @@ namespace math
 		angles[1] = view[1];
 		angles[2] = 0.f;
 	}
+
+
+	void vector_to_angles(Vector forward, Vector& angles)
+	{
+		float tmp, yaw, pitch;
+
+		if (forward.y == 0.f && forward.x == 0.f)
+		{
+			yaw = 0.f;
+			if (forward.z > 0.f)
+				pitch = 270.f;
+			else
+				pitch = 90.f;
+		}
+		else
+		{
+			yaw = math::rad_to_deg(std::atan2(forward.y, forward.x));
+			if (yaw < 0.f)
+				yaw += 360.f;
+
+			tmp = forward.length(true);
+			pitch = math::rad_to_deg(std::atan2(-forward.z, tmp));
+			if (pitch < 0.f)
+				pitch += 360.f;
+		}
+
+		angles.x = pitch;
+		angles.y = yaw;
+		angles.x = 0;
+	}
+
+	void angle_to_vectors(const Vector& angles, Vector* forward, Vector* right, Vector* up)
+	{
+		float cp = std::cos(deg_to_rad(angles.x)), sp = std::sin(deg_to_rad(angles.x));
+		float cy = std::cos(deg_to_rad(angles.y)), sy = std::sin(deg_to_rad(angles.y));
+		float cr = std::cos(deg_to_rad(angles.z)), sr = std::sin(deg_to_rad(angles.z));
+
+		if (forward)
+		{
+			forward->x = cp * cy;
+			forward->y = cp * sy;
+			forward->z = -sp;
+		}
+
+		if (right)
+		{
+			right->x = -1.f * sr * sp * cy + -1.f * cr * -sy;
+			right->y = -1.f * sr * sp * sy + -1.f * cr * cy;
+			right->z = -1.f * sr * cp;
+		}
+
+		if (up)
+		{
+			up->x = cr * sp * cy + -sr * -sy;
+			up->y = cr * sp * sy + -sr * cy;
+			up->z = cr * cp;
+		}
+	}
+
 	//--------------------------------------------------------------------------------
 	void vector_angles(const Vector& forward, Vector& up, Vector& angles)
 	{
@@ -1229,7 +1288,35 @@ namespace math
 		}
 		return delta;
 	}
+	inline float anglemod(float a)
+	{
+		a = (360.f / 65536) * ((int)(a * (65536.f / 360.0f)) & 65535);
+		return a;
+	}
+	float ApproachAngle(float target, float value, float speed)
+	{
+		target = anglemod(target);
+		value = anglemod(value);
 
+		float delta = target - value;
+
+		if (speed < 0)
+			speed = -speed;
+
+		if (delta < -180)
+			delta += 360;
+		else if (delta > 180)
+			delta -= 360;
+
+		if (delta > speed)
+			value += speed;
+		else if (delta < -speed)
+			value -= speed;
+		else
+			value = target;
+
+		return value;
+	}
 	void SinCos(float radians, float* sine, float* cosine)
 	{
 		*sine = sin(radians);
@@ -1251,7 +1338,7 @@ namespace math
 	}
 
 
-	__forceinline void AngleVectorsAnims(QAngle angles, Vector& forward, Vector& right, Vector& up)
+	void AngleVectorsAnims(QAngle angles, Vector& forward, Vector& right, Vector& up)
 	{
 		float sr, sp, sy, cr, cp, cy;
 

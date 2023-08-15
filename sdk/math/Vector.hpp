@@ -364,7 +364,28 @@ public:
 	{
 		return x * x + y * y;
 	}
+	// shit pasted from other projects.
+	void to_vectors(Vector& right, Vector& up) {
+		Vector tmp;
+		if (x == 0.f && y == 0.f)
+		{
+			// pitch 90 degrees up/down from identity.
+			right[0] = 0.f;
+			right[1] = -1.f;
+			right[2] = 0.f;
+			up[0] = -z;
+			up[1] = 0.f;
+			up[2] = 0.f;
+		}
+		else
+		{
+			tmp[0] = 0; tmp[1] = 0; tmp[2] = 1;
 
+			// get directions vector using cross product.
+			right = Cross(tmp).Normalized();
+			up = right.Cross(*this).Normalized();
+		}
+	}
 	Vector ToEulerAngles(Vector* pseudoup = nullptr)
 	{
 		auto pitch = 0.0f;

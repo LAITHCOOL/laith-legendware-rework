@@ -7,6 +7,7 @@
 #include "..\cheats\misc\logs.h"
 #include "..\cheats\lagcompensation\local_animations.h"
 #include "..\cheats\lagcompensation\setup_bones.h"
+#include "../cheats/prediction/Networking.h"
 
 
 Vector& player_t::get_render_angles1()
@@ -30,6 +31,17 @@ Vector& player_t::get_abs_origin()
 
 	return call_virtual<Vector& (__thiscall*)(void*)>(this, 10)(this);
 }
+
+float& player_t::m_flCollisionChangeTime()
+{
+	return *(float*)((DWORD)(this) + 0x9924);
+}
+
+float& player_t::m_flCollisionChangeOrigin()
+{
+	return *(float*)((DWORD)(this) + 0x9920);
+}
+
 void player_t::force_bone_rebuild()
 {
 	m_BoneAccessor().m_WritableBones = m_BoneAccessor().m_ReadableBones = 0;
@@ -208,8 +220,8 @@ bool player_t::setup_bones_local(matrix3x4_t* pBoneToWorldOut, int nMaxBones, in
 	invalidate_bone_cache();
 	m_BoneAccessor().m_ReadableBones = m_BoneAccessor().m_WritableBones = 0;
 
-	if (get_animation_state())
-		get_animation_state()->m_pLastBoneSetupWeapon = get_animation_state()->m_pActiveWeapon;
+	if (get_animation_state1())
+		get_animation_state1()->m_pWeaponLast = get_animation_state1()->m_pWeapon;
 
 	g_ctx.globals.setuping_bones = true;
 
@@ -274,70 +286,172 @@ bool player_t::setup_bones_local(matrix3x4_t* pBoneToWorldOut, int nMaxBones, in
 
 	return res;
 }
-
-void C_CSGOPlayerAnimationState::IncrementLayerCycle(int layer, bool is_looping)
+void C_CSGOPlayerAnimationState::set_layer_sequence(AnimationLayer* animlayer, int activity)
 {
-	AnimationLayer pLayer = m_pBaseEntity->get_animlayers()[layer];
-	if (fabs(pLayer.m_flPlaybackRate) <= 0.0f)
+	if (!animlayer || !activity)
 		return;
 
-	float newcycle = (pLayer.m_flPlaybackRate * m_flUpdateTimeDelta) + pLayer.m_flCycle;
-
-	if (!is_looping && newcycle >= 1.0f)
-		newcycle = 0.999f;
-
-	newcycle -= (float)(int)newcycle; //round to integer
-
-	if (newcycle < 0.0f)
-		newcycle += 1.0f;
-
-	if (newcycle > 1.0f)
-		newcycle -= 1.0f;
-
-	pLayer.m_flCycle = newcycle;
-}
-
-void C_CSGOPlayerAnimationState::IncrementLayerCycleGeneric(int layer)
-{
-	AnimationLayer pLayer = m_pBaseEntity->get_animlayers()[layer];
-
-	if (fabs(pLayer.m_flPlaybackRate) <= 0.0f)
+	int sequence = this->select_sequence_from_activity_modifier(activity);
+	if (sequence < 2)
 		return;
 
-	float newcycle = (pLayer.m_flPlaybackRate * m_flUpdateTimeDelta) + pLayer.m_flCycle;
+	animlayer->m_nSequence = sequence;
 
-	newcycle -= newcycle;
+	if (m_pBasePlayer && sequence && animlayer)
+		animlayer->m_flPlaybackRate = m_pBasePlayer->GetLayerSequenceCycleRate(animlayer, sequence);
 
-	if (newcycle < 0.0f)
-		newcycle += 1.0f;
-
-	if (newcycle > 1.0f)
-		newcycle -= 1.0f;
-
-	pLayer.m_flCycle = newcycle;
+	animlayer->m_flCycle = animlayer->m_flWeight = 0.0f;
 }
 
-void player_t::set_animation_state(C_CSGOPlayerAnimationState* state)
+int C_CSGOPlayerAnimationState::select_sequence_from_activity_modifier(int activity)
 {
-	if (!this)
-		return;
+	bool is_player_ducked = m_flAnimDuckAmount > 0.55f;
+	bool is_player_running = m_flSpeedAsPortionOfWalkTopSpeed > 0.25f;
 
-	*reinterpret_cast<C_CSGOPlayerAnimationState**>(reinterpret_cast<void*>(uintptr_t(this) + 0x9960)) = state;
+	int layer_sequence = -1;
+	switch (activity)
+	{
+	case ACT_CSGO_JUMP:
+	{
+		layer_sequence = 15 + int(is_player_running);
+		if (is_player_ducked)
+			layer_sequence = 17 + int(is_player_running);
+	}
+	break;
+	case ACT_CSGO_ALIVE_LOOP:
+	{
+		layer_sequence = 8;
+		if (m_pWeaponLast != m_pWeapon)
+			layer_sequence = 9;
+	}
+	break;
+	case ACT_CSGO_IDLE_ADJUST_STOPPEDMOVING:
+	{
+		layer_sequence = 6;
+	}
+	break;
+	case ACT_CSGO_FALL:
+	{
+		layer_sequence = 14;
+	}
+	break;
+	case ACT_CSGO_IDLE_TURN_BALANCEADJUST:
+	{
+		layer_sequence = 4;
+	}
+	break;
+	case ACT_CSGO_LAND_LIGHT:
+	{
+		layer_sequence = 20;
+		if (is_player_running)
+			layer_sequence = 22;
+
+		if (is_player_ducked)
+		{
+			layer_sequence = 21;
+			if (is_player_running)
+				layer_sequence = 19;
+		}
+	}
+	break;
+	case ACT_CSGO_LAND_HEAVY:
+	{
+		layer_sequence = 23;
+		if (is_player_ducked)
+			layer_sequence = 24;
+	}
+	break;
+	case ACT_CSGO_CLIMB_LADDER:
+	{
+		layer_sequence = 13;
+	}
+	break;
+	default: break;
+	}
+
+	return layer_sequence;
 }
 
-void C_CSGOPlayerAnimationState::LayerWeightAdvance(int layer)
+void C_CSGOPlayerAnimationState::increment_layer_cycle(AnimationLayer* layer, bool is_loop)
 {
-	AnimationLayer pLayer = m_pBaseEntity->get_animlayers()[layer];
+	float new_cycle = (layer->m_flPlaybackRate * this->m_flLastUpdateIncrement) + layer->m_flCycle;
+	if (!is_loop && new_cycle >= 1.0f)
+		new_cycle = 0.999f;
 
-	if (fabs(pLayer.m_flWeightDeltaRate) <= 0.0f)
-		return;
+	new_cycle -= (int)(new_cycle);
+	if (new_cycle < 0.0f)
+		new_cycle += 1.0f;
 
-	float newweight = (pLayer.m_flWeightDeltaRate * m_flUpdateTimeDelta) + pLayer.m_flWeight;
-	newweight = math::clamp(newweight, 0.0f, 1.0f);
-	pLayer.m_flWeight = newweight;
+	if (new_cycle > 1.0f)
+		new_cycle -= 1.0f;
+
+	layer->m_flCycle = new_cycle;
 }
 
-void C_CSGOPlayerAnimationState::SetLayerSequence(AnimationLayer* pAnimationLayer, int iActivity)
+bool C_CSGOPlayerAnimationState::is_layer_sequence_finished(AnimationLayer* layer, float time)
+{
+	return (layer->m_flPlaybackRate * time) + layer->m_flCycle >= 1.0f;
+}
+
+void C_CSGOPlayerAnimationState::set_layer_cycle(AnimationLayer* animlayer, float cycle)
+{
+	if (animlayer)
+		animlayer->m_flCycle = cycle;
+}
+
+void C_CSGOPlayerAnimationState::set_layer_rate(AnimationLayer* animlayer, float rate)
+{
+	if (animlayer)
+		animlayer->m_flPlaybackRate = rate;
+}
+
+void C_CSGOPlayerAnimationState::set_layer_weight(AnimationLayer* animlayer, float weight)
+{
+	if (animlayer)
+		animlayer->m_flWeight = weight;
+}
+
+
+void AnimState_s::IncrementLayerCycle(AnimationLayer* Layer, bool bIsLoop)
+{
+	float_t flNewCycle = (Layer->m_flPlaybackRate * this->m_flLastUpdateIncrement) + Layer->m_flCycle;
+	if (!bIsLoop && flNewCycle >= 1.0f)
+		flNewCycle = 0.999f;
+
+	flNewCycle -= (int32_t)(flNewCycle);
+	if (flNewCycle < 0.0f)
+		flNewCycle += 1.0f;
+
+	if (flNewCycle > 1.0f)
+		flNewCycle -= 1.0f;
+
+	Layer->m_flCycle = flNewCycle;
+}
+bool AnimState_s::IsLayerSequenceFinished(AnimationLayer* Layer, float_t flTime)
+{
+	return (Layer->m_flPlaybackRate * flTime) + Layer->m_flCycle >= 1.0f;
+}
+void AnimState_s::SetLayerCycle(AnimationLayer* pAnimationLayer, float_t flCycle)
+{
+	if (pAnimationLayer)
+		pAnimationLayer->m_flCycle = flCycle;
+}
+void AnimState_s::SetLayerRate(AnimationLayer* pAnimationLayer, float_t flRate)
+{
+	if (pAnimationLayer)
+		pAnimationLayer->m_flPlaybackRate = flRate;
+}
+void AnimState_s::SetLayerWeight(AnimationLayer* pAnimationLayer, float_t flWeight)
+{
+	if (pAnimationLayer)
+		pAnimationLayer->m_flWeight = flWeight;
+}
+void AnimState_s::SetLayerWeightRate(AnimationLayer* pAnimationLayer, float_t flPrevious)
+{
+	if (pAnimationLayer)
+		pAnimationLayer->m_flWeightDeltaRate = (pAnimationLayer->m_flWeight - flPrevious) / m_flLastUpdateIncrement;
+}
+void AnimState_s::SetLayerSequence(AnimationLayer* pAnimationLayer, int iActivity)
 {
 	int32_t iSequence = this->SelectSequenceFromActivityModifier(iActivity);
 	if (iSequence < 2)
@@ -347,44 +461,48 @@ void C_CSGOPlayerAnimationState::SetLayerSequence(AnimationLayer* pAnimationLaye
 	pAnimationLayer->m_flPlaybackRate = m_pBaseEntity->GetLayerSequenceCycleRate(pAnimationLayer, iSequence);
 	pAnimationLayer->m_flCycle = pAnimationLayer->m_flWeight = 0.0f;
 }
-
-int C_CSGOPlayerAnimationState::SelectSequenceFromActivityModifier(int iActivity)
+int AnimState_s::SelectSequenceFromActivityModifier(int iActivity)
 {
-	bool bIsPlayerDucked = m_fDuckAmount > 0.55f;
-	bool bIsPlayerRunning = m_flFeetSpeedForwardsOrSideWays > 0.25f;
+	bool bIsPlayerDucked = m_flAnimDuckAmount > 0.55f;
+	bool bIsPlayerRunning = m_flSpeedAsPortionOfWalkTopSpeed > 0.25f;
 
-	int32_t iLayerSequence = -1;
+	int iLayerSequence = -1;
 	switch (iActivity)
 	{
 	case ACT_CSGO_JUMP:
 	{
-		iLayerSequence = 15 + int(bIsPlayerRunning);
+		iLayerSequence = 15 + static_cast <int>(bIsPlayerRunning);
 		if (bIsPlayerDucked)
-			iLayerSequence = 17 + int(bIsPlayerRunning);
+			iLayerSequence = 17 + static_cast <int>(bIsPlayerRunning);
 	}
 	break;
+
 	case ACT_CSGO_ALIVE_LOOP:
 	{
-		iLayerSequence = 8;
-		if (m_pLastActiveWeapon != m_pActiveWeapon)
-			iLayerSequence = 9;
+		iLayerSequence = 9;
+		if (m_pWeaponLast != m_pWeapon)
+			iLayerSequence = 8;
 	}
 	break;
+
 	case ACT_CSGO_IDLE_ADJUST_STOPPEDMOVING:
 	{
 		iLayerSequence = 6;
 	}
 	break;
+
 	case ACT_CSGO_FALL:
 	{
 		iLayerSequence = 14;
 	}
 	break;
+
 	case ACT_CSGO_IDLE_TURN_BALANCEADJUST:
 	{
 		iLayerSequence = 4;
 	}
 	break;
+
 	case ACT_CSGO_LAND_LIGHT:
 	{
 		iLayerSequence = 20;
@@ -399,6 +517,7 @@ int C_CSGOPlayerAnimationState::SelectSequenceFromActivityModifier(int iActivity
 		}
 	}
 	break;
+
 	case ACT_CSGO_LAND_HEAVY:
 	{
 		iLayerSequence = 23;
@@ -406,6 +525,7 @@ int C_CSGOPlayerAnimationState::SelectSequenceFromActivityModifier(int iActivity
 			iLayerSequence = 24;
 	}
 	break;
+
 	case ACT_CSGO_CLIMB_LADDER:
 	{
 		iLayerSequence = 13;
@@ -639,7 +759,63 @@ void entity_t::set_abs_origin(const Vector& origin)
 
 	return fn(this, origin);
 }
+using GetShotgunSpread_t = void(__stdcall*)(int, int, int, float*, float*);
+Vector weapon_t::calculate_spread(int seed, float inaccuracy, float spread, bool revolver2) {
+	weapon_info_t* wep_info;
+	int        item_def_index;
+	float      recoil_index, r1, r2, r3, r4, s1, c1, s2, c2;
 
+	// if we have no bullets, we have no spread.
+	wep_info = get_csweapon_info();
+	if (!wep_info || !wep_info->iBullets)
+		return ZERO;
+
+	// get some data for later.
+	item_def_index = m_iItemDefinitionIndex();
+	recoil_index = m_flRecoilSeed();
+	static auto weapon_accuracy_shotgun_spread_patterns  = m_cvar()->FindVar(crypt_str("weapon_accuracy_shotgun_spread_patterns"));
+	static auto get_shotgun_spread = util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 EC 10 56 8B 75 08 8D")); // GetShotgunSpread()
+	// generate needed floats.
+	r1 = std::get<0>(g_Networking->computed_seeds[seed]);
+	r2 = std::get<1>(g_Networking->computed_seeds[seed]);
+
+	if (weapon_accuracy_shotgun_spread_patterns->GetInt() > 0)
+		((GetShotgunSpread_t)get_shotgun_spread)(item_def_index, 0, 0 + wep_info->iBullets * recoil_index, &r4, &r3);
+	else {
+		r3 = std::get<0>(g_Networking->computed_seeds[seed]);
+		r4 = std::get<1>(g_Networking->computed_seeds[seed]);
+	}
+
+	// revolver secondary spread.
+	if (item_def_index == WEAPON_REVOLVER && revolver2) {
+		r1 = 1.f - (r1 * r1);
+		r3 = 1.f - (r3 * r3);
+	}
+
+	// negev spread.
+	else if (item_def_index == WEAPON_NEGEV && recoil_index < 3.f) {
+		for (int i = 3; i > recoil_index; --i) {
+			r1 *= r1;
+			r3 *= r3;
+		}
+
+		r1 = 1.f - r1;
+		r3 = 1.f - r3;
+	}
+
+	// get needed sine / cosine values.
+	c1 = std::cos(r2);
+	c2 = std::cos(r4);
+	s1 = std::sin(r2);
+	s2 = std::sin(r4);
+
+	// calculate spread vector.
+	return {
+		(c1 * (r1 * inaccuracy)) + (c2 * (r3 * spread)),
+		(s1 * (r1 * inaccuracy)) + (s2 * (r3 * spread)),
+		0.f
+	};
+}
 weapon_info_t* weapon_t::get_csweapon_info()
 {
 	if (!this) //-V704
@@ -656,7 +832,7 @@ float weapon_t::get_inaccuracy()
 	if (!this)
 		return 0.0f;
 
-	return call_virtual<float(__thiscall*)(void*)>(this, g_ctx.indexes.at(9))(this);
+	return call_virtual<float(__thiscall*)(void*)>(this, 483)(this);
 }
 
 float weapon_t::get_spread()
@@ -664,10 +840,38 @@ float weapon_t::get_spread()
 	if (!this)
 		return 0.0f;
 
-	return call_virtual<float(__thiscall*)(void*)>(this, g_ctx.indexes.at(10))(this);
+	return call_virtual<float(__thiscall*)(void*)>(this, 453)(this);
 }
 
+void player_t::SetAsPredictionPlayer()
+{
+	static auto player = (**((player_t***)((void*)((DWORD)(util::FindSignature(("client.dll"), ("89 35 ? ? ? ? F3 0F 10 48 20"))) + 0x2))));
+	player = this;
+}
 
+void player_t::UnsetAsPredictionPlayer()
+{
+	static auto player = (**((player_t***)((void*)((DWORD)(util::FindSignature(("client.dll"), ("89 35 ? ? ? ? F3 0F 10 48 20"))) + 0x2))));
+	player = NULL;
+}
+
+typedescription_t* player_t::GetDatamapEntry(datamap_t* pDatamap, const char* szName)
+{
+	while (pDatamap)
+	{
+		for (int i = 0; i < pDatamap->dataNumFields; i++)
+		{
+			if (strcmp(szName, pDatamap->dataDesc[i].fieldName)) //-V526
+				continue;
+
+			return &pDatamap->dataDesc[i];
+		}
+
+		pDatamap = pDatamap->baseMap;
+	}
+
+	return NULL;
+}
 
 void weapon_t::update_accuracy_penality()
 {
@@ -695,7 +899,7 @@ bool weapon_t::can_fire(bool check_revolver)
 
 	auto owner = (player_t*)m_entitylist()->GetClientEntityFromHandle(m_hOwnerEntity());
 
-	if (owner == g_ctx.local() && antiaim::get().freeze_check)
+	if (owner == g_ctx.local() && g_AntiAim->freeze_check)
 		return false;
 
 	if (!owner->valid(false))
@@ -856,7 +1060,7 @@ bool weapon_t::is_knife()
 		|| idx == WEAPON_KNIFE_CORD || idx == WEAPON_KNIFE_OUTDOOR || idx == WEAPON_KNIFE_SKELETON;
 }
 
-bool weapon_t::is_non_aim()
+bool weapon_t::is_non_aim(bool disable_knife)
 {
 	if (!this) //-V704
 		return true;
@@ -866,8 +1070,9 @@ bool weapon_t::is_non_aim()
 	if (idx == WEAPON_C4 || idx == WEAPON_HEALTHSHOT)
 		return true;
 
-	if (is_knife())
-		return true;
+	if (disable_knife)
+		if (is_knife())
+			return true;
 
 	if (is_grenade())
 		return true;
@@ -1184,47 +1389,22 @@ std::string weapon_t::get_name()
 
 std::array <float, 24>& entity_t::m_flPoseParameter()
 {
-	static auto _m_flPoseParameter = netvars::get().get_offset(crypt_str("CCSPlayer"), crypt_str("m_flPoseParameter"));
+	static auto _m_flPoseParameter = netvars::get().get_offset(crypt_str("CBaseAnimating"), crypt_str("m_flPoseParameter"));
 	return *(std::array <float, 24>*)((uintptr_t)this + _m_flPoseParameter);
 }
 
 Vector player_t::get_shoot_position()
 {
-	Vector shoot_position = ZERO;
+	auto result = ZERO;
+
 	if (!this)
-		return shoot_position;
+		return result;
 
-	//modify_eye_position(shoot_position);
-	call_virtual<Vector& (__thiscall*)(void*, Vector*)>(this, 285)(this, &shoot_position);
-	return shoot_position;
+
+	call_virtual<Vector& (__thiscall*)(void*, Vector*)>(this, 169)(this, &result);
+
+	return result;
 }
-
-//void player_t::modify_eye_position(Vector& eye_position)
-//{
-//	if (!this)
-//		return;
-//
-//	if (!local_animations::get().local_data.prediction_animstate)
-//		return;
-//
-//	if (!local_animations::get().local_data.prediction_animstate->m_bInHitGroundAnimation && local_animations::get().local_data.prediction_animstate->m_fDuckAmount <= 0.0f)
-//		return;
-//
-//	local_animations::get().local_data.prediction_animstate->m_pBaseEntity = this;
-//
-//	static auto lookup_bone = reinterpret_cast <int(__thiscall*)(void*, const char*)> (util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 53 56 8B F1 57 83 BE ?? ?? ?? ?? ?? 75 14")));
-//	auto head_bone = lookup_bone(local_animations::get().local_data.prediction_animstate->m_pBaseEntity, crypt_str("head_0"));
-//
-//	if (head_bone == -1)
-//		return;
-//
-//	auto head_position = Vector(g_ctx.globals.prediction_matrix[head_bone][0][3], g_ctx.globals.prediction_matrix[head_bone][1][3], g_ctx.globals.prediction_matrix[head_bone][2][3] + 1.7f);
-//
-//	if (head_position.z >= eye_position.z)
-//		return;
-//
-//	eye_position.z = math::lerp2(math::simple_spline_remap_val_clamped(fabs(eye_position.z - head_position.z), 4.0f, 10.0f, 0.0f, 1.0f), eye_position.z, head_position.z);
-//}
 
 bool player_t::is_alive()
 {
@@ -1238,6 +1418,11 @@ bool player_t::is_alive()
 		return false;
 
 	return true;
+}
+
+bool player_t::m_bDuckUntilOnGround()
+{
+	return *(bool*)((DWORD)(this) + 0x10478);
 }
 
 int	player_t::get_move_type()
@@ -1460,8 +1645,9 @@ void player_t::SetCollisionBounds(const Vector& OBBMins, const Vector& OBBMaxs)
 
 void player_t::UpdateCollisionBounds()
 {
-	using Fn = void(__thiscall*)(void*);
-	return call_virtual<Fn>(this, 340)(this); // call to index
+
+	typedef void(__thiscall* oUpdateCollisionBounds)(PVOID);
+	return call_virtual< oUpdateCollisionBounds >(this, 340)(this);
 }
 
 float& player_t::m_flLastBoneSetupTime()
@@ -1565,6 +1751,12 @@ c_baseplayeranimationstate* player_t::get_animation_state()
 	return *reinterpret_cast<c_baseplayeranimationstate**>(reinterpret_cast<void*>(uintptr_t(this) + 0x9960));
 }
 
+AnimState_s* player_t::GetAnimState()
+{
+	return *reinterpret_cast<AnimState_s**>(reinterpret_cast<void*>(uintptr_t(this) + 0x9960));
+}
+
+
 //        
 
 C_CSGOPlayerAnimationState* player_t::get_animation_state1()
@@ -1601,6 +1793,9 @@ std::uintptr_t player_t::renderable_nem() {
 		renderable_nem(), bones, max_bones, mask, time
 		);
 }
+
+
+
 
 /*bool player_t::setup_bones(player_t* const player,matrix3x4_t& bones, const float time, const int flags)
 {
@@ -1797,6 +1992,95 @@ bool player_t::setup_bones_rebuilt(matrix3x4_t* matrix, int mask)
 	return setuped;
 }
 
+
+bool player_t::setup_bones1(matrix3x4_t* pBoneToWorldOut, bool safe_matrix)
+{
+	if (!this)
+		return false;
+
+	AnimationLayer backup_layers[13];
+
+	const float flCurTime = m_globals()->m_curtime;
+	const float flRealTime = m_globals()->m_realtime;
+	const float flFrameTime = m_globals()->m_frametime;
+	const float flAbsFrameTime = m_globals()->m_absoluteframetime;
+	const int iFrameCount = m_globals()->m_framecount;
+	const int iTickCount = m_globals()->m_tickcount;
+	const float flInterpolation = m_globals()->m_interpolation_amount;
+
+	m_globals()->m_curtime = m_globals()->m_realtime = this->m_flSimulationTime();
+	m_globals()->m_frametime = m_globals()->m_absoluteframetime = m_globals()->m_intervalpertick;
+	m_globals()->m_framecount = INT_MAX;
+	m_globals()->m_tickcount = TIME_TO_TICKS(m_globals()->m_realtime);
+	m_globals()->m_interpolation_amount = 0.f;
+
+	const uint32_t iClientEffects = this->m_nClientEffects();
+	const uint32_t iOcclusionFramecount = this->m_iOcclusionFramecount();
+	const uint32_t iOcclusionFlags = this->m_iOcclusionFlags();
+	const uint32_t nLastSkipFramecount = this->m_nLastSkipFramecount();
+	const uint32_t iEffects = this->m_fEffects();
+	const bool bMaintainSequenceTransition = this->m_bMaintainSequenceTransition();
+	const Vector vecAbsOrigin = this->GetAbsOrigin();
+
+	int iMask = BONE_USED_BY_ANYTHING;
+	if (safe_matrix)
+		iMask = BONE_USED_BY_HITBOX;
+
+	this->copy_animlayers(backup_layers);
+	this->invalidate_bone_cache();
+	this->m_BoneAccessor().m_ReadableBones = this->m_BoneAccessor().m_WritableBones = NULL;
+
+	if (this->get_animation_state())
+		this->get_animation_state()->m_pLastActiveWeapon = this->get_animation_state()->m_pActiveWeapon;
+
+	this->m_iOcclusionFramecount() = this->m_iOcclusionFlags() = this->m_nLastSkipFramecount() = NULL;
+
+	if (this != g_ctx.local())
+		this->set_abs_origin(this->m_vecOrigin());
+
+	this->m_fEffects() |= 8;
+	this->m_nClientEffects() |= 2;
+	this->m_bMaintainSequenceTransition() = false;
+
+	this->get_animlayers()[ANIMATION_LAYER_LEAN].m_flWeight = 0.0f;
+	if (safe_matrix)
+		this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_pOwner = NULL;
+	else if (this == g_ctx.local())
+	{
+		if (this->sequence_activity(this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_nSequence) == ACT_CSGO_IDLE_TURN_BALANCEADJUST)
+		{
+			this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_flCycle = 0.0f;
+			this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_flWeight = 0.0f;
+		}
+	}
+
+	g_ctx.globals.setuping_bones = true;
+	auto res = this->SetupBones(pBoneToWorldOut, MAXSTUDIOBONES, iMask, 0.f);
+	g_ctx.globals.setuping_bones = false;
+
+	this->m_bMaintainSequenceTransition() = bMaintainSequenceTransition;
+	this->m_nClientEffects() = iClientEffects;
+	this->m_fEffects() = iEffects;
+	this->m_nLastSkipFramecount() = nLastSkipFramecount;
+	this->m_iOcclusionFlags() = iOcclusionFlags;
+	this->m_iOcclusionFramecount() = iOcclusionFramecount;
+
+	if (this != g_ctx.local())
+		this->set_abs_origin(vecAbsOrigin);
+
+	this->set_animlayers(backup_layers);
+
+	m_globals()->m_curtime = flCurTime;
+	m_globals()->m_realtime = flRealTime;
+	m_globals()->m_frametime = flFrameTime;
+	m_globals()->m_absoluteframetime = flAbsFrameTime;
+	m_globals()->m_framecount = iFrameCount;
+	m_globals()->m_tickcount = iTickCount;
+	m_globals()->m_interpolation_amount = flInterpolation;
+
+	return res;
+}
+
 uint32_t& player_t::m_fEffects()
 {
 	static auto m_fEffects = util::find_in_datamap(GetPredDescMap(), crypt_str("m_fEffects"));
@@ -1848,6 +2132,26 @@ float player_t::get_max_desync_delta()
 	}
 
 	return animstate->yaw_desync_adjustment() * avg_speedfactor;
+}
+
+
+float player_t::GetDsyncDelta()
+{
+	if (!this) //-V704
+		return 0.0f;
+
+	auto animstate = GetAnimState();
+
+	if (!animstate)
+		return 0.0f;
+
+	float flAimMatrixWidthRange = math::lerp(std::clamp(this->GetAnimState()->m_flSpeedAsPortionOfWalkTopSpeed, 0.0f, 1.0f), 1.0f, math::lerp(this->GetAnimState()->m_flWalkToRunTransition, 0.8f, 0.5f)); //-V807
+	if (this->GetAnimState()->m_flAnimDuckAmount > 0)
+		flAimMatrixWidthRange = math::lerp(this->GetAnimState()->m_flAnimDuckAmount * std::clamp(this->GetAnimState()->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
+
+	float dsy = flAimMatrixWidthRange * this->GetAnimState()->m_flAimYawMax;
+
+	return dsy;
 }
 
 void player_t::invalidate_physics_recursive(int change_flags)

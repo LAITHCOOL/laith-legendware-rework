@@ -1,68 +1,40 @@
 #pragma once
-#include "../../includes.hpp"
 
-class C_Networking
+#include "..\..\includes.hpp"
+#include "..\..\sdk\structs.hpp"
+#include "..\misc\prediction_system.h"
+
+class networking
 {
-public:
-	virtual void StartNetwork();
-	virtual void FinishNetwork();
-	virtual void PingReducer();
-	virtual void FinishPacket(int iSequence);
-	virtual void OnFakeDuck();
-	virtual void OnNetShowFragments(DWORD dwReturnAddress);
-	virtual void OnSendDatagram(int nOutSequenceNr)
-	{
-		PushCommand(nOutSequenceNr);
-	};
-	virtual void PushCommand(int nOutSequenceNr)
-	{
-		m_NetworkData.m_SequenceList.push_back(nOutSequenceNr);
-	}
-
-	virtual void SetMaxChoke(int nMaxChoke) { m_NetworkData.m_nMaximumChoke = nMaxChoke; };
-	virtual bool PacketStart(int nCommandAck);
-	virtual bool ReadPackets() { return m_NetworkData.m_bReadPackets; };
-
-	virtual int GetLagCompensationTick();
-	virtual int GetMaximumChoke();
-	virtual int GetTickRate();
-	virtual int GetServerTick();
-	virtual float GetLatency();
-	virtual void CleanSequenceList()
-	{
-		m_NetworkData.m_SequenceList.clear();
-	}
-	virtual void ResetData()
-	{
-		m_NetworkData.m_nSequence = 0;
-		m_NetworkData.m_nMaximumChoke = 0;
-		m_NetworkData.m_nServerTick = 0;
-		m_NetworkData.m_nCompensatedServerTick = 0;
-		m_NetworkData.m_nTickRate = 0;
-		m_NetworkData.m_nLatestCommand = 0;
-		m_NetworkData.m_nLastFragment = 0;
-		m_NetworkData.m_fLatency = 0.0f;
-		m_NetworkData.m_bReadPackets = true;
-		m_NetworkData.m_bSkipDatagram = false;
-		m_NetworkData.m_SequenceList.clear();
-	}
 private:
-	struct
-	{
-		int m_nSequence = 0;
-		int m_nMaximumChoke = 0;
-		int m_nServerTick = 0;
-		int m_nCompensatedServerTick = 0;
-		int m_nTickRate = 0;
-		int m_nLatestCommand = 0;
-		int m_nLastFragment = 0;
+	
 
-		float m_fLatency = 0.0f;
-		bool m_bReadPackets = true;
-		bool m_bSkipDatagram = false;
+	int final_predicted_tick = 0;
+	float interp = 0.0f;
+public:
+	std::vector<std::pair<float, float>> computed_seeds;
 
-		std::vector < int > m_SequenceList;
-	} m_NetworkData;
+	float latency;
+	float flow_outgoing;
+	float flow_incoming;
+	float average_outgoing;
+	float average_incoming;
+
+	void start_move(CUserCmd* m_pcmd, bool& bSendPacket);
+	void process_dt_aimcheck(CUserCmd* m_pcmd);
+	void packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket);
+	bool setup_packet(int sequence_number, bool* pbSendPacket);
+	int ping();
+	int framerate();
+	float tickrate();
+	int server_tick();
+	void on_packetend(CClientState* client_state);
+	void start_network();
+	void process_interpolation(ClientFrameStage_t Stage, bool bPostFrame);
+	void reset_data();
+	void build_seed_table();
+	void process_packets(CUserCmd* m_pcmd);
+	void finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket);
 };
 
-inline C_Networking* g_Networking = new C_Networking();
+inline networking* g_Networking = new networking();

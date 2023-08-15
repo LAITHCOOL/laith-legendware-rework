@@ -6,13 +6,7 @@ struct Local_data
 {
 	bool visualize_lag = false;
 
-	C_CSGOPlayerAnimationState* animstate = nullptr;
-	C_CSGOPlayerAnimationState* real_animstate = nullptr;
-	C_CSGOPlayerAnimationState* dull_animstate = nullptr;
-
-	Vector stored_real_angles = ZERO;
-	Vector real_angles = ZERO;
-	Vector fake_angles = ZERO;
+	C_CSGOPlayerAnimationState* fake_animstate = nullptr;
 
 	struct Anim_data
 	{
@@ -25,16 +19,14 @@ struct Local_data
 
 		void reset()
 		{
-			m_nTickBase = INT_MIN;
-			m_command_number = INT_MIN;
+			tickbase = INT_MAX;
 			send_packet = true;
-			m_viewangles = ZERO;
+			anim_cmd = nullptr;
 		}
 
-		int m_nTickBase;
-		int m_command_number;
+		int tickbase;
 		bool send_packet;
-		Vector m_viewangles;
+		CUserCmd* anim_cmd;
 	};
 };
 
@@ -57,17 +49,15 @@ public:
 public:
 	Local_data local_data;
 	Local_data::Anim_data anim_data[MULTIPLAYER_BACKUP];
-	void OnUPD_ClientSideAnims(player_t* local);
-	bool cached_matrix(matrix3x4_t* aMatrix);
 	std::array< AnimationLayer, 13 > local_animations::get_animlayers();
 
+	void get_cached_matrix(player_t* player, matrix3x4_t* matrix);
+	void reset_data();
 	void store_animations_data(CUserCmd* cmd, bool& send_packet);
 	void run(CUserCmd* m_pcmd);
-	void run_animations(CUserCmd* cmd);
-	void do_animation_event();
+	void do_animation_event(Local_data::Anim_data* data);
 	void update_local_animations(Local_data::Anim_data* data);
 	void update_fake_animations(Local_data::Anim_data* data);
-	void update_local_animations_2(Local_data::Anim_data* data);
 	void setup_shoot_position(CUserCmd* m_pcmd);
-	void build_local_bones(player_t* local);
+	void on_update_clientside_animation(player_t* player);
 };

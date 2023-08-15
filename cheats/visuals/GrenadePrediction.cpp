@@ -27,7 +27,7 @@ void GrenadePrediction::View(CViewSetup* setup, weapon_t* weapon)
 {
 	if (g_ctx.local()->is_alive() && g_ctx.get_command())
 	{
-		if (!antiaim::get().freeze_check && act != ACT_NONE)
+		if (!g_AntiAim->freeze_check && act != ACT_NONE)
 		{
 			type = weapon->m_iItemDefinitionIndex();
 			Simulate(setup);
@@ -377,7 +377,7 @@ void GrenadePrediction::ResolveFlyCollisionCustom(trace_t& tr, Vector& vecVeloci
 {
 	if (tr.hit_entity)
 	{
-		if (CAutoWall::IsBreakableEntity(tr.hit_entity))
+		if (autowall::get().is_breakable_entity(tr.hit_entity))
 		{
 			auto client_class = tr.hit_entity->GetClientClass();
 

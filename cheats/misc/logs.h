@@ -8,7 +8,7 @@ class eventlogs : public singleton <eventlogs>
 public:
 	void paint_traverse();
 	void events(IGameEvent* event);
-	void add(std::string text, bool full_display = true);
+	void add(std::string text, bool full_display = true, Color color = Color(255, 255, 255, 255));
 
 	bool last_log = false;
 private:

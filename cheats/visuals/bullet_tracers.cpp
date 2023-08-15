@@ -163,7 +163,7 @@ void bullettracers::events(IGameEvent* event)
 		}
 	}
 }
-
+#include "../ragebot/aim.h"
 void bullettracers::draw_beams()
 {
 	if (impacts.empty())
@@ -209,7 +209,7 @@ void bullettracers::draw_beams()
 				continue;
 			}
 
-			draw_beam(impacts.begin()->e == g_ctx.local(), impacts.begin()->e == g_ctx.local() ? aim::get().last_shoot_position : impacts.begin()->e->get_shoot_position(), impacts.begin()->impact_position, color);
+			draw_beam(impacts.begin()->e == g_ctx.local(), impacts.begin()->e == g_ctx.local() ? g_ctx.globals.last_eye_pos : impacts.begin()->e->get_shoot_position(), impacts.begin()->impact_position, color);
 			impacts.erase(impacts.begin());
 			continue;
 		}

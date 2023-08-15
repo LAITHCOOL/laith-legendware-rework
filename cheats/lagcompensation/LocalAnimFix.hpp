@@ -1,6 +1,9 @@
 #pragma once
 #include "../../includes.hpp"
 
+#define FIRSTPERSON_TO_THIRDPERSON_VERTICAL_TOLERANCE_MIN 4.0f
+#define FIRSTPERSON_TO_THIRDPERSON_VERTICAL_TOLERANCE_MAX 10.0f
+
 struct AnimationRecord_t
 {
 	int m_nFlags = 0;
@@ -22,19 +25,22 @@ struct AnimationRecord_t
 class C_LocalAnimations
 {
 public:
-	virtual void OnCreateMove(CUserCmd* m_pCmd);
+
+	Vector temp_fakeangle = Vector(0, 0, 0);
+
+	virtual void OnCreateMove();
 	virtual void BeforePrediction();
-	virtual void StoreAnimationRecord(CUserCmd* m_pCmd);
+	virtual void StoreAnimationRecord();
 	virtual void ModifyEyePosition(Vector& vecInputEyePos, matrix3x4_t* aMatrix);
 	virtual void SetupPlayerBones(matrix3x4_t* aMatrix, int nMask);
 	virtual void InterpolateMatricies();
 	virtual void DoAnimationEvent(int nButtons, bool bIsFakeAnimations = false);
-	//virtual void SimulateStrafe(int nButtons);
-	virtual void UpdateDesyncAnimations(CUserCmd* m_pCmd);
+	virtual void SimulateStrafe(int nButtons);
+	virtual void UpdateDesyncAnimations();
 	virtual void TransformateMatricies();
 	virtual void CleanSnapshots();
 	virtual bool CopyCachedMatrix(matrix3x4_t* aInMatrix, int nBoneCount);
-	virtual void SetupShootPosition(CUserCmd* m_pCmd);
+	virtual void SetupShootPosition();
 	virtual void CopyPlayerAnimationData(bool bFake);
 
 	virtual float GetYawDelta()
@@ -46,14 +52,9 @@ public:
 		return m_LocalData.m_vecShootPosition;
 	}
 	virtual void ResetData();
-	virtual void OnUPD_ClientSideAnims(player_t* local);
 	virtual std::array < matrix3x4_t, MAXSTUDIOBONES > GetDesyncMatrix()
 	{
 		return m_LocalData.m_Fake.m_Matrix;
-	}
-	virtual std::array < matrix3x4_t, MAXSTUDIOBONES > GetRealMatrix()
-	{
-		return m_LocalData.m_Real.m_Matrix;
 	}
 private:
 
@@ -106,4 +107,4 @@ private:
 	} m_LocalData;
 };
 
-//inline C_LocalAnimations* // g_LocalAnimations = new C_LocalAnimations();
+inline C_LocalAnimations* g_LocalAnimations = new C_LocalAnimations();

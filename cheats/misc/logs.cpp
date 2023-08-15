@@ -5,39 +5,51 @@
 
 void eventlogs::paint_traverse()
 {
+	constexpr float showtime = 5.f;
+	constexpr float animation_time = 0.2f;
+
 	if (logs.empty())
 		return;
 
 	while (logs.size() > 10)
-		logs.pop_back();
+		logs.erase(logs.begin());
 
-	auto last_y = 146;
+	static const auto easeOutQuad = [](float x) {
+		return 1 - (1 - x) * (1 - x);
+	};
 
-	for (size_t i = 0; i < logs.size(); i++)
+	static const auto easeInQuad = [](float x) {
+		return x * x;
+	};
+
+	for (int i = logs.size() - 1; i >= 0; i--)
 	{
-		auto& log = logs.at(i);
+		float in_anim = math::clamp((util::epoch_time() - logs[i].log_time) / animation_time, 0.01f, 1.f);
+		float out_anim = math::clamp(((util::epoch_time() - logs[i].log_time) - showtime) / animation_time, 0.f, FLT_MAX);
 
-		if (util::epoch_time() - log.log_time > 4600)
-		{
-			auto factor = log.log_time + 5000.0f - (float)util::epoch_time();
-			factor *= 0.001f;
+		logs[i].color.SetAlpha(in_anim * (1.f - out_anim) * 255.f);
 
-			auto opacity = (int)(255.0f * factor);
+		if (out_anim > 1.f)
+			logs[i].color.SetAlpha(0.f);
+		if (in_anim > 1.f)
+			logs[i].color.SetAlpha(255.f);
 
-			if (opacity < 2)
-			{
-				logs.erase(logs.begin() + i);
-				continue;
-			}
+		in_anim = easeInQuad(in_anim);
+		out_anim = easeOutQuad(out_anim);
 
-			log.color.SetAlpha(opacity);
-			log.y -= factor * 1.25f;
+		if (logs[i].color.a() > 0.f) {
+			const float x_position = in_anim * 5.f - out_anim * 5.f;
+			const float y_position = 14.f * i;
+
+			render::get().text(fonts[LOGS], x_position, y_position + 6.5f, Color(255, 255, 255, logs[i].color.a()), HFONT_CENTERED_NONE, logs[i].message.c_str());
 		}
+	}
 
-		last_y -= 14;
-
-		auto logs_size_inverted = 10 - logs.size();
-		render::get().text(fonts[LOGS], log.x, last_y + log.y - logs_size_inverted * 14, log.color, HFONT_CENTERED_NONE, log.message.c_str());
+	for (int i = logs.size() - 1; i >= 0; i--) {
+		if (logs[i].color.a() <= 0.f) {
+			logs.erase(logs.begin() + i);
+			break;
+		}
 	}
 }
 
@@ -66,7 +78,7 @@ void eventlogs::events(IGameEvent* event)
 		}
 	};
 
-/*	if (g_cfg.misc.events_to_log[EVENTLOG_HIT] && !strcmp(event->GetName(), crypt_str("player_hurt")))
+	if (g_cfg.misc.events_to_log[EVENTLOG_HIT] && !strcmp(event->GetName(), crypt_str("player_hurt")))
 	{
 		auto userid = event->GetInt(crypt_str("userid")), attacker = event->GetInt(crypt_str("attacker"));
 
@@ -89,19 +101,19 @@ void eventlogs::events(IGameEvent* event)
 
 		if (attacker_id == m_engine()->GetLocalPlayer() && userid_id != m_engine()->GetLocalPlayer())
 		{
-			ss << crypt_str("Hit ") << userid_info.szName << crypt_str(" in the ") << get_hitgroup_name(event->GetInt(crypt_str("hitgroup"))) << crypt_str(" for ") << event->GetInt(crypt_str("dmg_health"));
-			ss << crypt_str(" damage - ") << event->GetInt(crypt_str("health")) << crypt_str(" health remaining");
+			ss << crypt_str("hit ") << userid_info.szName << crypt_str(" in the ") << get_hitgroup_name(event->GetInt(crypt_str("hitgroup"))) << crypt_str(" for ") << event->GetInt(crypt_str("dmg_health"));
+			ss << crypt_str(" damage (") << event->GetInt(crypt_str("health")) << crypt_str(" health remaining).");
 
 			add(ss.str());
 		}
 		else if (userid_id == m_engine()->GetLocalPlayer() && attacker_id != m_engine()->GetLocalPlayer())
 		{
-			ss << crypt_str("Take ") << event->GetInt(crypt_str("dmg_health")) << crypt_str(" damage from ") << attacker_info.szName << crypt_str(" in the ") << get_hitgroup_name(event->GetInt(crypt_str("hitgroup")));
-			ss << crypt_str(" - ") << event->GetInt(crypt_str("health")) << crypt_str(" health remaining");
+			ss << crypt_str("take ") << event->GetInt(crypt_str("dmg_health")) << crypt_str(" damage from ") << attacker_info.szName << crypt_str(" in the ") << get_hitgroup_name(event->GetInt(crypt_str("hitgroup")));
+			ss << crypt_str(" (") << event->GetInt(crypt_str("health")) << crypt_str(" health remaining).");
 
 			add(ss.str());
 		}
-	}*/
+	}
 
 	if (g_cfg.misc.events_to_log[EVENTLOG_ITEM_PURCHASES] && !strcmp(event->GetName(), crypt_str("item_purchase")))
 	{
@@ -131,7 +143,7 @@ void eventlogs::events(IGameEvent* event)
 		std::string weapon = event->GetString(crypt_str("weapon"));
 
 		std::stringstream ss;
-		ss << userid_info.szName << crypt_str(" bought ") << weapon;
+		ss << userid_info.szName << crypt_str(" bought ") << weapon << crypt_str(".");
 
 		add(ss.str());
 	}
@@ -156,7 +168,7 @@ void eventlogs::events(IGameEvent* event)
 			return;
 
 		std::stringstream ss;
-		ss << userid_info.szName << crypt_str(" has began planting the bomb");
+		ss << userid_info.szName << crypt_str(" has began planting the bomb.");
 
 		add(ss.str());
 	}
@@ -181,15 +193,15 @@ void eventlogs::events(IGameEvent* event)
 			return;
 
 		std::stringstream ss;
-		ss << userid_info.szName << crypt_str(" has began defusing the bomb ") << (event->GetBool(crypt_str("haskit")) ? crypt_str("with defuse kit") : crypt_str("without defuse kit"));
+		ss << userid_info.szName << crypt_str(" has began defusing the bomb ") << (event->GetBool(crypt_str("haskit")) ? crypt_str("with defuse kit.") : crypt_str("without defuse kit."));
 
 		add(ss.str());
 	}
 }
 
-void eventlogs::add(std::string text, bool full_display)
+void eventlogs::add(std::string text, bool full_display, Color color)
 {
-	logs.emplace_front(loginfo_t(util::epoch_time(), text, g_cfg.misc.log_color));
+	logs.emplace_front(loginfo_t(util::epoch_time(), text, color));
 
 	if (!full_display)
 		return;
@@ -198,20 +210,19 @@ void eventlogs::add(std::string text, bool full_display)
 	{
 		last_log = true;
 
-		m_cvar()->ConsoleColorPrintf(g_cfg.misc.log_color, crypt_str("[ itzlaith_lw ] ")); //-V807
+		m_cvar()->ConsoleColorPrintf(color, crypt_str("[ laith-legendware ] ")); //-V807
 
-		m_cvar()->ConsoleColorPrintf(Color::White, text.c_str());
+		m_cvar()->ConsoleColorPrintf(color, text.c_str());
 		m_cvar()->ConsolePrintf(crypt_str("\n"));
 	}
 
 	if (g_cfg.misc.log_output[EVENTLOG_OUTPUT_CHAT])
 	{
 		static CHudChat* chat = nullptr;
-
 		if (!chat)
 			chat = util::FindHudElement <CHudChat>(crypt_str("CHudChat"));
 
-		auto log = crypt_str("[ \x0Citzlaith_lw \x01] ") + text;
+		auto log = crypt_str("[ \flaith-legendware \001] ") + text;
 		chat->chat_print(log.c_str());
 	}
 }

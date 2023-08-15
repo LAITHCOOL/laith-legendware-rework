@@ -20,7 +20,7 @@ inline uint32_t FindInDataMap(datamap_t* pDataMap, const std::string& szPropName
                 continue;
 
             if (pDataMap->dataDesc[i].fieldName == szPropName)
-                return pDataMap->dataDesc[i].fieldOffset[TD_OFFSET_NORMAL];
+                return pDataMap->dataDesc[i].fieldOffset;
 
             if (pDataMap->dataDesc[i].fieldType != FIELD_EMBEDDED)
                 continue;
@@ -28,11 +28,11 @@ inline uint32_t FindInDataMap(datamap_t* pDataMap, const std::string& szPropName
             if (!pDataMap->dataDesc[i].td)
                 continue;
 
-            uint32_t iOffset = FindInDataMap(pDataMap->dataDesc[i].td, szPropName);
-            if (!iOffset)
+            DWORD dwOffset = FindInDataMap(pDataMap->dataDesc[i].td, szPropName);
+            if (!dwOffset)
                 continue;
 
-            return iOffset;
+            return dwOffset;
         }
 
         pDataMap = pDataMap->baseMap;
@@ -145,6 +145,7 @@ struct client_hit_verify_t
 class AnimationLayer;
 class c_baseplayeranimationstate;
 class C_CSGOPlayerAnimationState;
+class AnimState_s;
 class entity_t;
 class clientanimating_t;
 
@@ -420,6 +421,8 @@ public:
             || (extra_check && (m_iItemDefinitionIndex() == WEAPON_SG556 || m_iItemDefinitionIndex() == WEAPON_AUG));
     }
 
+    Vector calculate_spread(int seed, float inaccuracy, float spread, bool revolver2 = false);
+
     weapon_info_t* get_csweapon_info();
     bool is_empty();
     bool can_fire(bool check_revolver);
@@ -432,7 +435,7 @@ public:
     bool is_sniper();
     bool is_grenade();
     bool is_knife();
-    bool is_non_aim();
+    bool is_non_aim(bool disable_knife = true);
     bool can_double_tap();
     int get_max_tickbase_shift();
     float get_inaccuracy();
@@ -519,6 +522,7 @@ public:
     NETVAR(bool, m_bIsScoped, crypt_str("CCSPlayer"), crypt_str("m_bIsScoped"));
     NETVAR(float, m_flLowerBodyYawTarget, crypt_str("CCSPlayer"), crypt_str("m_flLowerBodyYawTarget"));
     NETVAR(float, m_flFlashDuration, crypt_str("CCSPlayer"), crypt_str("m_flFlashDuration"));
+    NETVAR(bool, m_bStrafing, crypt_str("CCSPlayer"), crypt_str("m_bStrafing"));
     NETVAR(CBaseHandle, m_hVehicle, crypt_str("CBasePlayer"), crypt_str("m_hVehicle"));
     NETVAR(int, m_iHealth, crypt_str("CBasePlayer"), crypt_str("m_iHealth"));
     NETVAR(int, m_lifeState, crypt_str("CBasePlayer"), crypt_str("m_lifeState"));
@@ -562,8 +566,9 @@ public:
     NETVAR(float, m_flPlaybackRate, crypt_str("CBaseAnimating"), crypt_str("m_flPlaybackRate"));
     NETVAR(float, get_fall_velocity, crypt_str("CBasePlayer"), crypt_str("m_flFallVelocity"));
     NETVAR(int, get_sequence, crypt_str("CBaseAnimating"), crypt_str("m_nSequence"));
-
-   
+    DATAMAP(Vector, m_vecNetworkOrigin);
+    DATAMAP(float, m_flStamina);
+    OFFSET(bool, m_bShouldUseNewAnimState, 0x9B14);
     //__forceinline int LookupSequence(const char* name)
     //{
     //    uintptr_t LookupSequencet = util::FindSignature("client.dll", "55 8b ec 56 8b f1 83 be ? ? ? ? ? 75 ? 8b 46 ? 8d 4e ? ff 50 ? 85 c0 74 ? 8b ce e8 ? ? ? ? 8b b6 ? ? ? ? 85 f6 74 ? 83 3e ? 74 ? 8b ce e8 ? ? ? ? 84 c0 74 ? ff 75");
@@ -651,11 +656,13 @@ public:
     {
         return *(uint32_t*)((uintptr_t)this + 0xA30);
     }
+
     VIRTUAL(GetLayerSequenceCycleRate(AnimationLayer* AnimLayer, int LayerSequence), 223, float(__thiscall*)(void*, AnimationLayer* AnimLayer, int iLayerSequence), AnimLayer, LayerSequence);
 
     //CUSTOM_OFFSET(m_CachedBoneData, CUtlVector < matrix3x4_t >, FNV32("CachedBoneData"), 0x2914);
     CUSTOM_OFFSET(GetBoneAccessor, CBoneAccessor, FNV32("BoneAccessor"), 0x26A8);
     CUSTOM_OFFSET(m_angVisualAngles, Vector, FNV32("VisualAngles"), 0x31E8);
+    OFFSET(Vector, m_thirdPersonViewAngles, 0x31E8);
     //CUSTOM_OFFSET(m_flSpawnTime, float_t, FNV32("SpawnTime"), 0x103C0);
     CUSTOM_OFFSET(GetMoveType, int32_t, FNV32("MoveType"), 0x25C);
    // CUSTOM_OFFSET(GetMoveType, int, 0x25C);
@@ -806,6 +813,10 @@ public:
         return *(CUserCmd*)((uintptr_t)this + 0x3288);
     }
 
+    __forceinline CUserCmd*& GetUserCmd()
+    {
+        return *(CUserCmd**)((DWORD)(this) + 0x3348);
+    }
     uint32_t& m_iMostRecentModelBoneCounter();
     void SetCollisionBounds(const Vector& OBBMins, const Vector& OBBMaxs);
     void UpdateCollisionBounds();
@@ -819,14 +830,18 @@ public:
     VarMapping_t* var_mapping();
     c_baseplayeranimationstate* get_animation_state();
     C_CSGOPlayerAnimationState* get_animation_state1();
+    AnimState_s* GetAnimState();
     CStudioHdr* m_pStudioHdr();
     CStudioHdr* GetStudioHdr();
     void SetupBones_AttachmentHelper();
     std::uintptr_t renderable_nem();
     bool setup_bones_nem(matrix3x4_t* const bones, const int max_bones, const int mask, const float time);
+    bool setup_bones1(matrix3x4_t* pBoneToWorldOut, bool safe_matrix = false);
     bool setup_bones(player_t* const player, matrix3x4_t& bones, const float time, const int flags);
     bool setup_bones_rebuilt(matrix3x4_t* matrix, int mask);
     Vector& get_abs_origin();
+    float& m_flCollisionChangeTime();
+    float& m_flCollisionChangeOrigin();
     void force_bone_rebuild();
     bool BuildLocalBones(int matrix = 0xFFF00);
     bool setup_bones_local(matrix3x4_t* pBoneToWorldOut, int nMaxBones, int boneMask, float currentTime, bool record = false);
@@ -845,7 +860,11 @@ public:
     CUserCmd*& m_pCurrentCommand();
     void RunPreThink();
     void RunThink();
+    void SetAsPredictionPlayer();
+    void UnsetAsPredictionPlayer();
+    typedescription_t* GetDatamapEntry(datamap_t* pDatamap, const char* szName);
     Vector get_shoot_position();
+    void modify_eye_position(Vector& eye_position);
     //void modify_eye_position(Vector& eye_position);
     uint32_t& m_fEffects();
     uint32_t& m_iEFlags();
@@ -867,11 +886,13 @@ public:
     Vector m_aimPunchAngleScaled();
     void update_clientside_animation();
     bool is_alive();
+    bool m_bDuckUntilOnGround();
     bool valid(bool check_team, bool check_dormant = true);
     int get_move_type();
     int animlayer_count();
     int sequence_activity(int sequence);
     float get_max_desync_delta();
+    float GetDsyncDelta();
     void invalidate_physics_recursive(int change_flags);
     float GetMaxPlayerSpeed();
 };
@@ -1017,141 +1038,237 @@ struct animstate_pose_param_cache_t
     float	get_value(player_t* pPlayer);
     void	set_value(player_t* pPlayer, float flValue);
 };
+struct aimmatrix_transition_t
+{
+    void Init(void)
+    {
+        m_flDurationStateHasBeenValid = 0;
+        m_flDurationStateHasBeenInValid = 0;
+        m_flHowLongToWaitUntilTransitionCanBlendIn = 0.3f;
+        m_flHowLongToWaitUntilTransitionCanBlendOut = 0.3f;
+        m_flBlendValue = 0;
+    }
+    aimmatrix_transition_t() { Init(); }
 
-
-class C_CSGOPlayerAnimationState
+    float	m_flDurationStateHasBeenValid;
+    float	m_flDurationStateHasBeenInValid;
+    float	m_flHowLongToWaitUntilTransitionCanBlendIn;
+    float	m_flHowLongToWaitUntilTransitionCanBlendOut;
+    float	m_flBlendValue;
+};
+class AnimState_s
 {
 public:
-    void IncrementLayerCycle(int layer, bool is_looping);
-    void IncrementLayerCycleGeneric(int layer);
-    void LayerWeightAdvance(int layer);
-    void SetLayerSequence(AnimationLayer* pAnimationLayer, int iActivity);
-    int SelectSequenceFromActivityModifier(int iActivity);
-
     void* vtable; // 0x0
     bool m_bIsReset; // 0x2
     char pad2[87];
     weapon_t* m_pLastBoneSetupWeapon; //0x5C
     player_t* m_pBaseEntity; //0x60
-    weapon_t* m_pActiveWeapon; //0x64
-    weapon_t* m_pLastActiveWeapon; //0x68
-    float m_flLastClientSideAnimationUpdateTime; //0x6C
-    int m_iLastClientSideAnimationUpdateFramecount; //0x70
-    float m_flUpdateTimeDelta; //0x74
-    float m_flEyeYaw; //0x78
-    float m_flPitch; //0x7C
-    float m_flGoalFeetYaw; //0x80
-    float m_flCurrentFeetYaw; //0x84
-    float m_flCurrentTorsoYaw; //0x88
-    float m_flUnknownVelocityLean; //0x8C //changes when moving/jumping/hitting ground
-    float m_flLeanAmount; //0x90
-    char pad4[4]; //NaN
-    float m_flFeetCycle; //0x98 0 to 1
-    float m_flFeetYawRate; //0x9C 0 to 1
-    float m_fUnknown2;
-    float m_fDuckAmount; //0xA4
-    float m_fLandingDuckAdditiveSomething; //0xA8
-    float m_fUnknown3; //0xAC
-    Vector m_vOrigin; //0xB0, 0xB4, 0xB8
-    Vector m_vLastOrigin; //0xBC, 0xC0, 0xC4
-    float m_vVelocityX; //0xC8
-    float m_vVelocityY; //0xCC
-    char pad5[4];
-    float m_flUnknownFloat1; //0xD4 Affected by movement and direction
-    char pad6[8];
-    float m_flUnknownFloat2; //0xE0 //from -1 to 1 when moving and affected by direction
-    float m_flUnknownFloat3; //0xE4 //from -1 to 1 when moving and affected by direction
-    float m_unknown; //0xE8
-    float m_velocity; //0xEC
-    float flUpVelocity; //0xF0
-    float m_flSpeedNormalized; //0xF4 //from 0 to 1
-    float m_flFeetSpeedForwardsOrSideWays; //0xF8 //from 0 to 2. something  is 1 when walking, 2.something when running, 0.653 when crouch walking
-    float m_flFeetSpeedUnknownForwardOrSideways; //0xFC //from 0 to 3. something
-    float m_flTimeSinceStartedMoving; //0x100
-    float m_flTimeSinceStoppedMoving; //0x104
-    bool m_bOnGround; //0x108
-    bool m_bInHitGroundAnimation; //0x109
-    char pad7[10];
-    float m_flLastOriginZ; //0x114
-    float m_flHeadHeightOrOffsetFromHittingGroundAnimation; //0x118 from 0 to 1, is 1 when standing
-    float m_flStopToFullRunningFraction; //0x11C from 0 to 1, doesnt change when walking or crouching, only running
-    char pad8[4]; //NaN
-    float m_flMovingFraction; //0x124 affected while jumping and running, or when just jumping, 0 to 1
-    float m_flLadderWeight; //0x0128
-    float m_flLadderSpeed;
-    bool m_bWalkToRunTransitionState;
-    bool m_bDefuseStarted;
-    bool m_bPlantAnimStarted;
-    bool m_bTwitchAnimStarted;
-    bool m_bAdjustStarted;
-    char m_pActivityModfiersServer[20];
-    float m_flNextTwitchTime;
-    float m_flTimeOfLastKnownInjury;
-    float m_flLastVelocityTestTime;
-    Vector m_vLastVelocity;
-    Vector m_vTargetAcceleration;
-    Vector m_vAcceleration;
-    float m_flAccelerationWeight;
-    float m_flAimMatrixTransition;
-    float m_flAimMatrixTransitionDelay;
-    bool m_bFlashed;
-    float m_flStrafeChangeWeight;
-    float m_flStrafeChangeTargetWeight;
-    float m_flStrafeChangeCycle;
-    int	m_iStrafeSequence;
-    bool m_bStrafeChanging;
-    float m_flStrafingDuration;
-    float m_flFootLerp;
-    bool m_bFeetCrossed;
-    bool m_bPlayerIsAccelerating;
-    animstate_pose_param_cache_t m_pPoseParamMappings[20]; // PLAYER_POSE_PARAM_COUNT
-    float m_flDurationMoveWeightIsTooHigh;
-    float m_flStaticApproachSpeed;
-    int m_iPreviousMoveState;
-    float m_flStutterStep;
-    float m_flActionWeightBiasModifier;
-    Vector m_vFootLeftPosAnim;
-    Vector m_vFootLeftPosAnimLast;
-    Vector m_vFootLeftPosPlant;
-    Vector m_vFootLeftPlantVel;
-    float m_flFootLeftLockAmount;
-    float m_flFootLeftLastPlantTime;
-    Vector m_vFootRightPosAnim;
-    Vector m_vFootRightPosAnimLast;
-    Vector m_vFootRightPosPlant;
-    Vector m_vFootRightPlantVel;
-    float m_flFootRightLockAmount;
-    float m_flFootRightLastPlantTime;
-    float m_flCameraSmoothHeight;
-    bool m_bSmoothHeightValid_;
-    float m_flLastTimeVelocityOverTen;
-    float m_flAimYawMin;//0x0330
-    float m_flAimYawMax;//0x0334
-    float m_flAimPitchMin;
-    float m_flAimPitchMax;
-    int m_iAnimStateModelVersion;
+    LPVOID					m_pWeapon;
+    LPVOID					m_pWeaponLast;
+    float					m_flLastUpdateTime;
+    int						m_nLastUpdateFrame;
+    float					m_flLastUpdateIncrement;
+    float					m_flEyeYaw;
+    float					m_flEyePitch;
+    float					m_flFootYaw;
+    float					m_flFootYawLast;
+    float					m_flMoveYaw;
+    float					m_flMoveYawIdeal;
+    float					m_flMoveYawCurrentToIdeal;
+    float					m_flTimeToAlignLowerBody;
+    float					m_flPrimaryCycle;
+    float					m_flMoveWeight;
+    float					m_flMoveWeightSmoothed;
+    float					m_flAnimDuckAmount;
+    float					m_flDuckAdditional;
+    float					m_flRecrouchWeight;
+    Vector					m_vecPositionCurrent;
+    Vector					m_vecPositionLast;
+    Vector					m_vecVelocity;
+    Vector					m_vecVelocityNormalized;
+    Vector					m_vecVelocityNormalizedNonZero;
+    float					m_flVelocityLengthXY;
+    float					m_flVelocityLengthZ;
+    float					m_flSpeedAsPortionOfRunTopSpeed;
+    float					m_flSpeedAsPortionOfWalkTopSpeed;
+    float					m_flSpeedAsPortionOfCrouchTopSpeed;
+    float					m_flDurationMoving;
+    float					m_flDurationStill;
+    bool					m_bOnGround;
+    bool					m_bLanding;
+    char					m_pad[2];
+    float					m_flJumpToFall;
+    float					m_flDurationInAir;
+    float					m_flLeftGroundHeight;
+    float					m_flLandAnimMultiplier;
+    float					m_flWalkToRunTransition;
+    bool					m_bLandedOnGroundThisFrame;
+    bool					m_bLeftTheGroundThisFrame;
+    float					m_flInAirSmoothValue;
+    bool					m_bOnLadder;
+    float					m_flLadderWeight;
+    float					m_flLadderSpeed;
+    bool					m_bWalkToRunTransitionState;
+    bool					m_bDefuseStarted;
+    bool					m_bPlantAnimStarted;
+    bool					m_bTwitchAnimStarted;
+    bool					m_bAdjustStarted;
+    char					m_ActivityModifiers[20];
+    float					m_flNextTwitchTime;
+    float					m_flTimeOfLastKnownInjury;
+    float					m_flLastVelocityTestTime;
+    Vector					m_vecVelocityLast;
+    Vector					m_vecTargetAcceleration;
+    Vector					m_vecAcceleration;
+    float					m_flAccelerationWeight;
+    float					m_flAimMatrixTransition;
+    float					m_flAimMatrixTransitionDelay;
+    bool					m_bFlashed;
+    float					m_flStrafeChangeWeight;
+    float					m_flStrafeChangeTargetWeight;
+    float					m_flStrafeChangeCycle;
+    int						m_nStrafeSequence;
+    bool					m_bStrafeChanging;
+    float					m_flDurationStrafing;
+    float					m_flFootLerp;
+    bool					m_bFeetCrossed;
+    bool					m_bPlayerIsAccelerating;
+    AnimstatePose_t			m_tPoseParamMappings[20];
+    float					m_flDurationMoveWeightIsTooHigh;
+    float					m_flStaticApproachSpeed;
+    int						m_nPreviousMoveState;
+    float					m_flStutterStep;
+    float					m_flActionWeightBiasRemainder;
+    procedural_foot_t		m_footLeft;
+    procedural_foot_t		m_footRight;
+    float					m_flCameraSmoothHeight;
+    bool					m_bSmoothHeightValid;
+    float					m_flLastTimeVelocityOverTen;
+    float					m_flFuckValve;
+    float					m_flAimYawMin;
+    float					m_flAimYawMax;
+    float					m_flAimPitchMin;
+    float					m_flAimPitchMax;
+    int						m_nAnimstateModelVersion;
 
-    float& m_flHitGroundCycle() {
-        return *(float*)(uintptr_t(this) + 0xA8);
-    }
-
-    bool& m_bHitGroundAnimation() {
-        return *(bool*)(uintptr_t(this) + 0x109);
-    }
-
-    bool& m_bSmoothHeightValid() {
-        return *(bool*)(uintptr_t(this) + 0x328);
-    }
-
-    float& m_flInAirTime()
-    {
-        return *(float*)((uintptr_t)this + 0x110);
-    }
-
-    float& yaw_desync_adjustment()
-    {
-        return *(float*)((uintptr_t)this + 0x334);
-    }
+    void Reset();
+    int SelectSequenceFromActivityModifier(int iActivity);
+    bool IsLayerSequenceFinished(AnimationLayer* pAnimationLayer, float flTime);
+    void SetLayerSequence(AnimationLayer* pAnimationLayer, int iActivity);
+    void SetLayerCycle(AnimationLayer* pAnimationLayer, float flCycle);
+    void SetLayerRate(AnimationLayer* pAnimationLayer, float flRate);
+    void SetLayerWeight(AnimationLayer* pAnimationLayer, float flWeight);
+    void SetLayerWeightRate(AnimationLayer* pAnimationLayer, float flWeightRate);
+    void IncrementLayerCycle(AnimationLayer* pAnimationLayer, bool bIsLoop);
+}; // 840
+class C_CSGOPlayerAnimationState
+{
+public:
+    void set_layer_sequence(AnimationLayer* animlayer, int activity);
+    int select_sequence_from_activity_modifier(int activity);
+    void increment_layer_cycle(AnimationLayer* Layer, bool is_loop);
+    bool is_layer_sequence_finished(AnimationLayer* layer, float time);
+    void set_layer_cycle(AnimationLayer* animlayer, float cycle);
+    void set_layer_rate(AnimationLayer* animlayer, float rate);
+    void set_layer_weight(AnimationLayer* animlayer, float weight);
+    void* m_pThis; // 0x0
+    bool					m_bIsReset; // 0x2
+    bool					m_bUnknownClientBoolean; // 0x3B // am i retarded or why is this thing skips so many number.
+    char					m_aSomePad[2]; // 0x3F
+    int32_t					m_nTick; // 0x45
+    float_t					m_flFlashedStartTime; // 0x49
+    float_t					m_flFlashedEndTime; // 0x4D
+    C_AimLayers				m_AimLayers; // 0x51
+    int32_t					m_iModelIndex; // 0x55
+    int32_t					m_iUnknownArray[3]; // 0x59
+    player_t* m_pBasePlayer; //0x60
+    weapon_t* m_pWeapon; //0x64
+    weapon_t* m_pWeaponLast; //0x68
+    float					m_flLastUpdateTime; //0x6C
+    int						m_nLastUpdateFrame; //0x70
+    float					m_flLastUpdateIncrement; //0x74
+    float					m_flEyeYaw; //0x78
+    float					m_flEyePitch; //0x7C
+    float					m_flFootYaw; //0x80
+    float					m_flFootYawLast; //0x84
+    float					m_flMoveYaw; //0x88
+    float					m_flMoveYawIdeal; //0x8C
+    float					m_flMoveYawCurrentToIdeal; //0x90
+    float					m_flTimeToAlignLowerBody; // 0x94
+    float					m_flPrimaryCycle; // 0x98
+    float					m_flMoveWeight; // 0x9C
+    float					m_flMoveWeightSmoothed; // 0xA0
+    float					m_flAnimDuckAmount; // 0xA4
+    float					m_flDuckAdditional; // 0xA8
+    float					m_flRecrouchWeight; //0xAC
+    Vector					m_vecPositionCurrent; //0xB0, 0xB4, 0xB8
+    Vector					m_vecPositionLast; //0xBC, 0xC0, 0xC4
+    Vector					m_vecVelocity; // 0xC8, 0xCC, 0xD0
+    Vector					m_vecVelocityNormalized; // 0xD4, 0xD8, 0xDC
+    Vector					m_vecVelocityNormalizedNonZero; // 0xE0, 0xE4, 0xE8
+    float					m_flVelocityLengthXY; // 0xEC
+    float					m_flVelocityLengthZ; // 0xF0
+    float					m_flSpeedAsPortionOfRunTopSpeed; // 0xF4
+    float					m_flSpeedAsPortionOfWalkTopSpeed; // 0xF8
+    float					m_flSpeedAsPortionOfCrouchTopSpeed; // 0xFC
+    float					m_flDurationMoving; // 0x100
+    float					m_flDurationStill; // 0x104
+    bool					m_bOnGround; // 0x108
+    bool					m_bLanding; // 0x109
+    char					m_pad[2]; // 0x10E
+    float					m_flJumpToFall; // 0x10C
+    float					m_flDurationInAir; // 0x110
+    float					m_flLeftGroundHeight; // 0x114
+    float					m_flLandAnimMultiplier; // 0x118 
+    float					m_flWalkToRunTransition; // 0x11C
+    bool					m_bLandedOnGroundThisFrame; // 0x120
+    bool					m_bLeftTheGroundThisFrame; // 0x124
+    float					m_flInAirSmoothValue; // 0x128
+    bool					m_bOnLadder; // 0x12C
+    float					m_flLadderWeight; // 0x128
+    float					m_flLadderSpeed;
+    bool					m_bWalkToRunTransitionState;
+    bool					m_bDefuseStarted;
+    bool					m_bPlantAnimStarted;
+    bool					m_bTwitchAnimStarted;
+    bool					m_bAdjustStarted;
+    char					m_ActivityModifiers[20];
+    float					m_flNextTwitchTime;
+    float					m_flTimeOfLastKnownInjury;
+    float					m_flLastVelocityTestTime;
+    Vector					m_vecVelocityLast;
+    Vector					m_vecTargetAcceleration;
+    Vector					m_vecAcceleration;
+    float					m_flAccelerationWeight;
+    float					m_flAimMatrixTransition;
+    float					m_flAimMatrixTransitionDelay;
+    bool					m_bFlashed;
+    float					m_flStrafeChangeWeight;
+    float					m_flStrafeChangeTargetWeight;
+    float					m_flStrafeChangeCycle;
+    int						m_nStrafeSequence;
+    bool					m_bStrafeChanging;
+    float					m_flDurationStrafing;
+    float					m_flFootLerp;
+    bool					m_bFeetCrossed;
+    bool					m_bPlayerIsAccelerating;
+    AnimstatePose_t			m_tPoseParamMappings[20];
+    float					m_flDurationMoveWeightIsTooHigh;
+    float					m_flStaticApproachSpeed;
+    int						m_nPreviousMoveState;
+    float					m_flStutterStep;
+    float					m_flActionWeightBiasRemainder;
+    procedural_foot_t		m_footLeft;
+    procedural_foot_t		m_footRight;
+    float					m_flCameraSmoothHeight;
+    bool					m_bSmoothHeightValid;
+    float					m_flLastTimeVelocityOverTen;
+    float					m_flAimYawMin;
+    float					m_flAimYawMax;
+    float					m_flAimPitchMin;
+    float					m_flAimPitchMax;
+    int						m_nAnimstateModelVersion;
 };
 
 

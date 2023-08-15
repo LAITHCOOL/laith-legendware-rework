@@ -29,6 +29,8 @@ namespace math {
 	void angle_vectors(const Vector& angles, Vector& forward);
 	void angle_vectors(const Vector& angles, Vector* forward, Vector* right, Vector* up);
 	void vector_angles(const Vector& forward, Vector& angles);
+	void vector_to_angles(Vector forward, Vector& angles);
+	void angle_to_vectors(const Vector& angles, Vector* forward, Vector* right = nullptr, Vector* up = nullptr);
 	void vector_angles(const Vector& forward, Vector& up, Vector& angles);
 	void VectorMAInline(const float* start, float scale, const float* direction, float* dest);
 	void VectorMAInline(const Vector& start, float scale, const Vector& direction, Vector& dest);
@@ -73,6 +75,8 @@ namespace math {
 	void VectorAngles3(const Vector& forward, QAngle& angles, Vector* up = nullptr);
 
 	void VectorAngles1(const Vector& forward, QAngle& angles, Vector* up);
+
+	float ApproachAngle(float target, float value, float speed);
 
 	void SinCos(float radians, float* sine, float* cosine);
 	void AngleVectors(const Vector& angles, Vector* forward);

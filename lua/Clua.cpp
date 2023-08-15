@@ -1288,18 +1288,6 @@ void c_lua::initialize()
 		crypt_str("in_lookspin"), IN_LOOKSPIN
 	);
 
-	lua.new_usertype <shot_info> (crypt_str("shot_info"), sol::constructors <> (), 
-		(std::string)crypt_str("target_name"), &shot_info::target_name, 
-		(std::string)crypt_str("result"), &shot_info::result, 
-		(std::string)crypt_str("client_hitbox"), &shot_info::client_hitbox, 
-		(std::string)crypt_str("server_hitbox"), &shot_info::server_hitbox,
-		(std::string)crypt_str("client_damage"), &shot_info::client_damage,
-		(std::string)crypt_str("server_damage"), &shot_info::server_damage,
-		(std::string)crypt_str("hitchance"), &shot_info::hitchance,
-		(std::string)crypt_str("backtrack_ticks"), &shot_info::backtrack_ticks,
-		(std::string)crypt_str("aim_point"), &shot_info::aim_point
-	);
-
 	auto client = lua.create_table();
 	client[crypt_str("add_callback")] = ns_client::add_callback;
 	client[crypt_str("load_script")] = ns_client::load_script;

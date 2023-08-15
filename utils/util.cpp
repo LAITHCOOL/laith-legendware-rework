@@ -113,7 +113,7 @@ namespace util
 		return m_inputsys()->IsButtonDown((ButtonCode_t)code);
 	}
 
-
+	
 	void movement_fix_new(Vector& wish_angle, CUserCmd* m_pcmd)
 	{
 
@@ -246,7 +246,7 @@ namespace util
 					continue;
 
 				if (!strcmp(name, map->dataDesc[i].fieldName))
-					return map->dataDesc[i].fieldOffset[TD_OFFSET_NORMAL];
+					return map->dataDesc[i].fieldOffset;
 
 				if (map->dataDesc[i].fieldType == FIELD_EMBEDDED)
 				{
@@ -450,6 +450,9 @@ namespace util
 			if (!record->valid())
 				continue;
 
+			if (record->velocity.Length2D() < 0.1f)
+				continue;
+
 			if (record->origin.DistTo(e->GetAbsOrigin()) < 1.0f)
 				return false;
 
@@ -637,5 +640,60 @@ namespace util
 			ratio = math::clamp(ratio, cmin->GetFloat(), cmax->GetFloat());
 
 		return max(lerp, ratio / updaterate);
+	}
+
+	bool is_valid_hitgroup(int index)
+	{
+		if ((index >= HITGROUP_HEAD && index <= HITGROUP_RIGHTLEG) || index == HITGROUP_GEAR)
+			return true;
+
+		return false;
+	}
+
+	bool is_breakable_entity(IClientEntity* e)
+	{
+		if (!e || !e->EntIndex())
+			return false;
+		static auto is_breakable = util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 51 56 8B F1 85 F6 74 68"));
+
+		auto take_damage = *(uintptr_t*)((uintptr_t)is_breakable + 0x26);
+		auto backup = *(uint8_t*)((uintptr_t)e + take_damage);
+
+		auto client_class = e->GetClientClass();
+		auto network_name = client_class->m_pNetworkName;
+
+		if (!strcmp(network_name, crypt_str("CBreakableSurface")))
+			*(uint8_t*)((uintptr_t)e + take_damage) = DAMAGE_YES;
+		else if (!strcmp(network_name, crypt_str("CBaseDoor")) || !strcmp(network_name, crypt_str("CDynamicProp")))
+			*(uint8_t*)((uintptr_t)e + take_damage) = DAMAGE_NO;
+
+		using Fn = bool(__thiscall*)(IClientEntity*);
+		auto result = ((Fn)is_breakable)(e);
+
+		*(uint8_t*)((uintptr_t)e + take_damage) = backup;
+		return result;
+	}
+
+	int get_hitbox_by_hitgroup(int index)
+	{
+		switch (index)
+		{
+		case HITGROUP_HEAD:
+			return HITBOX_HEAD;
+		case HITGROUP_CHEST:
+			return HITBOX_CHEST;
+		case HITGROUP_STOMACH:
+			return HITBOX_STOMACH;
+		case HITGROUP_LEFTARM:
+			return HITBOX_LEFT_HAND;
+		case HITGROUP_RIGHTARM:
+			return HITBOX_RIGHT_HAND;
+		case HITGROUP_LEFTLEG:
+			return HITBOX_RIGHT_CALF;
+		case HITGROUP_RIGHTLEG:
+			return HITBOX_LEFT_CALF;
+		default:
+			return HITBOX_PELVIS;
+		}
 	}
 }

@@ -14,6 +14,7 @@
 #include "..\..\cheats\visuals\dormant_esp.h"
 #include "..\..\cheats\lagcompensation\local_animations.h"
 #include "../../cheats/tickbase shift/tickbase_shift.h"
+#include "../../cheats/lagcompensation/LocalAnimFix.hpp"
 using PaintTraverse_t = void(__thiscall*)(void*, vgui::VPANEL, bool, bool);
 
 bool reload_fonts()
@@ -74,6 +75,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 
 		for (auto i = 1; i < 65; i++)
 		{
+
 			g_ctx.globals.fired_shots[i] = 0;
 			//g_ctx.globals.missed_shots[i] = 0;
 			g_ctx.globals.missed_shots_spread[i] = 0;
@@ -84,12 +86,11 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			c_dormant_esp::get().m_cSoundPlayers[i].reset();
 			otheresp::get().damage_marker[i].reset();
 		}
+		//local_animations::get().reset_data();
+		//local_animations::get().local_data.real_animstate = nullptr;
 
 
-		local_animations::get().local_data.animstate = nullptr;
-		local_animations::get().local_data.real_animstate = nullptr;
-
-		antiaim::get().freeze_check = false;
+		g_AntiAim->freeze_check = false;
 		g_ctx.globals.next_lby_update = FLT_MIN;
 		g_ctx.globals.last_lby_move = FLT_MIN;
 		g_ctx.globals.last_aimbot_shot = 0;
@@ -101,7 +102,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 		g_ctx.globals.should_update_gamerules = true;
 		g_ctx.globals.should_update_radar = true;
 		g_ctx.globals.kills = 0;
-		g_ctx.shots.clear();
+
 		otheresp::get().hitmarker.hurt_time = FLT_MIN;
 		otheresp::get().hitmarker.point = ZERO;
 		g_ctx.globals.commands.clear();
@@ -111,7 +112,8 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 	else if (in_game && !m_engine()->IsInGame())
 	{
 		in_game = false;
-
+		g_LocalAnimations->ResetData();
+		g_Networking->reset_data();
 		g_ctx.globals.should_update_weather = true;
 		g_ctx.globals.m_networkable = nullptr;
 
@@ -186,9 +188,9 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 					g_ctx.globals.fired_shots[i] = 0;
 					//g_ctx.globals.missed_shots[i] = 0;
 				}
-				local_animations::get().local_data.animstate = nullptr;
-				local_animations::get().local_data.real_animstate = nullptr;
-
+				local_animations::get().local_data.fake_animstate = nullptr;
+				//local_animations::get().local_data.real_animstate = nullptr;
+				g_LocalAnimations->ResetData();
 				g_ctx.globals.weapon = nullptr;
 				g_ctx.globals.should_choke_packet = false;
 				g_ctx.globals.should_send_packet = false;
@@ -207,8 +209,8 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			if (g_cfg.esp.local_trail)
 				otheresp::get().AddTrails();
 
-			misc::get().zeus_range();
-			misc::get().desync_arrows();
+			g_Misc->zeus_range();
+			g_Misc->desync_arrows();
 
 			static std::vector <const char*> molly_materials =
 			{
@@ -240,7 +242,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			auto weapon = g_ctx.local()->m_hActiveWeapon().Get();
 
 			if (weapon->is_grenade() && g_cfg.esp.grenade_prediction && g_cfg.player.enable)
-				GrenadePrediction::get().Paint();
+				g_GrenadePrediction->Paint();
 
 			if (g_cfg.player.enable && g_cfg.esp.removals[REMOVALS_SCOPE] && g_ctx.globals.scoped && weapon->is_sniper())
 			{
@@ -288,7 +290,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			otheresp::get().penetration_reticle();
 			otheresp::get().automatic_peek_indicator();
 
-			misc::get().ChatSpammer();
+			g_Misc->ChatSpammer();
 			bullettracers::get().draw_beams();
 		}
 
@@ -381,7 +383,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			m_cvar()->FindVar("@panorama_disable_blur")->SetValue(false);
 
 		eventlogs::get().paint_traverse();
-		misc::get().NightmodeFix();
+		g_Misc->NightmodeFix();
 
 		if (g_ctx.globals.loaded_script)
 			for (auto current : c_lua::get().hooks.getHooks("on_paint"))

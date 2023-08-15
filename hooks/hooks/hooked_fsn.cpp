@@ -14,6 +14,9 @@
 #include "..\..\cheats\lagcompensation\local_animations.h"
 #include "../../cheats/ragebot/aim.h"
 #include "../../cheats/misc/ShotSystem.hpp"
+#include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
+#include "../../cheats/prediction/EnginePrediction.h"
+#include "../../cheats/ragebot/shots.h"
 //#include "../../cheats/lagcompensation/new animfix/BoneManager.h"
 //#include "../../cheats/lagcompensation/new animfix/Animations.h"
 //#include "../../cheats/lagcompensation/new animfix/Networking.h"
@@ -146,11 +149,15 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 		//g_LagCompensation::ResetData();
 		//g_Networking->ResetData();
 		nightmode::get().clear_stored_materials();
+		shots::get().clear_stored_data();
 		return original_fn(stage);
 	}
 
 	if (stage == FRAME_START)
 		key_binds::get().update_key_binds();
+
+
+
 
 	aim_punch = nullptr;
 	view_punch = nullptr;
@@ -161,13 +168,15 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 	if (g_ctx.globals.updating_skins && m_clientstate()->iDeltaTick > 0) //-V807
 		g_ctx.globals.updating_skins = false;
 
+
+
 	SkinChanger::run(stage);
-	//aim::get().PVSFix(stage);
+	//g_Ragebot->PVSFix(stage);
 	//local_animations::get().run(stage);
-
+	//local_animations::get().run(stage);
 	//engine_prediction::UpdateVelocityModifier();
-	engineprediction::get().OnFrameStageNotify(stage);
-
+	//engineprediction::get().OnFrameStageNotify(stage);
+	g_EnginePrediction->ModifyDatamap();
 	if (stage == FRAME_NET_UPDATE_POSTDATAUPDATE_START && g_ctx.local()->is_alive()) //-V522 //-V807
 	{
 		static auto old_flNextCmdTime = 0.0f;
@@ -193,20 +202,20 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 			old_iLastCommandAck = m_iLastCommandAck;
 		}
 
-		auto viewmodel = g_ctx.local()->m_hViewModel().Get();
+		//auto viewmodel = g_ctx.local()->m_hViewModel().Get();
 
-		if (viewmodel && engineprediction::get().viewmodel_data.weapon == viewmodel->m_hWeapon().Get() && engineprediction::get().viewmodel_data.sequence == viewmodel->m_nSequence() && engineprediction::get().viewmodel_data.animation_parity == viewmodel->m_nAnimationParity()) //-V807
-		{
-			viewmodel->m_flCycle() = engineprediction::get().viewmodel_data.cycle;
-			viewmodel->m_flAnimTime() = engineprediction::get().viewmodel_data.animation_time;
-		}
+		//if (viewmodel && engineprediction::get().viewmodel_data.weapon == viewmodel->m_hWeapon().Get() && engineprediction::get().viewmodel_data.sequence == viewmodel->m_nSequence() && engineprediction::get().viewmodel_data.animation_parity == viewmodel->m_nAnimationParity()) //-V807
+		//{
+		//	viewmodel->m_flCycle() = engineprediction::get().viewmodel_data.cycle;
+		//	viewmodel->m_flAnimTime() = engineprediction::get().viewmodel_data.animation_time;
+		//}
 	}
 
 	if (stage == FRAME_RENDER_START)
 	{
 		//g_Networking->ProcessInterpolation(false);
 
-		misc::get().draw_server_hitboxes();
+		g_Misc->draw_server_hitboxes();
 		if (g_cfg.esp.client_bullet_impacts)
 		{
 			static auto last_count = 0;
@@ -220,7 +229,7 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 		}
 
 		remove_smoke();
-		misc::get().ragdolls();
+		g_Misc->ragdolls();
 
 		if (g_cfg.esp.removals[REMOVALS_FLASH] && g_ctx.local()->m_flFlashDuration() && g_cfg.player.enable)
 			g_ctx.local()->m_flFlashDuration() = 0.0f;
@@ -322,6 +331,9 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 			m_engine()->GetPlayerInfo(i, &player_info);
 
 			g_cfg.player_list.players.emplace_back(Player_list_data(i, player_info.szName));
+
+			AimPlayer* data = & g_Ragebot->m_players[i];
+			data->OnNetUpdate(e);
 		}
 
 		g_cfg.player_list.refreshing = false;
@@ -347,9 +359,9 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 		worldesp::get().skybox_changer();
 		worldesp::get().fog_changer();
 
-		misc::get().DrawGray();
-		misc::get().FullBright();
-		misc::get().ViewModel();
+		g_Misc->DrawGray();
+		g_Misc->FullBright();
+		g_Misc->ViewModel();
 
 		static auto cl_foot_contact_shadows = m_cvar()->FindVar(crypt_str("cl_foot_contact_shadows")); //-V807
 
@@ -390,8 +402,8 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 		worldesp::get().skybox_changer();
 		worldesp::get().fog_changer();
 
-		misc::get().FullBright();
-		misc::get().ViewModel();
+		g_Misc->FullBright();
+		g_Misc->ViewModel();
 
 		static auto cl_foot_contact_shadows = m_cvar()->FindVar(crypt_str("cl_foot_contact_shadows"));
 
@@ -415,91 +427,18 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 
 	if (stage == FRAME_NET_UPDATE_END)
 	{
-		auto current_shot = g_ctx.shots.end();
-
-		auto net_channel = m_engine()->GetNetChannelInfo();
-		auto latency = net_channel ? net_channel->GetLatency(FLOW_OUTGOING) + net_channel->GetLatency(FLOW_INCOMING) + 1.0f : 0.0f;
-
-		for (auto& shot = g_ctx.shots.begin(); shot != g_ctx.shots.end(); ++shot)
-		{
-			if (shot->end)
-			{
-				current_shot = shot;
-				break;
-			}
-			else if (shot->impacts && m_globals()->m_tickcount - 1 > shot->event_fire_tick)
-			{
-				current_shot = shot;
-				current_shot->end = true;
-				break;
-			}
-			else if (g_ctx.globals.backup_tickbase - TIME_TO_TICKS(latency) > shot->fire_tick)
-			{
-				current_shot = shot;
-				current_shot->end = true;
-				current_shot->latency = true;
-				break;
-			}
-		}
-
-		if (current_shot != g_ctx.shots.end())
-		{
-			if (!current_shot->latency)
-			{
-				current_shot->shot_info.should_log = true;
-
-				if (!current_shot->hurt_player)
-				{
-					misc::get().aimbot_hitboxes();
-
-					if (current_shot->impact_hit_player)
-					{
-						current_shot->shot_info.result = crypt_str("Resolver");
-						//adjust_data* lol;
-						auto s = lagcompensation::get().player_resolver[current_shot->last_target].type;
-						//++g_ctx.globals.restype[lagcompensation::get().player_resolver[current_shot->last_target].type].missed_shots[current_shot->last_target];
-						++g_ctx.globals.missed_shots[current_shot->last_target]; //-V807
-
-						lagcompensation::get().player_resolver[current_shot->last_target].last_side = (resolver_side)current_shot->side;
-
-
-						if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
-							eventlogs::get().add(crypt_str("Missed | Resolver"));
-
-					}
-					else if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
-					{
-						current_shot->shot_info.result = crypt_str("Spread");
-
-						if (current_shot->occlusion)
-							eventlogs::get().add(crypt_str("Missed | Occlusion"));
-						else if (current_shot->shot_info.hitchance == 100)
-							eventlogs::get().add(crypt_str("Missed | Prediction Error"));
-						else
-							eventlogs::get().add(crypt_str("Missed | Spread"));
-					}
-				}
-			}
-
-			if (g_ctx.globals.loaded_script && current_shot->shot_info.should_log)
-			{
-				current_shot->shot_info.should_log = false;
-
-				for (auto current : c_lua::get().hooks.getHooks(crypt_str("on_shot")))
-					current.func(current_shot->shot_info);
-			}
-
-			g_ctx.shots.erase(current_shot);
-		}
+		shots::get().on_fsn();
 	}
 		
 	
 
-	lagcompensation::get().fsn(stage);
 
-	//networking::get().process_interpolation(stage, false);
+	lagcompensation::get().fsn(stage);
+	//C_LagComp::get().RunLagComp(stage);
+
+	g_Networking->process_interpolation(stage, false);
 	original_fn(stage);
-	//networking::get().process_interpolation(stage, true);
+	g_Networking->process_interpolation(stage, true);
 
 	if (g_cfg.player.enable && g_cfg.esp.removals[REMOVALS_RECOIL] && g_ctx.local()->is_alive() && aim_punch && view_punch)
 	{
@@ -534,4 +473,6 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 	}
 	else
 		death_notice = 0;
+
+	return g_EnginePrediction->OnFrameStageNotify(stage);
 }

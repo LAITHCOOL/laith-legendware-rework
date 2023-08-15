@@ -10,6 +10,7 @@
 #include "..\visuals\hitchams.h"
 #include "../menu_alpha.h"
 #include "../tickbase shift/tickbase_shift.h"
+#include "../prediction/EnginePrediction.h"
 
 #define ALPHA (ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar| ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_Float)
 #define NOALPHA (ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_Float)
@@ -174,13 +175,13 @@ void misc::ChatSpammer()
 
 void misc::AutoCrouch(CUserCmd* cmd)
 {
-	if (fakelag::get().condition)
+	if (g_Fakelag->condition)
 	{
 		g_ctx.globals.fakeducking = false;
 		return;
 	}
 
-	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 	{
 		g_ctx.globals.fakeducking = false;
 		return;
@@ -217,10 +218,10 @@ void misc::SlideWalk(CUserCmd* cmd)
 	if (g_ctx.local()->get_move_type() == MOVETYPE_LADDER)
 		return;
 
-	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND &&g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 		return;
 
-	if (antiaim::get().condition(cmd, true) && (g_cfg.misc.legs_movement == 2 && math::random_int(0, 2) == 0 || g_cfg.misc.legs_movement == 1))
+	if (g_AntiAim->condition(cmd, true) && (g_cfg.misc.legs_movement == 2 && math::random_int(0, 2) == 0 || g_cfg.misc.legs_movement == 1))
 	{
 		if (cmd->m_forwardmove > 0.0f)
 		{
@@ -250,7 +251,7 @@ void misc::SlideWalk(CUserCmd* cmd)
 
 		if (g_cfg.misc.legs_movement == 2 && math::random_int(0, 1) || g_cfg.misc.legs_movement == 1)
 		{
-			if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+			if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND &&g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 				return;
 
 			if (cmd->m_forwardmove <= 0.0f)
@@ -268,7 +269,7 @@ void misc::SlideWalk(CUserCmd* cmd)
 		else
 			goto LABEL_18;
 
-		if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+		if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND &&g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 			return;
 
 		if (cmd->m_forwardmove <= 0.0f) //-V779
@@ -444,7 +445,7 @@ void misc::zeus_range()
 
 	float circle_range = weapon_info->flRange / 3;
 
-	auto draw_pos = g_ctx.local()->get_shoot_position();
+	auto draw_pos = g_ctx.globals.eye_pos;
 
 	draw_pos.z -= 54;
 	render::get().Draw3DCircle(draw_pos, circle_range, Color(g_cfg.esp.zeus_color.r(), g_cfg.esp.zeus_color.g(), g_cfg.esp.zeus_color.b(), 255));
@@ -531,7 +532,7 @@ void misc::desync_arrows()
 		return;
 
 	if ((g_cfg.antiaim.manual_back.key <= KEY_NONE || g_cfg.antiaim.manual_back.key >= KEY_MAX) && (g_cfg.antiaim.manual_left.key <= KEY_NONE || g_cfg.antiaim.manual_left.key >= KEY_MAX) && (g_cfg.antiaim.manual_right.key <= KEY_NONE || g_cfg.antiaim.manual_right.key >= KEY_MAX))
-		antiaim::get().manual_side = SIDE_NONE;
+		g_AntiAim->manual_side = SIDE_NONE;
 
 	if (!g_cfg.antiaim.flip_indicator)
 		return;
@@ -546,12 +547,12 @@ void misc::desync_arrows()
 
 	auto color = g_cfg.antiaim.flip_indicator_color;
 
-	if (antiaim::get().manual_side == SIDE_LEFT)
+	if (g_AntiAim->manual_side == SIDE_LEFT)
 	{
 		render::get().triangle(Vector2D(width / 2 - 55, height / 2 + 10), Vector2D(width / 2 - 75, height / 2), Vector2D(width / 2 - 55, height / 2 - 10), color);
 		render::get().triangle(Vector2D(width / 2 + 55, height / 2 - 10), Vector2D(width / 2 + 75, height / 2), Vector2D(width / 2 + 55, height / 2 + 10), Color(55, 55, 55, 189));
 	}
-	else if (antiaim::get().manual_side == SIDE_RIGHT)
+	else if (g_AntiAim->manual_side == SIDE_RIGHT)
 	{
 		render::get().triangle(Vector2D(width / 2 - 55, height / 2 + 10), Vector2D(width / 2 - 75, height / 2), Vector2D(width / 2 - 55, height / 2 - 10), Color(55, 55, 55, 189));
 		render::get().triangle(Vector2D(width / 2 + 55, height / 2 - 10), Vector2D(width / 2 + 75, height / 2), Vector2D(width / 2 + 55, height / 2 + 10), color);
@@ -562,7 +563,7 @@ void misc::desync_arrows()
 		render::get().triangle(Vector2D(width / 2 + 55, height / 2 - 10), Vector2D(width / 2 + 75, height / 2), Vector2D(width / 2 + 55, height / 2 + 10), Color(55, 55, 55, 189));
 	}
 }
-
+#include "../ragebot/aim.h"
 void misc::aimbot_hitboxes()
 {
 	if (!g_cfg.player.enable)
@@ -571,7 +572,7 @@ void misc::aimbot_hitboxes()
 	if (!g_cfg.player.lag_hitbox)
 		return;
 
-	auto player = (player_t*)m_entitylist()->GetClientEntity(aim::get().last_target_index);
+	auto player = (player_t*)m_entitylist()->GetClientEntity(g_Ragebot->m_target->EntIndex());
 
 	if (!player)
 		return;
@@ -591,9 +592,9 @@ void misc::aimbot_hitboxes()
 	if (!hitbox_set)
 		return;
 
-	hit_chams::get().add_matrix(player, aim::get().last_target[aim::get().last_target_index].record.m_Matricies[2].data());
-	//hit_chams::get().add_matrix(player, aim::get().last_target[aim::get().last_target_index].record.m_Matricies[1].data());
-	//hit_chams::get().add_matrix(player, aim::get().last_target[aim::get().last_target_index].record.m_Matricies[3].data());
+	//hit_chams::get().add_matrix(player, g_Ragebot->m_target[g_Ragebot->last_target_index].record.m_Matricies[MatrixBoneSide::MiddleMatrix].data());
+	//hit_chams::get().add_matrix(player, C_RageBot::get().last_target[g_Ragebot->last_target_index].record.m_Matricies[1].data());
+	//hit_chams::get().add_matrix(player, C_RageBot::get().last_target[g_Ragebot->last_target_index].record.m_Matricies[3].data());
 }
 
 void misc::ragdolls()
@@ -642,12 +643,12 @@ void misc::rank_reveal()
 	Fn(array);
 }
 
-void misc::fast_stop(CUserCmd* m_pcmd)
+void misc::fast_stop(CUserCmd* m_pcmd, float wish_yaw)
 {
 	if (!g_cfg.misc.fast_stop)
 		return;
 
-	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND))
+	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 		return;
 
 	auto pressed_move_key = m_pcmd->m_buttons & IN_FORWARD || m_pcmd->m_buttons & IN_MOVELEFT || m_pcmd->m_buttons & IN_BACK || m_pcmd->m_buttons & IN_MOVERIGHT || m_pcmd->m_buttons & IN_JUMP;
@@ -655,9 +656,9 @@ void misc::fast_stop(CUserCmd* m_pcmd)
 	if (pressed_move_key)
 		return;
 
-	if (!((antiaim::get().type == ANTIAIM_LEGIT ? g_cfg.antiaim.desync : g_cfg.antiaim.type[antiaim::get().type].desync) && (antiaim::get().type == ANTIAIM_LEGIT ? !g_cfg.antiaim.legit_lby_type : !g_cfg.antiaim.lby_type) && (!g_ctx.globals.weapon->is_grenade() || g_cfg.esp.on_click && ~(m_pcmd->m_buttons & IN_ATTACK) && !(m_pcmd->m_buttons & IN_ATTACK2))) || antiaim::get().condition(m_pcmd)) //-V648
+	if (!((g_AntiAim->type == ANTIAIM_LEGIT ? g_cfg.antiaim.desync : g_cfg.antiaim.type[g_AntiAim->type].desync) && (g_AntiAim->type == ANTIAIM_LEGIT ? !g_cfg.antiaim.legit_lby_type : !g_cfg.antiaim.lby_type) && (!g_ctx.globals.weapon->is_grenade() || g_cfg.esp.on_click && ~(m_pcmd->m_buttons & IN_ATTACK) && !(m_pcmd->m_buttons & IN_ATTACK2))) || g_AntiAim->condition(m_pcmd)) //-V648
 	{
-		auto &velocity = g_ctx.local()->m_vecVelocity();
+		auto& velocity = g_ctx.local()->m_vecVelocity();
 
 		if (velocity.Length2D() > 20.0f)
 		{
@@ -687,7 +688,7 @@ void misc::fast_stop(CUserCmd* m_pcmd)
 	}
 	else
 	{
-		auto &velocity = g_ctx.local()->m_vecVelocity();
+		auto& velocity = g_ctx.local()->m_vecVelocity();
 
 		if (velocity.Length2D() > 20.0f)
 		{
@@ -1047,6 +1048,66 @@ void misc::key_binds()
 //		g_ctx.globals.start_position.Zero();
 //	}
 //}
+
+#include "../prediction/EnginePrediction.h"
+
+
+void misc::AutoPeek(CUserCmd* cmd, float wish_yaw)
+{
+	if (!g_ctx.globals.weapon->is_non_aim() && key_binds::get().get_key_bind_state(18))
+	{
+		if (g_ctx.globals.start_position.IsZero())
+		{
+			g_ctx.globals.start_position = g_ctx.local()->GetAbsOrigin();
+
+			if (!(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
+			{
+				CTraceFilterWorldAndPropsOnly filter;
+				CGameTrace trace;
+
+				m_trace()->TraceRay(Ray_t(g_ctx.globals.start_position, g_ctx.globals.start_position - Vector(0.0f, 0.0f, 1000.0f)), MASK_SOLID, &filter, &trace);
+
+				if (trace.fraction < 1.0f)
+					g_ctx.globals.start_position = trace.endpos + Vector(0.0f, 0.0f, 2.0f);
+			}
+		}
+		else
+		{
+			auto revolver_shoot = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER && !g_ctx.globals.revolver_working && (cmd->m_buttons & IN_ATTACK || cmd->m_buttons & IN_ATTACK2);
+
+			if (cmd->m_buttons & IN_ATTACK && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER || revolver_shoot)
+				g_ctx.globals.fired_shot = true;
+
+			if (g_ctx.globals.fired_shot)
+			{
+				auto current_position = g_ctx.local()->GetAbsOrigin();
+				auto difference = current_position - g_ctx.globals.start_position;
+
+				const auto choked_ticks = (cmd->m_command_number % 2) != 1 ? (14 - m_clientstate()->iChokedCommands) : m_clientstate()->iChokedCommands;
+
+				if (difference.Length2D() > 5.0f)
+				{
+					auto angle = math::calculate_angle(current_position, g_ctx.globals.start_position);
+					wish_yaw = angle.y;
+					static auto cl_forwardspeed = m_cvar()->FindVar(crypt_str("cl_forwardspeed"));
+					cmd->m_forwardmove = cl_forwardspeed->GetFloat() - (1.2f * choked_ticks);
+					cmd->m_sidemove = 0;
+				}
+				else
+				{
+					g_ctx.globals.fired_shot = false;
+					g_ctx.globals.start_position.Zero();
+				}
+			}
+		}
+	}
+	else
+	{
+		g_ctx.globals.fired_shot = false;
+		g_ctx.globals.start_position.Zero();
+	}
+}
+
 void misc::automatic_peek(CUserCmd* cmd, float wish_yaw)
 {
 	if (!g_ctx.globals.weapon->is_non_aim() && key_binds::get().get_key_bind_state(18))
@@ -1055,7 +1116,7 @@ void misc::automatic_peek(CUserCmd* cmd, float wish_yaw)
 		{
 			g_ctx.globals.start_position = g_ctx.local()->GetAbsOrigin();
 
-			if (!(engineprediction::get().backup_data.flags & FL_ONGROUND))
+			if (!(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 			{
 				Ray_t ray;
 				CTraceFilterWorldAndPropsOnly filter;
@@ -1212,5 +1273,56 @@ void misc::draw_server_hitboxes() {
 		mov ecx, entity
 		call fn
 		popad
+	}
+}
+
+
+void misc::buybot()
+{
+	if (g_cfg.misc.buybot_enable && g_ctx.globals.should_buy)
+	{
+		--g_ctx.globals.should_buy;
+
+		if (!g_ctx.globals.should_buy)
+		{
+			std::string buy;
+
+			switch (g_cfg.misc.buybot1)
+			{
+			case 1:
+				buy += crypt_str("buy g3sg1; ");
+				break;
+			case 2:
+				buy += crypt_str("buy awp; ");
+				break;
+			case 3:
+				buy += crypt_str("buy ssg08; ");
+				break;
+			}
+
+			switch (g_cfg.misc.buybot2)
+			{
+			case 1:
+				buy += crypt_str("buy elite; ");
+				break;
+			case 2:
+				buy += crypt_str("buy deagle; buy revolver; ");
+				break;
+			}
+
+			if (g_cfg.misc.buybot3[BUY_ARMOR])
+				buy += crypt_str("buy vesthelm; buy vest; ");
+
+			if (g_cfg.misc.buybot3[BUY_TASER])
+				buy += crypt_str("buy taser; ");
+
+			if (g_cfg.misc.buybot3[BUY_GRENADES])
+				buy += crypt_str("buy molotov; buy hegrenade; buy smokegrenade;");
+
+			if (g_cfg.misc.buybot3[BUY_DEFUSER])
+				buy += crypt_str("buy defuser; ");
+
+			m_engine()->ExecuteClientCmd(buy.c_str());
+		}
 	}
 }

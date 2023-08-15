@@ -21,28 +21,15 @@
 #include "..\..\cheats\lagcompensation\animation_system.h"
 #include "..\..\cheats\tickbase shift\tickbase_shift.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
+#include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
+#include "../../cheats/ragebot/aim.h"
+#include "../../cheats/prediction/EnginePrediction.h"
+#include "../../cheats/prediction/Networking.h"
 
 using CreateMove_t = void(__thiscall*)(IBaseClientDLL*, int, float, bool);
 
-bool SetupPacket(int sequence_number, bool* bSendPacket)
+void __stdcall CreateMove(int sequence_number, float input_sample_frametime, bool active, bool& bSendPacket)
 {
-	CUserCmd* m_pcmd = m_input()->GetUserCmd(sequence_number);
-
-	if (!m_pcmd || !m_pcmd->m_command_number)
-		return false;
-	if (!g_ctx.local()->is_alive())
-		return false;
-
-
-	//g_ctx.send_packet = bSendPacket;
-	return true;
-}
-
-void __stdcall test(int sequence_number, float input_sample_frametime, bool active, bool& bSendPacket)
-{
-
-
-
 	static auto original_fn = hooks::client_hook->get_func_address <CreateMove_t>(22);
 	original_fn(m_client(), sequence_number, input_sample_frametime, active);
 	g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true);
@@ -53,7 +40,7 @@ void __stdcall test(int sequence_number, float input_sample_frametime, bool acti
 	g_ctx.globals.in_createmove = false;
 
 
-	if (!verified || !SetupPacket(sequence_number, &bSendPacket))
+	if (!verified || !g_Networking->setup_packet(sequence_number, &bSendPacket))
 		return original_fn(m_client(), sequence_number, input_sample_frametime, active);
 
 	if (original_fn)
@@ -62,51 +49,15 @@ void __stdcall test(int sequence_number, float input_sample_frametime, bool acti
 		m_engine()->SetViewAngles(m_pcmd->m_viewangles);
 	}
 
-
-	/*if (!m_pcmd)
-		return original_fn(m_clientmode(), smt, m_pcmd);
-
-	if (!m_pcmd->m_command_number)
-		return original_fn(m_clientmode(), smt, m_pcmd);
-
-	auto original_result = original_fn(m_clientmode(), smt, m_pcmd);
-
-	if (original_result)
-	{
-		m_prediction()->SetLocalViewAngles(m_pcmd->m_viewangles);
-		m_engine()->SetViewAngles(m_pcmd->m_viewangles);
-	}
-	*/
-
 	if (!g_ctx.available())
 		return;
 
-	/*static uintptr_t gameoverlay_return_address = 0;
-
-	if (!gameoverlay_return_address) {
-		MEMORY_BASIC_INFORMATION info;
-		VirtualQuery(_ReturnAddress(), &info, sizeof(MEMORY_BASIC_INFORMATION));
-
-		char mod[MAX_PATH];
-		GetModuleFileNameA((HMODULE)info.AllocationBase, mod, MAX_PATH);
-
-		if (strstr(mod, crypt_str("gameoverlay")))
-			gameoverlay_return_address = (uintptr_t)(_ReturnAddress());
-	}
-
-	if (gameoverlay_return_address != (uintptr_t)(_ReturnAddress()) && g_cfg.menu.obs_bypass)
-		return hooked_sceneend;
-		*/
-
-	misc::get().rank_reveal();
-	spammers::get().clan_tag();
-	misc::get().ChatSpammer();
+	g_Misc->rank_reveal();
+	g_Spammers->clan_tag();
+	g_Misc->ChatSpammer();
 
 	if (!g_ctx.local()->is_alive()) //-V807
 		return;
-
-	uintptr_t* frame_ptr;
-	__asm mov frame_ptr, ebp;
 
 	g_ctx.globals.weapon = g_ctx.local()->m_hActiveWeapon().Get();
 
@@ -116,311 +67,170 @@ void __stdcall test(int sequence_number, float input_sample_frametime, bool acti
 	g_ctx.globals.in_createmove = true;
 	g_ctx.set_command(m_pcmd);
 
-	if (hooks::menu_open && g_ctx.globals.focused_on_input)
-	{
-		m_pcmd->m_buttons = 0;
-		m_pcmd->m_forwardmove = 0.0f;
-		m_pcmd->m_sidemove = 0.0f;
-		m_pcmd->m_upmove = 0.0f;
-	}
-
-
-	if (hooks::menu_open)
-	{
-		m_pcmd->m_buttons &= ~IN_ATTACK;
-		m_pcmd->m_buttons &= ~IN_ATTACK2;
-	}
-
-	if (m_pcmd->m_buttons & IN_ATTACK2 && g_cfg.ragebot.enable && g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER)
-		m_pcmd->m_buttons &= ~IN_ATTACK2;
-
-
-	g_ctx.send_packet = true;
-	g_ctx.globals.tickbase_shift = 0;
-	g_ctx.globals.double_tap_fire = false;
-	g_ctx.globals.force_send_packet = false;
-	g_ctx.globals.exploits = tickbase::get().double_tap_key || tickbase::get().hide_shots_key;
-	g_ctx.globals.current_weapon = g_ctx.globals.weapon->get_weapon_group(g_cfg.ragebot.enable);
-	g_ctx.globals.slowwalking = false;
-	g_ctx.globals.original_forwardmove = m_pcmd->m_forwardmove;
-	g_ctx.globals.original_sidemove = m_pcmd->m_sidemove;
-
-
-
-
-	g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
-	if (g_ctx.globals.next_tickbase_shift)
-		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.next_tickbase_shift;
-	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
-
-	g_ctx.local()->m_nTickBase() = g_ctx.globals.fixed_tickbase;
-
-
-	//if (g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.isshifting && g_ctx.globals.m_Peek.m_bIsPeeking)
-	//	g_ctx.globals.fixed_tickbase -= (15 - g_cfg.ragebot.shift_amount);
-
-	//g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
-
-	if (hooks::menu_open)
-	{
-		m_pcmd->m_buttons &= ~IN_ATTACK;
-		m_pcmd->m_buttons &= ~IN_ATTACK2;
-	}
-
-	if (m_pcmd->m_buttons & IN_ATTACK2 && g_cfg.ragebot.enable && g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER)
-		m_pcmd->m_buttons &= ~IN_ATTACK2;
-
-
+	/*CreateMove branch without aimbot*/
 	if (g_ctx.globals.isshifting)
 	{
-		m_pcmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
-	}
+		g_Networking->start_move(m_pcmd, g_ctx.send_packet);
 
-	if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->can_fire(true))
-	{
-		if (m_pcmd->m_buttons & IN_ATTACK && !g_ctx.globals.weapon->is_non_aim() && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER)
-			m_pcmd->m_buttons &= ~IN_ATTACK;
-		else if ((m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2) && (g_ctx.globals.weapon->is_knife() || g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER) && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_HEALTHSHOT)
+		g_ctx.globals.wish_angle = m_pcmd->m_viewangles;
+		auto wish_angle = m_pcmd->m_viewangles;
+
+		if (g_cfg.misc.bunnyhop)
+			g_Bunnyhop->create_move();
+
+		g_Misc->fast_stop(m_pcmd, wish_angle.y);
+		g_Misc->SlideWalk(m_pcmd);
+		g_Misc->NoDuck(m_pcmd);
+		g_Misc->AutoCrouch(m_pcmd);
+
+		g_GrenadePrediction->Tick(m_pcmd->m_buttons);
+
+		if (g_cfg.misc.crouch_in_air && !(g_ctx.local()->m_fFlags() & FL_ONGROUND))
+			m_pcmd->m_buttons |= IN_DUCK;
+
+		/* update prediction */
+		g_EnginePrediction->UpdatePrediction();
+		/* run main cheat features here */
+		g_EnginePrediction->StartPrediction();
 		{
-			if (m_pcmd->m_buttons & IN_ATTACK)
-				m_pcmd->m_buttons &= ~IN_ATTACK;
+			g_ctx.globals.inaccuracy = g_EnginePrediction->GetInaccuracy();
+			g_ctx.globals.spread = g_EnginePrediction->GetSpread();
+			/* setup shoot position */
+			g_LocalAnimations->CopyPlayerAnimationData(false);
+			g_LocalAnimations->SetupShootPosition();
+			if (g_cfg.misc.airstrafe)
+				g_Airstrafe->create_move(m_pcmd, wish_angle.y);
 
-			if (m_pcmd->m_buttons & IN_ATTACK2)
-				m_pcmd->m_buttons &= ~IN_ATTACK2;
+			if (key_binds::get().get_key_bind_state(19) && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && !(g_ctx.local()->m_fFlags() & FL_ONGROUND)) //-V807
+				m_pcmd->m_buttons |= IN_JUMP;
+
+			if (key_binds::get().get_key_bind_state(21))
+				g_Slowwalk->create_move(m_pcmd);
+
+			if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->is_non_aim() && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND)
+				g_Slowwalk->create_move(m_pcmd, 0.95f + 0.003125f * (16 - m_clientstate()->iChokedCommands));
+
+
+			g_Fakelag->Createmove();
+
+			g_ctx.globals.aimbot_working = false;
+			g_ctx.globals.revolver_working = false;
+
+			g_Misc->ax();
+
+			g_AntiAim->desync_angle = 0.0f;
+			g_AntiAim->create_move(m_pcmd);
+
+			g_Networking->packet_cycle(m_pcmd, g_ctx.send_packet);
+
+			g_Misc->automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
+
+			g_Networking->process_dt_aimcheck(m_pcmd);
+
 		}
+		g_EnginePrediction->FinishPrediction();
+
+		if (g_ctx.globals.loaded_script)
+			for (auto current : c_lua::get().hooks.getHooks(crypt_str("on_createmove")))
+				current.func();
+
+		if (g_cfg.misc.anti_untrusted)
+			math::normalize_angles(m_pcmd->m_viewangles);
+		else
+			m_pcmd->m_viewangles.y = math::normalize_yaw(m_pcmd->m_viewangles.y);
+
+		if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && m_pcmd->m_viewangles.z != 0.f)
+			m_pcmd->m_viewangles.z = 0.f;
+
+		util::movement_fix_new(wish_angle, m_pcmd);
+
+		g_Networking->process_packets(m_pcmd);
+
+		if (g_ctx.send_packet && g_ctx.globals.should_send_packet)
+			g_ctx.globals.should_send_packet = false;
+
+		g_Misc->buybot();
+
+		if (g_ctx.send_packet && !g_ctx.globals.should_send_packet && (!g_ctx.globals.should_choke_packet || (!tickbase::get().hide_shots_enabled && !g_ctx.globals.double_tap_fire)))
+		{
+			g_LocalAnimations->temp_fakeangle = m_pcmd->m_viewangles;
+			math::normalize_angles(g_LocalAnimations->temp_fakeangle);
+			math::clamp_angles(g_LocalAnimations->temp_fakeangle);
+		}
+		g_LocalAnimations->OnCreateMove();
+
+		g_Networking->finish_packet(m_pcmd, verified, bSendPacket);
+		C_LagComp::get().FinishLagCompensation();
+		return;
 	}
 
-	if (m_pcmd->m_buttons & IN_FORWARD && m_pcmd->m_buttons & IN_BACK)
-	{
-		m_pcmd->m_buttons &= ~IN_FORWARD;
-		m_pcmd->m_buttons &= ~IN_BACK;
-	}
 
-	if (m_pcmd->m_buttons & IN_MOVELEFT && m_pcmd->m_buttons & IN_MOVERIGHT)
-	{
-		m_pcmd->m_buttons &= ~IN_MOVELEFT;
-		m_pcmd->m_buttons &= ~IN_MOVERIGHT;
-	}
+	/*CreateMove branch with aimbot*/
+	g_Networking->start_move(m_pcmd, g_ctx.send_packet);
 
-
-	// tickcount.
-	engineprediction::get().tickbase = g_ctx.globals.fixed_tickbase;
-	antiaim::get().breaking_lby = false;
 	g_ctx.globals.wish_angle = m_pcmd->m_viewangles;
 	auto wish_angle = m_pcmd->m_viewangles;
 
-	misc::get().fast_stop(m_pcmd);
-
 	if (g_cfg.misc.bunnyhop)
-		bunnyhop::get().create_move();
+		g_Bunnyhop->create_move();
 
-	misc::get().SlideWalk(m_pcmd);
+	g_Misc->fast_stop(m_pcmd, wish_angle.y);
+	g_Misc->SlideWalk(m_pcmd);
+	g_Misc->NoDuck(m_pcmd);
+	g_Misc->AutoCrouch(m_pcmd);
 
-	misc::get().NoDuck(m_pcmd);
-
-	misc::get().AutoCrouch(m_pcmd);
-
-	GrenadePrediction::get().Tick(m_pcmd->m_buttons);
+	g_GrenadePrediction->Tick(m_pcmd->m_buttons);
 
 	if (g_cfg.misc.crouch_in_air && !(g_ctx.local()->m_fFlags() & FL_ONGROUND))
 		m_pcmd->m_buttons |= IN_DUCK;
 
-	// we predicting, shall we?
-		// predicting commands.
-	engineprediction::get().update();
-	engineprediction::get().start(m_pcmd);
-
-	/* setup shoot position */
-	//// g_LocalAnimations->CopyPlayerAnimationData(false);
-	//// g_LocalAnimations->SetupShootPosition(m_pcmd);
-	//local_animations::get().update_prediction_animations();
-
-	//g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
-
-	if (g_cfg.misc.airstrafe)
-		airstrafe::get().create_move(m_pcmd);
-
-	if (key_binds::get().get_key_bind_state(19) && engineprediction::get().backup_data.flags & FL_ONGROUND && !(g_ctx.local()->m_fFlags() & FL_ONGROUND)) //-V807
-		m_pcmd->m_buttons |= IN_JUMP;
-
-	if (key_binds::get().get_key_bind_state(21))
-		slowwalk::get().create_move(m_pcmd);
-
-	if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->is_non_aim() && engineprediction::get().backup_data.flags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND)
-		slowwalk::get().create_move(m_pcmd, 0.95f + 0.003125f * (16 - m_clientstate()->iChokedCommands));
-
-	//if (!should_recharge)
-	fakelag::get().Createmove();
-
-	g_ctx.globals.aimbot_working = false;
-	g_ctx.globals.revolver_working = false;
-
-	auto backup_velocity = g_ctx.local()->m_vecVelocity();
-	auto backup_abs_velocity = g_ctx.local()->m_vecAbsVelocity();
-
-	g_ctx.local()->m_vecVelocity() = engineprediction::get().backup_data.velocity;
-	g_ctx.local()->m_vecAbsVelocity() = engineprediction::get().backup_data.velocity;
-
-	g_ctx.globals.weapon->update_accuracy_penality();
-
-	g_ctx.local()->m_vecVelocity() = backup_velocity;
-	g_ctx.local()->m_vecAbsVelocity() = backup_abs_velocity;
-
-	g_ctx.globals.inaccuracy = g_ctx.globals.weapon->get_inaccuracy();
-	g_ctx.globals.spread = g_ctx.globals.weapon->get_spread();
-
-
-	//
-
-
-	aim::get().run(m_pcmd);
-	legit_bot::get().createmove(m_pcmd);
-
-	zeusbot::get().run(m_pcmd);
-	knifebot::get().run(m_pcmd);
-
-	// ---------------------------------------- 
-	//aim::get().update_peek_state(); // check is peeking
-	// ----------------------------------------
-
-
-
-	misc::get().ax();
-
-	antiaim::get().desync_angle = 0.0f;
-	antiaim::get().create_move(m_pcmd);
-
-	if (m_gamerules()->m_bIsValveDS() && m_clientstate()->iChokedCommands >= 6) //-V648
+	/* update prediction */
+	g_EnginePrediction->UpdatePrediction();
+	/* run main cheat features here */
+	g_EnginePrediction->StartPrediction();
 	{
-		g_ctx.send_packet = true;
-		fakelag::get().started_peeking = false;
+		g_ctx.globals.inaccuracy = g_EnginePrediction->GetInaccuracy();
+		g_ctx.globals.spread = g_EnginePrediction->GetSpread();
+		/* setup shoot position */
+		g_LocalAnimations->CopyPlayerAnimationData(false);
+		g_LocalAnimations->SetupShootPosition();
+		if (g_cfg.misc.airstrafe)
+			g_Airstrafe->create_move(m_pcmd , wish_angle.y);
+
+		if (key_binds::get().get_key_bind_state(19) && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && !(g_ctx.local()->m_fFlags() & FL_ONGROUND)) //-V807
+			m_pcmd->m_buttons |= IN_JUMP;
+
+		if (key_binds::get().get_key_bind_state(21))
+			g_Slowwalk->create_move(m_pcmd);
+
+		if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->is_non_aim() && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND)
+			g_Slowwalk->create_move(m_pcmd, 0.95f + 0.003125f * (16 - m_clientstate()->iChokedCommands));
+
+		
+		g_Fakelag->Createmove();
+
+		g_ctx.globals.aimbot_working = false;
+		g_ctx.globals.revolver_working = false;
+
+		g_Ragebot->think(m_pcmd);
+		g_Ragebot->AutoRevolver(m_pcmd);
+		g_LegitBot->createmove(m_pcmd);
+		//g_Zeusbot->run(m_pcmd);
+		//g_Knifebot->run(m_pcmd);
+
+		g_Misc->ax();
+
+		g_AntiAim->desync_angle = 0.0f;
+		g_AntiAim->create_move(m_pcmd);
+
+		g_Networking->packet_cycle(m_pcmd, g_ctx.send_packet);
+
+		g_Misc->automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
+
+		g_Networking->process_dt_aimcheck(m_pcmd);
+		
 	}
-	else if (!m_gamerules()->m_bIsValveDS() && m_clientstate()->iChokedCommands >= 16) //-V648
-	{
-		g_ctx.send_packet = true;
-		fakelag::get().started_peeking = false;
-	}
-
-	if (g_ctx.globals.should_send_packet)
-	{
-		g_ctx.globals.force_send_packet = true;
-		g_ctx.send_packet = true;
-		fakelag::get().started_peeking = false;
-	}
-
-	if (g_ctx.globals.should_choke_packet)
-	{
-		g_ctx.globals.should_choke_packet = false;
-		g_ctx.globals.should_send_packet = true;
-		g_ctx.send_packet = false;
-	}
-	auto cmd = m_pcmd;
-	if (!g_ctx.globals.weapon->is_non_aim())
-	{
-		auto double_tap_aim_check = false;
-
-		if (cmd->m_buttons & IN_ATTACK && g_ctx.globals.double_tap_aim_check)
-		{
-			double_tap_aim_check = true;
-			g_ctx.globals.double_tap_aim_check = false;
-		}
-
-		auto revolver_shoot = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER && !g_ctx.globals.revolver_working && (cmd->m_buttons & IN_ATTACK || cmd->m_buttons & IN_ATTACK2);
-
-		if (cmd->m_buttons & IN_ATTACK && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER || revolver_shoot)
-		{
-			static auto weapon_recoil_scale = m_cvar()->FindVar(crypt_str("weapon_recoil_scale"));
-
-			if (g_cfg.ragebot.enable)
-				cmd->m_viewangles -= g_ctx.local()->m_aimPunchAngle() * weapon_recoil_scale->GetFloat();
-
-			if (!g_ctx.globals.fakeducking)
-			{
-				g_ctx.globals.force_send_packet = true;
-				g_ctx.globals.should_choke_packet = true;
-				g_ctx.send_packet = true;
-				fakelag::get().started_peeking = false;
-			}
-
-			aim::get().last_shoot_position = g_ctx.globals.eye_pos;
-			g_ctx.globals.shot_command = cmd->m_command_number;
-
-			if (!double_tap_aim_check)
-				g_ctx.globals.double_tap_aim = false;
-		}
-	}
-	else if (g_ctx.globals.weapon->is_knife() && (cmd->m_buttons & IN_ATTACK || cmd->m_buttons & IN_ATTACK2))
-	{
-		if (!g_ctx.globals.fakeducking) {
-			g_ctx.globals.force_send_packet = true;
-			g_ctx.globals.should_choke_packet = true;
-			g_ctx.send_packet = true;
-			fakelag::get().started_peeking = false;
-		}
-
-		g_ctx.globals.shot_command = cmd->m_command_number;
-	}
-
-	if (g_ctx.globals.fakeducking)
-		g_ctx.globals.force_send_packet = g_ctx.send_packet;
-
-	for (auto& backup : aim::get().backup)
-		backup.adjust_player();
-
-	auto backup_ticks_allowed = g_ctx.globals.ticks_allowed;
-
-
-
-
-
-
-
-	if (g_ctx.globals.isshifting)
-	{
-		m_pcmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
-
-		if (g_cfg.ragebot.enable_teleport)
-		{
-
-		}
-	}
-
-
-	tickbase::get().DoubleTap(m_pcmd);
-	tickbase::get().HideShots(m_pcmd);
-
-	//if (g_cfg.misc.break_lc)
-	//misc::get().lagexploit(m_pcmd);
-
-	// g_LocalAnimations->OnCreateMove(m_pcmd);
-
-	misc::get().automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
-
-
-	if (!g_ctx.globals.weapon->is_non_aim())
-	{
-		auto double_tap_aim_check = false;
-
-		if (m_pcmd->m_buttons & IN_ATTACK && g_ctx.globals.double_tap_aim_check)
-		{
-			double_tap_aim_check = true;
-			g_ctx.globals.double_tap_aim_check = false;
-		}
-
-		auto revolver_shoot = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER && !g_ctx.globals.revolver_working && (m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2);
-
-		if (!double_tap_aim_check && m_pcmd->m_buttons & IN_ATTACK && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER || revolver_shoot)
-			g_ctx.globals.double_tap_aim = false;
-	}
-
-	if (m_globals()->m_tickcount - g_ctx.globals.last_aimbot_shot > 16) //-V807
-	{
-		g_ctx.globals.double_tap_aim = false;
-		g_ctx.globals.double_tap_aim_check = false;
-	}
-
-	engineprediction::get().finish();
+	g_EnginePrediction->FinishPrediction();
 
 	if (g_ctx.globals.loaded_script)
 		for (auto current : c_lua::get().hooks.getHooks(crypt_str("on_createmove")))
@@ -429,201 +239,43 @@ void __stdcall test(int sequence_number, float input_sample_frametime, bool acti
 	if (g_cfg.misc.anti_untrusted)
 		math::normalize_angles(m_pcmd->m_viewangles);
 	else
-	{
 		m_pcmd->m_viewangles.y = math::normalize_yaw(m_pcmd->m_viewangles.y);
-		//m_pcmd->m_viewangles.z = 0.0f;
-	}
+	
 	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && m_pcmd->m_viewangles.z != 0.f)
 		m_pcmd->m_viewangles.z = 0.f;
 
 	util::movement_fix_new(wish_angle, m_pcmd);
 
-
-
-	static auto previous_ticks_allowed = g_ctx.globals.ticks_allowed;
-
-	if (g_ctx.send_packet && m_clientstate()->pNetChannel)//
-	{
-		auto choked_packets = m_clientstate()->pNetChannel->m_nChokedPackets;
-
-		if (choked_packets >= 0)
-		{
-			auto ticks_allowed = g_ctx.globals.ticks_allowed;
-			auto command_number = m_pcmd->m_command_number - choked_packets;
-
-			do
-			{
-				auto command = &m_input()->m_pCommands[m_pcmd->m_command_number - MULTIPLAYER_BACKUP * (command_number / MULTIPLAYER_BACKUP) - choked_packets];
-
-				if (!command || command->m_tickcount > m_globals()->m_tickcount + 72)
-				{
-					if (--ticks_allowed < 0)
-						ticks_allowed = 0;
-
-					g_ctx.globals.ticks_allowed = ticks_allowed;
-				}
-
-				++command_number;
-				--choked_packets;
-			} while (choked_packets >= 0);
-		}
-	}//
-
-	if (g_ctx.globals.ticks_allowed > 17)
-		g_ctx.globals.ticks_allowed = math::clamp(g_ctx.globals.ticks_allowed - 1, 0, 17);
-
-	if (previous_ticks_allowed && !g_ctx.globals.ticks_allowed)
-		g_ctx.globals.ticks_choke = 16;
-
-	previous_ticks_allowed = g_ctx.globals.ticks_allowed;
-
-	if (g_ctx.globals.ticks_choke)
-	{
-		g_ctx.send_packet = g_ctx.globals.force_send_packet;
-		--g_ctx.globals.ticks_choke;
-	}
-
-
-	if (g_ctx.globals.ticks_choke)
-	{
-		g_ctx.send_packet = g_ctx.globals.force_send_packet;
-		--g_ctx.globals.ticks_choke;
-	}
-
-	auto& correct = g_ctx.globals.data.emplace_front();
-
-	correct.command_number = m_pcmd->m_command_number;
-	correct.choked_commands = m_clientstate()->iChokedCommands + 1;
-	correct.tickcount = m_globals()->m_tickcount;
-
-	if (g_ctx.send_packet)
-		g_ctx.globals.choked_number.clear();
-	else
-		g_ctx.globals.choked_number.emplace_back(correct.command_number);
-
-	while (g_ctx.globals.data.size() > (int)(2.0f / m_globals()->m_intervalpertick))
-		g_ctx.globals.data.pop_back();
-
-	auto& out = g_ctx.globals.commands.emplace_back();
-
-	out.is_outgoing = g_ctx.send_packet;
-	out.is_used = false;
-	out.command_number = m_pcmd->m_command_number;
-	out.previous_command_number = 0;
-
-	while (g_ctx.globals.commands.size() > (int)(1.0f / m_globals()->m_intervalpertick))
-		g_ctx.globals.commands.pop_front();
-
-	if (!g_ctx.send_packet && !m_gamerules()->m_bIsValveDS())//
-	{
-		auto net_channel = m_clientstate()->pNetChannel;
-
-		if (net_channel->m_nChokedPackets > 0 && !(net_channel->m_nChokedPackets % 4))
-		{
-			auto backup_choke = net_channel->m_nChokedPackets;
-			net_channel->m_nChokedPackets = 0;
-
-			net_channel->send_datagram();
-			--net_channel->m_nOutSequenceNr;
-
-			net_channel->m_nChokedPackets = backup_choke;
-		}
-	}//
-
-	if (g_ctx.send_packet && !g_ctx.globals.should_send_packet && (!g_ctx.globals.should_choke_packet || (!tickbase::get().hide_shots_enabled && !g_ctx.globals.double_tap_fire)))
-	{
-		local_animations::get().local_data.fake_angles = m_pcmd->m_viewangles; //-V807
-		local_animations::get().local_data.real_angles = local_animations::get().local_data.stored_real_angles;
-	}
-
-
-	if (!antiaim::get().breaking_lby)
-		local_animations::get().local_data.stored_real_angles = m_pcmd->m_viewangles;
+	g_Networking->process_packets(m_pcmd);
 
 	if (g_ctx.send_packet && g_ctx.globals.should_send_packet)
 		g_ctx.globals.should_send_packet = false;
 
-	if (g_cfg.misc.buybot_enable && g_ctx.globals.should_buy)
+	g_Misc->buybot();
+
+	if (g_ctx.send_packet && !g_ctx.globals.should_send_packet && (!g_ctx.globals.should_choke_packet || (!tickbase::get().hide_shots_enabled && !g_ctx.globals.double_tap_fire)))
 	{
-		--g_ctx.globals.should_buy;
-
-		if (!g_ctx.globals.should_buy)
-		{
-			std::string buy;
-
-			switch (g_cfg.misc.buybot1)
-			{
-			case 1:
-				buy += crypt_str("buy g3sg1; ");
-				break;
-			case 2:
-				buy += crypt_str("buy awp; ");
-				break;
-			case 3:
-				buy += crypt_str("buy ssg08; ");
-				break;
-			}
-
-			switch (g_cfg.misc.buybot2)
-			{
-			case 1:
-				buy += crypt_str("buy elite; ");
-				break;
-			case 2:
-				buy += crypt_str("buy deagle; buy revolver; ");
-				break;
-			case 3:
-				buy += crypt_str("buy tec9; buy fn57; ");
-				break;
-			case 4:
-				buy += crypt_str("buy p250; ");
-				break;
-			}
-
-			if (g_cfg.misc.buybot3[BUY_ARMOR])
-				buy += crypt_str("buy vesthelm; buy vest; ");
-
-			if (g_cfg.misc.buybot3[BUY_TASER])
-				buy += crypt_str("buy taser; ");
-
-			if (g_cfg.misc.buybot3[BUY_GRENADES])
-				buy += crypt_str("buy molotov; buy hegrenade; buy smokegrenade; ");
-
-			if (g_cfg.misc.buybot3[BUY_DEFUSER])
-				buy += crypt_str("buy defuser; ");
-
-			m_engine()->ExecuteClientCmd(buy.c_str());
-		}
+		g_LocalAnimations->temp_fakeangle = m_pcmd->m_viewangles;
+		math::normalize_angles(g_LocalAnimations->temp_fakeangle);
+		math::clamp_angles(g_LocalAnimations->temp_fakeangle);
 	}
+	g_LocalAnimations->OnCreateMove();
 
-	verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
-	verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
-
-	local_animations::get().store_animations_data(m_pcmd, g_ctx.send_packet);
-
-	g_ctx.globals.in_createmove = false;
-	bSendPacket = g_ctx.send_packet;
-
-	//m_cvar()->ConsoleColorPrintf(g_cfg.menu.menu_theme, crypt_str("got to end no idea why it doesnt work \n"));
-
+	g_Networking->finish_packet(m_pcmd, verified, bSendPacket);
+	C_LagComp::get().FinishLagCompensation();
 	return;
 }
-
-
 __declspec(naked) void __stdcall hooks::hooked_createmove_naked(int sequence_number, float input_sample_frametime, bool active)
 {
 	__asm
 	{
-		push ebp
-		mov  ebp, esp
-		push ebx;
+		push ebx
 		push esp
-			push dword ptr[active]
-			push dword ptr[input_sample_frametime]
-			push dword ptr[sequence_number]
-			call test
-			pop  ebx
-			pop  ebp
-			retn 0Ch
+		push dword ptr[esp + 8 + 8 + 4]
+		push dword ptr[esp + 12 + 8]
+		push[esp + 16 + 4]
+		call CreateMove
+		pop ebx
+		retn 12
 	}
 }

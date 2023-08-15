@@ -94,8 +94,10 @@ namespace hooks
 	extern DWORD original_modifyeyeposition;
 	extern DWORD original_calcviewmodelbob;
 	extern DWORD original_processinterpolatedlist;
+	extern DWORD original_o_InterpolateServerEntities;
 	extern DWORD original_clmove;
 	extern DWORD get_og_eye;
+
 
 	extern DWORD og1;
 	extern DWORD og2;
@@ -137,8 +139,11 @@ namespace hooks
 	void __fastcall hooked_calcviewmodelbob(player_t* player, void* edx, Vector& position);
 	_declspec(noinline)void calcviewmodelbob_detour(player_t* player, Vector& position);
 	bool __fastcall hooked_shouldskipanimframe();
+	void setupaliveloop_detour(C_CSGOPlayerAnimationState* animstate);
 	void __fastcall ClampBonesInBBox(player_t* player, void* edx, matrix3x4_t* matrix, int mask);
+	void __fastcall hooked_setupaliveloop(C_CSGOPlayerAnimationState* animstate);
 	int processinterpolatedlist();
+	void hkInterpolateServerEntities(void* ecx);
 	Vector* _fastcall get_eye_angles(player_t* player, void* edx);
 	IMaterial* __fastcall hooked_getmaterial(void* ecx, void* edx, const char* material_name, const char* texture_group_name, bool complain, const char* complain_prefix);
 	void __fastcall hooked_packetstart(void* ecx, void* edx, int incoming, int outgoing);

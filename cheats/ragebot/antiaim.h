@@ -4,7 +4,7 @@
 #include "..\..\includes.hpp"
 #include "..\..\sdk\structs.hpp"
 
-class antiaim : public singleton <antiaim>
+class antiaim
 {
 public:
 	void fakeflickbylabeforrolix(CUserCmd* m_pcmd);
@@ -63,3 +63,5 @@ enum
 	SIDE_FR
 };
 
+
+inline antiaim* g_AntiAim = new antiaim();

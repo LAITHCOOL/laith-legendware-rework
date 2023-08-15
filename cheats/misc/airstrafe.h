@@ -4,5 +4,8 @@
 class airstrafe : public singleton <airstrafe>
 {
 public:
-	void create_move(CUserCmd* m_pcmd);
+	void create_move(CUserCmd* m_pcmd, float& wish_yaw);
 };
+
+
+inline airstrafe* g_Airstrafe = new airstrafe();

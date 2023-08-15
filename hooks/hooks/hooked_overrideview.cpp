@@ -60,7 +60,7 @@ void __stdcall hooks::hooked_overrideview(CViewSetup* viewsetup)
 			}
 
 			if (weapon->is_grenade() && g_cfg.esp.grenade_prediction && g_cfg.player.enable)
-				GrenadePrediction::get().View(viewsetup, weapon);
+				g_GrenadePrediction->View(viewsetup, weapon);
 		}
 
 		if (g_cfg.player.enable && (g_cfg.misc.thirdperson_toggle.key > KEY_NONE && g_cfg.misc.thirdperson_toggle.key < KEY_MAX || g_cfg.misc.thirdperson_when_spectating))

@@ -16,9 +16,9 @@ public:
 	bool CanDoubleTap(bool check_charge);
 	void HideShots(CUserCmd* m_pcmd);
 	void fix_tickbase(CUserCmd* cmd, int new_command_number, int& tickbase);
-	void fix_angle_movement(CUserCmd* cmd, Vector& ang);
 	void shift_cmd(CUserCmd* cmd, int amount);
 	int adjust_player_time_base(int delta);
+	void shift_silent(CUserCmd* current_cmd, CUserCmd* first_cmd, int amount);
 	void double_tap_deffensive(CUserCmd* m_pcmd);
 	void lagexploit(CUserCmd* m_pcmd);
 

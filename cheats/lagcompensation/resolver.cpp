@@ -3,10 +3,13 @@
 #include "../visuals/player_esp.h"
 
 /*RESOLVER BY LAITH*/
-void CResolver::initialize(player_t* e, adjust_data* record, const float& goal_feet_yaw, const float& pitch)
+void CResolver::initialize(player_t* e, adjust_data* record, const float& goal_feet_yaw, const float& pitch, adjust_data* previous_record)
 {
 	player = e;
 	player_record = record;
+
+	if (previous_record)
+		prev_record = previous_record;
 
 	original_pitch = math::normalize_pitch(pitch);
 	original_goal_feet_yaw = math::normalize_yaw(goal_feet_yaw);
@@ -14,11 +17,12 @@ void CResolver::initialize(player_t* e, adjust_data* record, const float& goal_f
 
 }
 
-void CResolver::initialize_yaw(player_t* e, adjust_data* record)
+void CResolver::initialize_yaw(player_t* e, adjust_data* record, adjust_data* previous_record)
 {
 	player = e;
 
 	player_record = record;
+	//prev_record = previous_record;
 
 	player_record->left = b_yaw(player, player->get_animation_state()->m_flEyeYaw, 1);
 	player_record->right = b_yaw(player, player->get_animation_state()->m_flEyeYaw, 2);
@@ -31,6 +35,7 @@ void CResolver::reset()
 {
 	player = nullptr;
 	player_record = nullptr;
+	prev_record = nullptr;
 
 	side = false;
 	fake = false;
@@ -47,7 +52,7 @@ bool CResolver::IsAdjustingBalance()
 {
 
 
-	for (int i = 0; i < 15; i++)
+	for (int i = 0; i < 13; i++)
 	{
 		const int activity = player->sequence_activity(player_record->layers[i].m_nSequence);
 		if (activity == 979)
@@ -286,57 +291,256 @@ int CResolver::GetChokedPackets() {
 	}
 }
 
-void CResolver::layer_test()
+void CResolver::solve_animes()
+{
+	player_record->type = LAYERS;
+	const float left_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[RightMatrix][6].m_flPlaybackRate);
+	const float right_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[LeftMatrix][6].m_flPlaybackRate);
+	const float zero_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[ZeroMatrix][6].m_flPlaybackRate);
+
+	static float resolving_delta = 0.0f;
+	bool should_use_low_angles = false;
+	if (left_delta != zero_delta && right_delta != zero_delta)
+	{
+		const float low_left_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[LowRightMatrix][6].m_flPlaybackRate);
+		const float low_right_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[LowLeftMatrix][6].m_flPlaybackRate);
+
+		if ((low_left_delta >= zero_delta && low_left_delta >= left_delta) || (low_right_delta >= zero_delta && low_left_delta >= zero_delta))
+			should_use_low_angles = true;
+
+		if (float(left_delta * 1000.0) >= float(right_delta * 1000.0) && int(left_delta * 1000.0))
+			resolving_delta = right_delta;
+		else if (float(right_delta * 1000.0) >= float(left_delta * 1000.0) && int(right_delta * 1000.0))
+			resolving_delta = left_delta;
+
+		if (resolving_delta == 0.0f)
+		{
+			if (left_delta > right_delta)
+				resolving_delta = right_delta;
+			else if (right_delta > left_delta)
+				resolving_delta = left_delta;
+		}
+
+		if (should_use_low_angles)
+		{
+			if (low_left_delta > low_right_delta && low_left_delta > left_delta)
+				resolving_delta = low_right_delta;
+			else if (low_right_delta > low_left_delta && low_right_delta > right_delta)
+				resolving_delta = low_left_delta;
+		}
+
+		if (resolving_delta != 0.0f)
+		{
+			if (resolving_delta == left_delta)
+			{
+				player_record->curSide = RIGHT;
+				return;
+			}
+
+			if (resolving_delta == right_delta)
+			{
+				player_record->curSide = LEFT;
+				return;
+			}
+
+			if (resolving_delta = low_left_delta)
+			{
+				player_record->curSide = RIGHT;
+				return;
+			}
+
+			if (resolving_delta = low_right_delta)
+			{
+				player_record->curSide = LEFT;
+				return;
+			}
+		}
+	}
+
+	if (player_record->curSide == NO_SIDE)
+		detect_side();
+}
+
+
+void CResolver::NemsisResolver()
 {
 	player_record->type = LAYERS;
 
-	auto state = player->get_animation_state();
-	if (!state)
+
+	const auto& cur_layer6_weight = player_record->layers[6].m_flWeight;
+	if (cur_layer6_weight <= 0.0099999998)
+	{
+		if (std::abs(math::AngleDiff(player_record->angles.y, prev_record->angles.y)) > 35.f)
+			detect_side();
+
 		return;
+	}
+	bool m_accelerating;
+	const auto& cur_layer11_weight = player_record->layers[11].m_flWeight;
+	const auto cur_layer12_weight = static_cast<int>(player_record->layers[12].m_flWeight * 1000.f);
 
-	float orig_rate = player_record->layers[6].m_flPlaybackRate;
-	float speed = player->m_vecVelocity().length(true);
+	const auto cur_layer11_weight_valid = cur_layer11_weight > 0.f && cur_layer11_weight < 1.f;
+	const auto prev_layer11_weight_valid = prev_record->layers[11].m_flWeight > 0.f && prev_record->layers[11].m_flWeight < 1.f;
 
-	// zero angle layer rate always have same value
-	// but when enemy playing with desync - his rate is higher than simulated one
-	// we should get difference between them and get precentage of desync amount
+	const auto prev_layer6_weight = static_cast<int>(prev_record->layers[6].m_flWeight * 1000.f);
 
-	// IMPORTANT: simulated layers give results that twice higher than original layer value
+	bool not_to_diff_vel_angle{};
+	if (prev_record->layers[6].m_flWeight > 0.0099999998)
+		not_to_diff_vel_angle = std::abs(
+			math::AngleDiff(
+				math::rad_to_deg(std::atan2(player_record->velocity.y, player_record->velocity.x)),
+				math::rad_to_deg(std::atan2(prev_record->velocity.y, prev_record->velocity.x))
+			)
+		) < 10.f;
 
-	float zero_rate = resolver_layers[0][6].m_flPlaybackRate;
-	float left_rate = resolver_layers[2][6].m_flPlaybackRate;
-	float right_rate = resolver_layers[1][6].m_flPlaybackRate;
-	float delta = player_record->layers[6].m_flPlaybackRate - zero_rate;
+	const auto not_accelerating = static_cast<int>(cur_layer6_weight * 1000.f) == prev_layer6_weight && !cur_layer12_weight;
+	const auto v74 = cur_layer11_weight_valid && (!cur_layer12_weight || (prev_layer11_weight_valid && not_to_diff_vel_angle));
+
+	if (!not_accelerating
+		&& !cur_layer11_weight_valid)
+	{
+		m_accelerating = false;
+
+		goto ANOTHER_CHECK;
+	}
+
+	m_accelerating = true;
+
+	if (!not_accelerating)
+	{
+	ANOTHER_CHECK:
+		if (!v74)
+		{
+			if (std::abs(math::AngleDiff(player_record->angles.y, prev_record->angles.y)) > 35.f)
+				detect_side();
+
+			return;
+		}
+	}
 
 
-	float left_delta = std::fabsf(left_rate - orig_rate);
-	float right_delta = std::fabsf(right_rate - orig_rate);
+	const auto& cur_layer6 = player_record->layers[6];
 
-	if (left_delta > right_delta)
-		player_record->curSide = LEFT;
-	else if (left_delta < right_delta)
-		player_record->curSide = RIGHT;
+	const auto delta1 = std::abs(cur_layer6.m_flPlaybackRate - resolver_layers[MatrixBoneSide::LeftMatrix][6].m_flPlaybackRate);
+	const auto delta2 = std::abs(cur_layer6.m_flPlaybackRate - resolver_layers[MatrixBoneSide::RightMatrix][6].m_flPlaybackRate);
+
+	if (static_cast<int>(delta1 * 10000.f) == static_cast<int>(delta2 * 10000.f))
+	{
+		if (std::abs(math::AngleDiff(player_record->angles.y, prev_record->angles.y)) > 35.f)
+			detect_side();
+		return;
+	}
+
+	const auto delta0 = std::abs(cur_layer6.m_flPlaybackRate - resolver_layers[MatrixBoneSide::ZeroMatrix][6].m_flPlaybackRate);
+
+	float best_delta{};
+
+	if (delta0 <= delta1)
+		best_delta = delta0;
 	else
+		best_delta = delta1;
+
+	if (best_delta > delta2)
+		best_delta = delta2;
+
+	if (static_cast<int>(best_delta * 1000.f)
+		|| static_cast<int>(best_delta * 10000.f) == static_cast<int>(delta0 * 10000.f))
+	{
+		if (std::abs(math::AngleDiff(player_record->angles.y, prev_record->angles.y)) > 35.f)
+			detect_side();
+
+		return;
+	}
+
+	if (best_delta == delta2)
+	{
+		
+		player_record->curSide = RIGHT;
+
+		return;
+	}
+
+	if (best_delta != delta1)
+	{
+		if (std::abs(math::AngleDiff(player_record->angles.y, prev_record->angles.y)) > 35.f)
+			detect_side();
+
+		return;
+	}
+
+	player_record->curSide = LEFT;
+
+}
+
+void CResolver::OtLayersResolver()
+{
+
+	player_record->type = LAYERS;
+
+	//AnimationLayer* MoveLayers = player->get_animlayers();
+
+	float flLeftDelta = std::fabsf(resolver_layers[LeftMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
+	float flLowLeftDelta = std::fabsf(resolver_layers[LowLeftMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
+	float flLowRightDelta = std::fabsf(resolver_layers[LowRightMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
+	float flRightDelta = std::fabsf(resolver_layers[RightMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
+	float flCenterDelta = std::fabsf(resolver_layers[ZeroMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
+
+	player_record->m_bAnimResolved = false;
+	{
+		float flLastDelta = 0.0f;
+		if (flLeftDelta > flCenterDelta)
+		{
+			player_record->curSide = LEFT;
+			flLastDelta = flLastDelta;
+		}
+
+		if (flRightDelta > flLastDelta)
+		{
+			player_record->curSide = RIGHT;
+			flLastDelta = flRightDelta;
+		}
+
+		if (flLowLeftDelta > flLastDelta)
+		{
+			player_record->curSide = LEFT;
+			flLastDelta = flLowLeftDelta;
+		}
+
+		if (flLowRightDelta > flLastDelta)
+		{
+			player_record->curSide = RIGHT;
+			flLastDelta = flLowRightDelta;
+		}
+
+		player_record->m_bAnimResolved = true;
+	}
+	
+	//bool bIsValidResolved = true;
+	//if (prev_record)
+	//{
+	//	if (fabs((player_record->velocity.Length2D() - prev_record->velocity.Length2D())) > 5.0f || prev_record->layers[7].m_flWeight < 1.0f)
+	//		bIsValidResolved = false;
+	//}
+
+	if (player_record->curSide == NO_SIDE || !player_record->m_bAnimResolved)
 		detect_side();
 
 
-	//float center = (abs(player_record->layers[6].m_flPlaybackRate - resolver_layers[0][6].m_flPlaybackRate)) * 1000.f;
-	//float positive_full = (abs(player_record->layers[6].m_flPlaybackRate - resolver_layers[1][6].m_flPlaybackRate)) * 1000.f;
-	//float negative_full = (abs(player_record->layers[6].m_flPlaybackRate - resolver_layers[2][6].m_flPlaybackRate)) * 1000.f;
-	//float positive_40 = (abs(player_record->layers[6].m_flPlaybackRate - resolver_layers[3][6].m_flPlaybackRate)) * 1000.f;
-	//float negative_40 = (abs(player_record->layers[6].m_flPlaybackRate - resolver_layers[4][6].m_flPlaybackRate)) * 1000.f;
+	/*TODO: save original layers before any calculations*/
+	float delta = previous_layers[6].m_flPlaybackRate;
 
-	//if ((positive_full > center && negative_full <= center) || (positive_40 > center && negative_40 <= center))
-	//	player_record->curSide = LEFT;
+	// round layer data to get correct values
+	float round_zero = std::roundf(flCenterDelta * 1000000.f) / 1000000.f;
+	float round_orig = std::roundf((flCenterDelta + delta) * 1000000.f) / 1000000.f;
 
+	// desync value goes from 100 (no desync) to 94 (full delta desync)
+	// we need to get value from 0 to 6
+	float dsy_percent = (round_zero * 100.f / round_orig) - 94.f;
 
-	//else if ((negative_full > center && positive_full <= center) || (negative_40 > center && positive_40 <= center))
-	//	player_record->curSide = RIGHT;
-
-	//else
-	//	detect_side();
-
-
+	// we got inversed desync range 
+	// to get real desync range we should substract 60 from our value
+	float angle = std::clamp(std::fabsf(60.f - (dsy_percent * 10.f)), 0.f, 60.f);
+	
 }
 
 float angle_diff_onetap(float a1, float a2)
@@ -369,24 +573,39 @@ void CResolver::get_side_standing()
 	//else
 	//	detect_side();
 
-	auto m_delta = math::AngleDiff(player->m_angEyeAngles().y, original_goal_feet_yaw);
+	auto m_delta = angle_diff_onetap(player->m_angEyeAngles().y, original_goal_feet_yaw);
 	auto m_side = (2 * (m_delta <= 0.0f) - 1) > 0;
 
 	player_record->curSide = m_side ? LEFT : RIGHT;
 
-	lock_side = m_globals()->m_curtime + 0.8f;
 
-	/*if (fabs(EyeDelta) > 25.0f)
-	{
+	////const auto left_pos = current->m_anim_sides.at(1u).m_bones[8].get_origin();
+	//const auto left_pos = player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::LeftMatrix].data());
+	//const auto right_pos = player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::RightMatrix].data());
+	//FireBulletData_t left_info;
+	//FireBulletData_t right_info;
+	//const auto left_damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), left_pos, &left_info);
+	//const auto right_damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), right_pos, &right_info);
 
-		if (EyeDelta > 25.0f)
-			player_record->curSide = RIGHT;
+	//if ((left_damage < 10 && right_damage < 10)
+	//	|| (right_info.visible && !left_info.visible)
+	//	|| (!right_info.visible && left_info.visible))
+	//{
+	//	detect_side();
+	//	return;
+	//}
+	//else
+	//{
 
-		else if (EyeDelta < -25.0f)
-			player_record->curSide = LEFT;
-	}
-	else
-		detect_side();*/
+	//	if (left_damage > right_damage)
+	//		player_record->curSide = LEFT;
+	//	else if (left_damage < right_damage)
+	//		player_record->curSide = RIGHT;
+	//	else
+	//		detect_side();
+	//	return;
+	//}
+	
 }
 
 
@@ -410,7 +629,7 @@ void CResolver::detect_side()
 
 	/* filtering */
 	filter.pSkip = player;
-	src3D = player->get_shoot_position();
+	src3D = g_ctx.globals.eye_pos;
 	dst3D = src3D + (forward * 384);
 
 	/* back engine tracers */
@@ -561,25 +780,39 @@ void CResolver::setmode()
 	if (animstate->m_velocity > 0.1f || fabs(animstate->flUpVelocity) > 100.f)
 		valid_move = animstate->m_flTimeSinceStartedMoving < 0.22f;
 
-
 	if (!on_ground)
-	{
 		player_record->curMode = AIR;
-	}
-	else if ((/*micromovement check pog*/ (speed < 3.1f && ducking) || (speed < 1.2f && !ducking)))
-	{
+	else if (speed < 0.01f)
 		player_record->curMode = STANDING;
-
-	}
-	else if (/*micromovement check pog*/ ((speed >= 3.1f && ducking) || (speed >= 1.2f && !ducking)))
+	else if (speed >= 0.01f)
 	{
-		if ((speed >= 1.2f && speed < 134.f) && !ducking && (slow_walking1 || slow_walking2))
+		if ((speed >= 0.01f && speed < 134.f) && !ducking && (slow_walking1 || slow_walking2))
 			player_record->curMode = SLOW_WALKING;
 		else
 			player_record->curMode = MOVING;
 	}
 	else
 		player_record->curMode = FREESTANDING;
+	
+
+	//if (!on_ground)
+	//{
+	//	player_record->curMode = AIR;
+	//}
+	//else if ((/*micromovement check pog*/ (speed < 3.1f && ducking) || (speed < 1.2f && !ducking)))
+	//{
+	//	player_record->curMode = STANDING;
+
+	//}
+	//else if (/*micromovement check pog*/ ((speed >= 3.1f && ducking) || (speed >= 1.2f && !ducking)))
+	//{
+	//	if ((speed >= 1.2f && speed < 134.f) && !ducking && (slow_walking1 || slow_walking2))
+	//		player_record->curMode = SLOW_WALKING;
+	//	else
+	//		player_record->curMode = MOVING;
+	//}
+	//else
+	//	player_record->curMode = FREESTANDING;
 }
 
 bool CResolver::MatchShot()
@@ -609,7 +842,7 @@ void CResolver::final_detection()
 	switch (player_record->curMode)
 	{
 	case MOVING:
-		layer_test();
+		solve_animes();
 		break;
 	case STANDING:
 		get_side_standing();
@@ -618,7 +851,7 @@ void CResolver::final_detection()
 		get_side_trace();
 		break;
 	case SLOW_WALKING:
-		layer_test();
+		solve_animes();
 		break;
 
 	}
@@ -663,9 +896,13 @@ void CResolver::resolve_desync()
 	}
 	auto e = player;
 	//
-	auto negative = player_record->left;
-	auto positive = player_record->right;
-	auto eye_yaw = player_record->Eye;
+	//auto negative = player_record->left;
+	//auto positive = player_record->right;
+	//auto eye_yaw = player_record->Eye;
+
+	auto negative = - 60.f;
+	auto positive = 60.f;
+	auto eye_yaw = player_record->angles.y;
 	//
 
 	bool mside;
@@ -679,15 +916,21 @@ void CResolver::resolve_desync()
 
 	setmode();
 
-	if (m_flLastShotTime <= simtime && m_shot || MatchShot())
+	/*if (m_flLastShotTime <= simtime && m_shot || MatchShot())
 	{
 		player_record->side = RESOLVER_ON_SHOT;
 		player_record->desync_amount = 0;
 		player_record->curSide = NO_SIDE;
 		player_record->shot = true;
 		return;
+	}*/
+	if (player_record->shot)
+	{
+		player_record->side = RESOLVER_ON_SHOT;
+		player_record->desync_amount = 0;
+		player_record->curSide = NO_SIDE;
+		return;
 	}
-
 	if (player_record->curMode == AIR)
 	{
 		player_record->side = RESOLVER_ORIGINAL;

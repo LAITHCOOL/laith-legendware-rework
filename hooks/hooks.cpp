@@ -167,9 +167,9 @@ namespace hooks
 		ImGui::NewFrame();
 
 		c_menu::get().draw(menu_open);
-		misc::get().watermark();
-		misc::get().spectators_list();
-		misc::get().key_binds();
+		g_Misc->watermark();
+		g_Misc->spectators_list();
+		g_Misc->key_binds();
 
 		if (g_ctx.globals.should_update_radar)
 			Radar::get().OnMapLoad(m_engine()->GetLevelNameShort(), device);
@@ -214,7 +214,10 @@ namespace hooks
 	DWORD original_modifyeyeposition;
 	DWORD original_calcviewmodelbob;
 	DWORD original_processinterpolatedlist;
+	DWORD original_o_InterpolateServerEntities = (DWORD)DetourFunction((byte*)util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 EC 1C 8B 0D ? ? ? ? 53 56 57")), (byte*)hooks::hkInterpolateServerEntities);
 	DWORD original_clmove = (DWORD)DetourFunction((byte*)util::FindSignature(crypt_str("engine.dll"), crypt_str("55 8B EC 83 EC 10 53 8A D9 F3 0F 11 45 FC 8B")), (byte*)hooks::Hooked_CLMove);
+	
+	//
 
 	
 	/*inline PBYTE get_relative_address(uint64_t addr, uint64_t size) {

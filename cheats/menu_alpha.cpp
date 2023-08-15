@@ -1083,36 +1083,36 @@ void c_menu::draw(bool is_open)
 								case 0:
 									g_cfg.ragebot.shift_amount = 14;
 									g_cfg.ragebot.recharge_time = 0.75f;
-									//g_cfg.ragebot.defensive_doubletap = false;
+									g_cfg.ragebot.defensive_doubletap = false;
 									g_cfg.ragebot.use_cs_shift_amount = false;
 									break;
 								case 1:
 									g_cfg.ragebot.shift_amount = 16;
-									g_cfg.ragebot.recharge_time = 0.30f;
-									//g_cfg.ragebot.defensive_doubletap = true;
+									g_cfg.ragebot.recharge_time = 0.10f;
+									g_cfg.ragebot.defensive_doubletap = true;
 									g_cfg.ragebot.use_cs_shift_amount = false;
 									break;
 								case 2:
 									g_cfg.ragebot.shift_amount = 14;
 									g_cfg.ragebot.recharge_time = 0.30f;
-									//g_cfg.ragebot.defensive_doubletap = false;
+									g_cfg.ragebot.defensive_doubletap = false;
 									g_cfg.ragebot.use_cs_shift_amount = false;
 									break;
 								case 3:
-									//g_cfg.ragebot.defensive_doubletap = false;
+									
 									g_cfg.ragebot.use_cs_shift_amount = true;
 									
 									break;
 								}
 
-								ImGui::Checkbox(crypt_str("Defensive"), &g_cfg.ragebot.defensive_doubletap);
+								//ImGui::Checkbox(crypt_str("Defensive"), &g_cfg.ragebot.defensive_doubletap);
 								//ImGui::Checkbox(crypt_str("Defensive double-tap"), &g_cfg.ragebot.defensive_doubletap);
 								//ImGui::Checkbox(crypt_str("Break LagComp"), &g_cfg.misc.break_lc);
 								//ImGui::Checkbox(crypt_str("Defensive"), &g_cfg.ragebot.defensive_doubletap);
 								//ImGui::Checkbox(crypt_str("Custome Double Tap"), &g_cfg.ragebot.use_cs_shift_amount);
 								if (g_cfg.ragebot.use_cs_shift_amount)
 								{
-									
+									ImGui::Checkbox(crypt_str("Defensive"), &g_cfg.ragebot.defensive_doubletap);
 									ImGui::SliderInt(crypt_str("Ticks To Shift"), &g_cfg.ragebot.shift_amount, 1, 17);
 									ImGui::SliderFloat(crypt_str("Recharge Time"), &g_cfg.ragebot.recharge_time, 0.00f, 3.00f, crypt_str("%.2f"));
 								}
@@ -1135,70 +1135,61 @@ void c_menu::draw(bool is_open)
 						padding(0, 3);
 
 						
-						ImGui::Checkbox(crypt_str("Static point scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].static_point_scale);
+						ImGui::Checkbox(crypt_str("Static multipoint scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].static_point_scale);
 						if (g_cfg.ragebot.weapon[hooks::rage_weapon].static_point_scale)
 						{
-							draw_multicombo(crypt_str("Multipoint Hitboxes"), g_cfg.ragebot.weapon[hooks::rage_weapon].multipoints_hitboxes, multipoint_hitboxes, ARRAYSIZE(multipoint_hitboxes), preview);
-							ImGui::SliderFloat(crypt_str("Head scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].head_scale, 0.0f, 1.0f, g_cfg.ragebot.weapon[hooks::rage_weapon].head_scale ? crypt_str("%.2f") : crypt_str("None"));
-							ImGui::SliderFloat(crypt_str("Body scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].body_scale, 0.0f, 1.0f, g_cfg.ragebot.weapon[hooks::rage_weapon].body_scale ? crypt_str("%.2f") : crypt_str("None"));
-							//ImGui::SliderFloat(crypt_str("Limps scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].limp_scale, 0.0f, 1.0f, g_cfg.ragebot.weapon[hooks::rage_weapon].limp_scale ? crypt_str("%.2f") : crypt_str("None"));
+							ImGui::SliderFloat(crypt_str("Head multipoint scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].head_scale, 0.0f, 1.0f, g_cfg.ragebot.weapon[hooks::rage_weapon].head_scale ? crypt_str("%.2f") : crypt_str("None"));
+							ImGui::SliderFloat(crypt_str("Body multipoint scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].body_scale, 0.0f, 1.0f, g_cfg.ragebot.weapon[hooks::rage_weapon].body_scale ? crypt_str("%.2f") : crypt_str("None"));
 						}
-						
 
-						//ImGui::Checkbox(crypt_str("Adaptive point scale"), &g_cfg.ragebot.weapon[hooks::rage_weapon].adaptive_point_scale);
+						ImGui::Checkbox(crypt_str("Ignore limbs"), &g_cfg.ragebot.weapon[hooks::rage_weapon].ignore_limbs);
 
-						ImGui::Checkbox(crypt_str("Enable max misses"), &g_cfg.ragebot.weapon[hooks::rage_weapon].max_misses);
+						ImGui::Checkbox(crypt_str("Enable bodyaim after X miss"), &g_cfg.ragebot.weapon[hooks::rage_weapon].max_misses);
 						if (g_cfg.ragebot.weapon[hooks::rage_weapon].max_misses)
-							ImGui::SliderInt(crypt_str("Max misses"), &g_cfg.ragebot.weapon[hooks::rage_weapon].max_misses_amount, 0, 6);
-
-						ImGui::Checkbox(crypt_str("Ignore limbs when moving"), &g_cfg.ragebot.weapon[hooks::rage_weapon].rage_aimbot_ignore_limbs);
-
-						ImGui::Checkbox(crypt_str("Prefer safe points"), &g_cfg.ragebot.weapon[hooks::rage_weapon].prefer_safe_points);
-						ImGui::Checkbox(crypt_str("Prefer body aim"), &g_cfg.ragebot.weapon[hooks::rage_weapon].prefer_body_aim);
+							ImGui::SliderInt(crypt_str("Bodyaim after X miss"), &g_cfg.ragebot.weapon[hooks::rage_weapon].max_misses_amount, 1, 12);
 					}
 					tab_end();
 
 					tab_start("weapon#1", column_2, 0, size_a_x, size_a_y);
 					{
 						ImGui::TabName(crypt_str("Weapons"));
+						/*start first*/
+						draw_multicombo(crypt_str("Hitscan"), g_cfg.ragebot.weapon[hooks::rage_weapon].hitboxes, hitboxes, ARRAYSIZE(hitboxes), preview);
+						draw_multicombo(crypt_str("Multipoint"), g_cfg.ragebot.weapon[hooks::rage_weapon].multipoint_hitboxes, multipoint_hitboxes, ARRAYSIZE(multipoint_hitboxes), preview);
+						draw_combo(crypt_str("Priority"), g_cfg.ragebot.weapon[hooks::rage_weapon].preferred_hitbox, prioritized_hitbox, ARRAYSIZE(prioritized_hitbox));
+						draw_multicombo(crypt_str("Prefer bodyaim"), g_cfg.ragebot.weapon[hooks::rage_weapon].prefer_body_aim, prefer_bodyaim_options, ARRAYSIZE(prefer_bodyaim_options), preview);
+						draw_multicombo(crypt_str("Always bodyaim"), g_cfg.ragebot.weapon[hooks::rage_weapon].always_body_aim, force_bodyaim_options, ARRAYSIZE(force_bodyaim_options), preview);
+						draw_keybind(crypt_str("Force BodyAim"), &g_cfg.ragebot.body_aim_key, crypt_str("##HOKEY_FORCE_BODY_AIM"));
 
-						draw_multicombo(crypt_str("Hitboxes"), g_cfg.ragebot.weapon[hooks::rage_weapon].hitboxes, hitboxes, ARRAYSIZE(hitboxes), preview);
+						if (g_cfg.ragebot.weapon[hooks::rage_weapon].always_body_aim.at(1))
+							ImGui::SliderInt(crypt_str("Bodyaim if HP under"), &g_cfg.ragebot.weapon[hooks::rage_weapon].always_baim_if_hp_below, 1, 100);
+						/*end first*/
 						padding(0, 3);
 
-						ImGui::Checkbox(crypt_str("Hitchance"), &g_cfg.ragebot.weapon[hooks::rage_weapon].hitchance);
-						if (g_cfg.ragebot.weapon[hooks::rage_weapon].hitchance)
-							ImGui::SliderInt(crypt_str("Hitchance amount"), &g_cfg.ragebot.weapon[hooks::rage_weapon].hitchance_amount, 1, 100);
 
-						if (g_cfg.ragebot.double_tap && hooks::rage_weapon <= 4)
-						{
-							ImGui::Checkbox(crypt_str("Double tap hitchance"), &g_cfg.ragebot.weapon[hooks::rage_weapon].double_tap_hitchance);
-							if (g_cfg.ragebot.weapon[hooks::rage_weapon].double_tap_hitchance)
-								ImGui::SliderInt(crypt_str("Double tap hitchance"), &g_cfg.ragebot.weapon[hooks::rage_weapon].double_tap_hitchance_amount, 1, 100);
-						}
+						//
+						ImGui::SliderInt(crypt_str("Hit chance"), &g_cfg.ragebot.weapon[hooks::rage_weapon].hitchance_amount, 1, 100);
+
+						if (g_cfg.ragebot.autowall)
+							ImGui::SliderInt(crypt_str("Minimum damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_damage, 1, 120, true);
+
+						ImGui::SliderInt(crypt_str("Visible minimum damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_visible_damage, 1, 120, true);
 
 						draw_keybind(crypt_str("Damage override"), &g_cfg.ragebot.weapon[hooks::rage_weapon].damage_override_key, crypt_str("##HOTKEY__DAMAGE_OVERRIDE"));
 						if (g_cfg.ragebot.weapon[hooks::rage_weapon].damage_override_key.key > KEY_NONE && g_cfg.ragebot.weapon[hooks::rage_weapon].damage_override_key.key < KEY_MAX)
 							ImGui::SliderInt(crypt_str("Minimum override damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_override_damage, 1, 120, true);
 
-						ImGui::SliderInt(crypt_str("Minimum damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_visible_damage, 1, 120, true);
-						if (g_cfg.ragebot.autowall)
-							ImGui::SliderInt(crypt_str("Minimum wall damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_damage, 1, 120, true);
-
-						if (g_cfg.ragebot.double_tap && hooks::rage_weapon <= 4)
-							ImGui::Checkbox(crypt_str("Adaptive two shot damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].adaptive_two_shot);
+						ImGui::Checkbox(crypt_str("Prefer safepoints"), &g_cfg.ragebot.weapon[hooks::rage_weapon].prefer_safe_points);
 						draw_keybind(crypt_str("Force safe points"), &g_cfg.ragebot.safe_point_key, crypt_str("##HOKEY_FORCE_SAFE_POINTS"));
-						ImGui::Spacing();
-						draw_keybind(crypt_str("Force body aim"), &g_cfg.ragebot.body_aim_key, crypt_str("##HOKEY_FORCE_BODY_AIM"));
+						//
 					}
 					tab_end();
 
 					tab_start("accuracy", column_2, size_a_y + 5, size_a_x, size_a_y);
 					{
-						ImGui::TabName(crypt_str("Accuracy"));
-
 						ImGui::Checkbox(crypt_str("Automatic stop"), &g_cfg.ragebot.weapon[hooks::rage_weapon].autostop);
 						if (g_cfg.ragebot.weapon[hooks::rage_weapon].autostop)
-							draw_multicombo(crypt_str("Modifiers"), g_cfg.ragebot.weapon[hooks::rage_weapon].autostop_modifiers, autostop_modifiers, ARRAYSIZE(autostop_modifiers), preview);
+							draw_multicombo(crypt_str("Automatic stop conditions"), g_cfg.ragebot.weapon[hooks::rage_weapon].autostop_modifiers, autostop_modifiers, ARRAYSIZE(autostop_modifiers), preview);
 					}
 					tab_end();
 				}
@@ -2000,7 +1991,7 @@ void c_menu::draw(bool is_open)
 						draw_combo(crypt_str("DPI scale"), g_cfg.menu.size_menu, dpi, ARRAYSIZE(dpi));
 
 						if (ImGui::CustomButton(crypt_str("unlock hidden convars"), crypt_str("##GAME__UNLOCK"), ImVec2(260 * dpi_s, 28 * dpi_scale)))
-							misc::get().EnableHiddenCVars();
+							g_Misc->EnableHiddenCVars();
 
 						if (ImGui::CustomButton(crypt_str("RAGE QUIT!"), crypt_str("##RAGE_QUIT"), ImVec2(260 * dpi_s, 28 * dpi_scale)))
 							exit(0);

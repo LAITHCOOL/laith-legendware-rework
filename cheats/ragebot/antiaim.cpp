@@ -8,6 +8,7 @@
 #include "..\misc\prediction_system.h"
 #include "..\misc\misc.h"
 #include "..\lagcompensation\local_animations.h"
+#include "../prediction/EnginePrediction.h"
 
 void antiaim::create_move(CUserCmd* m_pcmd)
 {
@@ -25,7 +26,7 @@ void antiaim::create_move(CUserCmd* m_pcmd)
 	if (condition(m_pcmd))
 		return;
 
-	if ((type == ANTIAIM_LEGIT ? g_cfg.antiaim.desync : g_cfg.antiaim.type[type].desync) && (type == ANTIAIM_LEGIT ? !g_cfg.antiaim.legit_lby_type : !g_cfg.antiaim.lby_type) && !g_cfg.misc.fast_stop && (!g_ctx.globals.weapon->is_grenade() || g_cfg.esp.on_click && !(m_pcmd->m_buttons & IN_ATTACK) && !(m_pcmd->m_buttons & IN_ATTACK2)) && engineprediction::get().backup_data.velocity.Length2D() <= 20.0f) //-V648
+	if ((type == ANTIAIM_LEGIT ? g_cfg.antiaim.desync : g_cfg.antiaim.type[type].desync) && (type == ANTIAIM_LEGIT ? !g_cfg.antiaim.legit_lby_type : !g_cfg.antiaim.lby_type) && !g_cfg.misc.fast_stop && (!g_ctx.globals.weapon->is_grenade() || g_cfg.esp.on_click && !(m_pcmd->m_buttons & IN_ATTACK) && !(m_pcmd->m_buttons & IN_ATTACK2)) && g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() <= 20.0f) //-V648
 	{
 		auto speed = 1.01f;
 
@@ -156,7 +157,7 @@ float antiaim::get_yaw(CUserCmd* m_pcmd)
 
 		desync_angle = max_desync_delta;
 
-		if (g_cfg.antiaim.legit_lby_type && g_ctx.local()->m_vecVelocity().Length() < 5.0f && g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND)
+		if (g_cfg.antiaim.legit_lby_type && g_ctx.local()->m_vecVelocity().Length() < 5.0f && g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND)
 			desync_angle *= 2.0f;
 
 		if (flip)
@@ -398,7 +399,7 @@ bool antiaim::should_break_lby(CUserCmd* m_pcmd, int lby_type)
 	if (!g_ctx.globals.fakeducking && m_clientstate()->iChokedCommands > 14)
 	{
 		g_ctx.send_packet = true;
-		fakelag::get().started_peeking = false;
+		g_Fakelag->started_peeking = false;
 	}
 
 	auto animstate = g_ctx.local()->get_animation_state(); //-V807

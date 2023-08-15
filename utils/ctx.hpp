@@ -7,26 +7,7 @@ class player_t;
 class weapon_t;
 class CUserCmd;
 
-struct shot_info
-{
-	bool should_log = false;
 
-	std::string target_name = crypt_str("None");
-	std::string result = crypt_str("None");
-
-	std::string client_hitbox = crypt_str("None");
-	std::string server_hitbox = crypt_str("None");
-	int server_hb = -1;
-
-
-	int client_damage = 0;
-	int server_damage = 0;
-
-	int hitchance = 0;
-	int backtrack_ticks = 0;
-
-	Vector aim_point = ZERO;
-};
 
 struct History_data
 {
@@ -38,26 +19,6 @@ struct History_data
 		type_normal = 0;
 		type_low_delta = false;
 	}
-};
-
-struct aim_shot
-{
-	bool start = false;
-	bool end = false;
-	bool impacts = false;
-	bool latency = false;
-	bool hurt_player = false;
-	bool impact_hit_player = false;
-	bool occlusion = false;
-	int client_hitbox_int = 0;
-
-	int last_target = -1;
-	int side = -1;
-	//int curS = 0;
-	int fire_tick = INT_MAX;
-	int event_fire_tick = INT_MAX;
-
-	shot_info shot_info;
 };
 
 struct command
@@ -121,6 +82,7 @@ public:
 		// clmove
 		bool isshifting = false;
 		bool startcharge = false;
+		bool block_charge = false;
 		int shift_ticks = 0;
 		int tocharge = 0;
 		int tochargeamount = 0;
@@ -177,7 +139,7 @@ public:
 		int last_velocity_modifier_tick = 0;
 		float original_forwardmove = 0.0f;
 		float original_sidemove = 0.0f;
-
+		Vector original_viewangles = ZERO;
 		bool override_velmod = false;
 		Vector original;
 		int indicator_pos = 0;
@@ -205,6 +167,7 @@ public:
 		}resolver;
 
 		Vector eye_pos = ZERO;
+		Vector last_eye_pos = ZERO;
 		Vector start_position = ZERO;
 		Vector dormant_origin[65];
 
@@ -220,8 +183,6 @@ public:
 
 		bool m_allow_update_real_bones;
 		bool m_updating_real_animations;
-		bool m_real_matrix_ret;
-		matrix3x4_t m_real_matrix[MAXSTUDIOBONES];
 		Vector local_origin[128];
 		uint64_t attachment_helper;
 		float recoil_seed = 0.0f;
@@ -247,6 +208,17 @@ public:
 			std::array < bool, 65 > m_AnimResoled = { };
 			std::array < bool, 65 > m_FirstSinceTickbaseShift = { };
 		} m_ResolverData;
+
+
+		struct Local
+		{
+			bool m_real_matrix_ret = false;
+
+			matrix3x4_t m_fake_matrix[MAXSTUDIOBONES];
+			matrix3x4_t m_real_matrix[MAXSTUDIOBONES];
+		} local;
+
+
 	} globals;
 
 	struct gui_helpers
@@ -276,7 +248,6 @@ public:
 
 	std::string last_font_name;
 
-	std::vector <aim_shot> shots;
 
 	bool available();
 	bool m_bIsLocalPeek = false;

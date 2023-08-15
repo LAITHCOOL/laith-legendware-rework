@@ -9,7 +9,7 @@ struct target_info
 	int hitbox;
 };
 
-class legit_bot : public singleton <legit_bot>
+class legit_bot
 {
 public:
 	void createmove(CUserCmd* cmd);
@@ -38,3 +38,5 @@ private:
 	Vector aim_punch = Vector(0, 0, 0);
 	Vector aim_angle = Vector(0, 0, 0);
 };
+
+inline legit_bot* g_LegitBot = new legit_bot();

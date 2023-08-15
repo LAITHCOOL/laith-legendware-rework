@@ -13,12 +13,9 @@
 #include "..\..\cheats\visuals\dormant_esp.h"
 #include "..\..\cheats\lagcompensation\animation_system.h"
 #include "../../cheats/misc/ShotSystem.hpp"
-bool weapon_is_aim(const std::string& weapon)
-{
-	return weapon.find(crypt_str("decoy")) == std::string::npos && weapon.find(crypt_str("flashbang")) == std::string::npos &&
-		weapon.find(crypt_str("hegrenade")) == std::string::npos && weapon.find(crypt_str("inferno")) == std::string::npos &&
-		weapon.find(crypt_str("molotov")) == std::string::npos && weapon.find(crypt_str("smokegrenade")) == std::string::npos;
-}
+#include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
+#include "../../cheats/ragebot/shots.h"
+
 
 void C_HookedEvents::FireGameEvent(IGameEvent* event)
 {
@@ -103,32 +100,7 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 		auto user = m_engine()->GetPlayerForUserID(user_id);
 
 		if (user == m_engine()->GetLocalPlayer())
-		{
-			aim_shot* current_shot = nullptr;
-
-			for (auto& shot : g_ctx.shots)
-			{
-				if (shot.start)
-				{
-					shot.end = true;
-					continue;
-				}
-
-				if (shot.end)
-					continue;
-
-				current_shot = &shot;
-				break;
-			}
-
-			if (current_shot)
-			{
-				current_shot->start = true;
-				current_shot->event_fire_tick = m_globals()->m_tickcount;
-
-				++g_ctx.globals.fired_shots[aim::get().last_target[current_shot->last_target].record.i];
-			}
-		}
+			shots::get().on_weapon_fire();
 	}
 	else if (!strcmp(event_name, crypt_str("bullet_impact")))
 	{
@@ -142,58 +114,7 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 			if (g_cfg.esp.server_bullet_impacts)
 				m_debugoverlay()->BoxOverlay(position, Vector(-2.0f, -2.0f, -2.0f), Vector(2.0f, 2.0f, 2.0f), QAngle(0.0f, 0.0f, 0.0f), g_cfg.esp.server_bullet_impacts_color.r(), g_cfg.esp.server_bullet_impacts_color.g(), g_cfg.esp.server_bullet_impacts_color.b(), g_cfg.esp.server_bullet_impacts_color.a(), 4.0f);
 
-			aim_shot* current_shot = nullptr;
-
-			for (auto& shot : g_ctx.shots)
-			{
-				if (!shot.start)
-					continue;
-
-				if (shot.end)
-					continue;
-
-				current_shot = &shot;
-				break;
-			}
-
-			if (current_shot && aim::get().last_target[current_shot->last_target].record.player->valid(true, false)) //-V807
-			{
-				auto backup_data = adjust_data(aim::get().last_target[current_shot->last_target].record.player);
-				aim::get().last_target[current_shot->last_target].record.adjust_player();
-
-				trace_t trace, trace_zero, trace_first, trace_second;
-				Ray_t ray;
-
-				ray.Init(aim::get().last_shoot_position, position);
-				m_trace()->ClipRayToEntity(ray, MASK_SHOT_HULL | CONTENTS_HITBOX, aim::get().last_target[current_shot->last_target].record.player, &trace);
-
-				if (aim::get().last_target[current_shot->last_target].data.point.safe)
-				{
-					memcpy(aim::get().last_target[current_shot->last_target].record.player->m_CachedBoneData().Base(), aim::get().last_target[current_shot->last_target].record.m_Matricies[MiddleMatrix].data(), aim::get().last_target[current_shot->last_target].record.player->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
-					m_trace()->ClipRayToEntity(ray, MASK_SHOT_HULL | CONTENTS_HITBOX, aim::get().last_target[current_shot->last_target].record.player, &trace_zero);
-
-					memcpy(aim::get().last_target[current_shot->last_target].record.player->m_CachedBoneData().Base(), aim::get().last_target[current_shot->last_target].record.m_Matricies[LeftMatrix].data(), aim::get().last_target[current_shot->last_target].record.player->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
-					m_trace()->ClipRayToEntity(ray, MASK_SHOT_HULL | CONTENTS_HITBOX, aim::get().last_target[current_shot->last_target].record.player, &trace_first);
-
-					memcpy(aim::get().last_target[current_shot->last_target].record.player->m_CachedBoneData().Base(), aim::get().last_target[current_shot->last_target].record.m_Matricies[RightMatrix].data(), aim::get().last_target[current_shot->last_target].record.player->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
-					m_trace()->ClipRayToEntity(ray, MASK_SHOT_HULL | CONTENTS_HITBOX, aim::get().last_target[current_shot->last_target].record.player, &trace_second);
-				}
-
-				auto hit = trace.hit_entity == aim::get().last_target[current_shot->last_target].record.player;
-
-				if (aim::get().last_target[current_shot->last_target].data.point.safe)
-					hit = hit && trace_zero.hit_entity == aim::get().last_target[current_shot->last_target].record.player && trace_first.hit_entity == aim::get().last_target[current_shot->last_target].record.player && trace_second.hit_entity == aim::get().last_target[current_shot->last_target].record.player;
-
-				if (hit)
-					current_shot->impact_hit_player = true;
-				else if (aim::get().last_shoot_position.DistTo(position) < aim::get().last_target[current_shot->last_target].distance)
-					current_shot->occlusion = true;
-				else
-					current_shot->occlusion = false;
-
-				current_shot->impacts = true;
-				backup_data.adjust_player();
-			}
+			shots::get().on_impact(position);
 		}
 	}
 	else if (!strcmp(event_name, crypt_str("player_death")))
@@ -203,6 +124,11 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 
 		auto attacker_id = m_engine()->GetPlayerForUserID(attacker); //-V807
 		auto user_id = m_engine()->GetPlayerForUserID(user);
+
+		player_t* pPlayer = static_cast<player_t*>(m_entitylist()->GetClientEntity(user_id));
+		
+		if (pPlayer)	
+			C_LagComp::get().CleanPlayer(pPlayer);
 
 		if (g_ctx.local()->is_alive() && attacker_id == m_engine()->GetLocalPlayer() && user_id != m_engine()->GetLocalPlayer())
 		{
@@ -359,60 +285,7 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 				}
 			};
 
-			aim_shot* current_shot = nullptr;
-
-			for (auto& shot : g_ctx.shots)
-			{
-				if (!shot.start)
-					continue;
-
-				if (shot.end)
-					continue;
-
-				current_shot = &shot;
-				break;
-			}
-
-			if (weapon_is_aim(weapon))
-			{
-				if (current_shot && entity == aim::get().last_target[current_shot->last_target].record.player)
-					misc::get().aimbot_hitboxes();
-
-				otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
-				otheresp::get().hitmarker.point = entity->hitbox_position_matrix(get_hitbox_by_hitgroup(hitgroup), current_shot && entity == aim::get().last_target[current_shot->last_target].record.player ? aim::get().last_target[current_shot->last_target].record.m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());
-				otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
-				{
-					entity->hitbox_position_matrix(get_hitbox_by_hitgroup(hitgroup), current_shot && entity == aim::get().last_target[current_shot->last_target].record.player ? aim::get().last_target[current_shot->last_target].record.m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base()),
-					m_globals()->m_curtime,
-					Color::White,
-					damage,
-					hitgroup
-				};
-			}
-
-			auto headshot = hitgroup == HITGROUP_HEAD;
-			auto health = entity->m_iHealth() - damage;
-
-			if (health <= 0 && headshot)
-				otheresp::get().hitmarker.hurt_color = Color::Red;
-			else if (health <= 0)
-				otheresp::get().hitmarker.hurt_color = Color::Yellow;
-			else
-				otheresp::get().hitmarker.hurt_color = Color::White;
-
-			otheresp::get().damage_marker[user_id].hurt_color = headshot ? Color::Red : Color::White;
-
-			if (current_shot)
-			{
-				current_shot->shot_info.result = crypt_str("Hit");
-				current_shot->shot_info.server_hitbox = get_hitbox_name(get_hitbox_by_hitgroup(hitgroup));
-				current_shot->shot_info.server_hb = get_hitbox_by_hitgroup(hitgroup);
-
-				current_shot->shot_info.server_damage = damage;
-
-				current_shot->end = true;
-				current_shot->hurt_player = true;
-			}
+			shots::get().on_player_hurt(event, user_id);
 		}
 	}
 	else if (!strcmp(event_name, crypt_str("round_start")))
@@ -433,19 +306,27 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 			playeresp::get().esp_alpha_fade[i] = 0.0f;
 			playeresp::get().health[i] = 100;
 			c_dormant_esp::get().m_cSoundPlayers[i].reset();
+
+
+			auto player = (player_t*)m_entitylist()->GetClientEntity(i);
+
+			if (!player || player == g_ctx.local())
+				continue;
+
+			AimPlayer* data = & g_Ragebot->m_players[i];
+			data->OnRoundStart(player);
 		}
 
-		antiaim::get().freeze_check = true;
+		g_AntiAim->freeze_check = true;
 		g_ctx.globals.bomb_timer_enable = true;
 		g_ctx.globals.should_buy = 2;
 		g_ctx.globals.should_clear_death_notices = true;
 		g_ctx.globals.should_update_playerresource = true;
 		g_ctx.globals.should_update_gamerules = true;
 		g_ctx.globals.kills = 0;
-		g_ctx.shots.clear();
 	}
 	else if (!strcmp(event_name, crypt_str("round_freeze_end")))
-		antiaim::get().freeze_check = false;
+		g_AntiAim->freeze_check = false;
 	else if (!strcmp(event_name, crypt_str("bomb_defused")))
 		g_ctx.globals.bomb_timer_enable = false;
 

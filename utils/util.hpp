@@ -238,6 +238,9 @@ namespace util
 	bool get_bbox(entity_t* e, Box& box, bool player_esp);
 	void trace_line(Vector& start, Vector& end, unsigned int mask, CTraceFilter* filter, CGameTrace* tr);
 	void clip_trace_to_players(IClientEntity* e, const Vector& start, const Vector& end, unsigned int mask, CTraceFilter* filter, CGameTrace* tr);
+	bool is_valid_hitgroup(int index);
+	bool is_breakable_entity(IClientEntity* e);
+	int get_hitbox_by_hitgroup(int index);
 	void movement_fix_new(Vector& wish_angle, CUserCmd* m_pcmd);
 	void movement_fix(Vector& wish_angle, CUserCmd* m_pcmd);
 	unsigned int find_in_datamap(datamap_t* map, const char* name);

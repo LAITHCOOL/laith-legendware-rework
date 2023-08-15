@@ -4,6 +4,7 @@
 #include "prediction_system.h"
 #include "logs.h"
 #include "../tickbase shift/tickbase_shift.h"
+#include "../prediction/EnginePrediction.h"
 void fakelag::Fakelag(CUserCmd* m_pcmd)
 {
 	if (g_cfg.antiaim.fakelag && !g_ctx.globals.exploits)
@@ -17,7 +18,7 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 			return;
 		}
 
-		if (g_ctx.local()->m_fFlags() & FL_ONGROUND && !(engineprediction::get().backup_data.flags & FL_ONGROUND))
+		if (g_ctx.local()->m_fFlags() & FL_ONGROUND && !(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 		{
 			force_choke = true;
 			g_ctx.send_packet = false;
@@ -30,9 +31,9 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 	static auto random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 
 	auto choked = m_clientstate()->iChokedCommands;
-	auto flags = engineprediction::get().backup_data.flags;
-	auto velocity = engineprediction::get().backup_data.velocity.Length();
-	auto velocity2d = engineprediction::get().backup_data.velocity.Length2D();
+	auto flags = g_EnginePrediction->GetUnpredictedData()->m_nFlags;
+	auto velocity = g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length();
+	auto velocity2d = g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D();
 
 	auto max_speed = 260.0f;
 	auto weapon_info = g_ctx.globals.weapon->get_csweapon_info();
@@ -71,7 +72,7 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 
 
 
-	if (g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND && !m_gamerules()->m_bIsValveDS() && key_binds::get().get_key_bind_state(20))
+	if (g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && !m_gamerules()->m_bIsValveDS() && key_binds::get().get_key_bind_state(20))
 	{
 		max_choke = 14;
 
@@ -84,45 +85,16 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 	{
 		if (g_cfg.ragebot.enable && g_ctx.globals.current_weapon != -1 && !g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_PEEK] && g_cfg.antiaim.triggers_fakelag_amount > 6 && !started_peeking && velocity >= 5.0f)
 		{
-			auto predicted_eye_pos = g_ctx.globals.eye_pos + engineprediction::get().backup_data.velocity * m_globals()->m_intervalpertick * (float)g_cfg.antiaim.triggers_fakelag_amount * 0.5f;
-
-			for (auto i = 1; i < m_globals()->m_maxclients; i++)
+			if ( g_Ragebot->is_peeking_enemy((float)g_cfg.antiaim.triggers_fakelag_amount * 0.5f))
 			{
-				auto e = static_cast<player_t*>(m_entitylist()->GetClientEntity(i));
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				switch_ticks = !switch_ticks;
+				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
 
-				if (!e->valid(true))
-					continue;
+				g_ctx.send_packet = true;
+				this->started_peeking = true;
 
-				auto records = &player_records[i];
-
-				if (records->empty())
-					continue;
-
-				auto record = &records->front();
-
-				if (!record->valid())
-					continue;
-
-				scan_data predicted_data;
-				aim::get().scan(record, predicted_data, predicted_eye_pos);
-
-				if (predicted_data.valid())
-				{
-					scan_data data;
-					aim::get().scan(record, data, g_ctx.globals.eye_pos);
-
-					if (!data.valid())
-					{
-						random_factor = min(rand() % 14 + 1, g_cfg.antiaim.triggers_fakelag_amount);
-						switch_ticks = !switch_ticks;
-						fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
-
-						g_ctx.send_packet = true;
-						started_peeking = true;
-
-						return;
-					}
-				}
+				return;
 			}
 		}
 
@@ -156,7 +128,7 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 				g_ctx.send_packet = true;
 			}
 		}
-		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && velocity >= 5.0f && !g_ctx.globals.slowwalking && g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND && g_cfg.antiaim.fakelag_enablers[FAKELAG_MOVE])
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && velocity >= 5.0f && !g_ctx.globals.slowwalking && g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_cfg.antiaim.fakelag_enablers[FAKELAG_MOVE])
 		{
 			if (choked < max_choke)
 				g_ctx.send_packet = false;
@@ -171,7 +143,7 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 				g_ctx.send_packet = true;
 			}
 		}
-		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && !g_ctx.globals.slowwalking && !(g_ctx.local()->m_fFlags() & FL_ONGROUND && engineprediction::get().backup_data.flags & FL_ONGROUND) && g_cfg.antiaim.fakelag_enablers[FAKELAG_AIR])
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && !g_ctx.globals.slowwalking && !(g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND) && g_cfg.antiaim.fakelag_enablers[FAKELAG_AIR])
 		{
 			if (choked < max_choke)
 				g_ctx.send_packet = false;
@@ -261,7 +233,7 @@ bool fakelag::FakelagCondition(CUserCmd* m_pcmd)
 	if (g_ctx.local()->m_bGunGameImmunity() || g_ctx.local()->m_fFlags() & FL_FROZEN)
 		condition = true;
 
-	if (antiaim::get().freeze_check && !tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled)
+	if (g_AntiAim->freeze_check && !tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled)
 		condition = true;
 
 	return condition;

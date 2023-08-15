@@ -2,8 +2,10 @@
 
 #include "..\..\includes.hpp"
 
-class bunnyhop : public singleton <bunnyhop>
+class bunnyhop
 {
 public:
 	void create_move();
 };
+
+inline bunnyhop* g_Bunnyhop = new bunnyhop();

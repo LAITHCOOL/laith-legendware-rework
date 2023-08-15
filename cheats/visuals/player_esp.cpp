@@ -134,7 +134,7 @@ void playeresp::paint_traverse()
 				auto record = &records->front();
 
 				draw_skeleton(e, color, record->m_Matricies[MatrixBoneSide::MiddleMatrix].data());
-				//draw_skeleton(e, Color::Red, record->m_Matricies[MiddleMatrix].data());
+				draw_skeleton(e, Color::Red, record->m_Matricies[MatrixBoneSide::ZeroMatrix].data());
 				draw_skeleton(e, Color::Green, record->m_Matricies[MatrixBoneSide::LeftMatrix].data());
 				draw_skeleton(e, Color::Blue, record->m_Matricies[MatrixBoneSide::RightMatrix].data());
 			}
@@ -209,11 +209,11 @@ void playeresp::paint_traverse()
 					if (e->IsDormant())
 						color = Color(130, 130, 130, (int)(255.0f * esp_alpha_fade[i]));
 
-					misc::get().PovArrows(e, color);
+					g_Misc->PovArrows(e, color);
 				}
 
-				if (!e->IsDormant())
-					draw_multi_points(e);
+				/*if (!e->IsDormant())
+					draw_multi_points(e);*/
 			}
 		}
 
@@ -689,68 +689,68 @@ void playeresp::draw_lines(player_t* e)
 	render::get().line(width / 2, height, angle.x, angle.y, color);
 }
 
-void playeresp::draw_multi_points(player_t* e)
-{
-	if (!g_cfg.ragebot.enable)
-		return;
-
-	if (!g_cfg.player.show_multi_points)
-		return;
-
-	if (!g_ctx.local()->is_alive()) //-V807
-		return;
-
-	if (g_ctx.local()->get_move_type() == MOVETYPE_NOCLIP)
-		return;
-
-	if (g_ctx.globals.current_weapon == -1)
-		return;
-
-	auto weapon = g_ctx.local()->m_hActiveWeapon().Get();
-
-	if (weapon->is_non_aim())
-		return;
-
-	auto records = &player_records[e->EntIndex()]; //-V826
-
-	if (records->empty())
-		return;
-
-	auto record = &records->front();
-
-	if (!record->valid(false))
-		return;
-	auto force_safe_points = key_binds::get().get_key_bind_state(3) || g_cfg.player_list.force_safe_points[record->i];
-	std::vector <scan_point> points; //-V826
-	auto hitboxes = aim::get().get_hitboxes(record);
-	auto start = g_ctx.local()->get_shoot_position();
-	for (auto& hitbox : hitboxes)
-	{
-		auto current_points = aim::get().get_points(record, hitbox);
-
-		for (auto& point : current_points)
-		{
-			point.safe = aim::get().IsSafePoint(record, g_ctx.globals.eye_pos, point.point, hitbox);
-
-			if (force_safe_points && !point.safe)
-				continue;
-
-			points.emplace_back(point);
-		}
-			
-	}
-
-	if (points.empty())
-		return;
-
-	for (auto& point : points)
-	{
-		Vector screen;
-
-		if (!math::world_to_screen(point.point, screen))
-			continue;
-
-		render::get().rect_filled(screen.x - 1, screen.y - 1, 3, 3, g_cfg.player.show_multi_points_color);
-		render::get().rect(screen.x - 2, screen.y - 2, 5, 5, Color::Black);
-	}
-}
+//void playeresp::draw_multi_points(player_t* e)
+//{
+//	if (!g_cfg.ragebot.enable)
+//		return;
+//
+//	if (!g_cfg.player.show_multi_points)
+//		return;
+//
+//	if (!g_ctx.local()->is_alive()) //-V807
+//		return;
+//
+//	if (g_ctx.local()->get_move_type() == MOVETYPE_NOCLIP)
+//		return;
+//
+//	if (g_ctx.globals.current_weapon == -1)
+//		return;
+//
+//	auto weapon = g_ctx.local()->m_hActiveWeapon().Get();
+//
+//	if (weapon->is_non_aim())
+//		return;
+//
+//	auto records = &player_records[e->EntIndex()]; //-V826
+//
+//	if (records->empty())
+//		return;
+//
+//	auto record = &records->front();
+//
+//	if (!record->valid(false))
+//		return;
+//	auto force_safe_points = key_binds::get().get_key_bind_state(3) || g_cfg.player_list.force_safe_points[record->i];
+//	std::vector <scan_point> points; //-V826
+//	auto hitboxes = g_Ragebot->get_hitboxes(record);
+//	auto start = g_ctx.local()->get_shoot_position();
+//	for (auto& hitbox : hitboxes)
+//	{
+//		auto current_points = g_Ragebot->get_points(record, hitbox);
+//
+//		for (auto& point : current_points)
+//		{
+//			point.safe = g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, hitbox);
+//
+//			if (force_safe_points && !point.safe)
+//				continue;
+//
+//			points.emplace_back(point);
+//		}
+//
+//	}
+//
+//	if (points.empty())
+//		return;
+//
+//	for (auto& point : points)
+//	{
+//		Vector screen;
+//
+//		if (!math::world_to_screen(point.point, screen))
+//			continue;
+//
+//		render::get().rect_filled(screen.x - 1, screen.y - 1, 3, 3, g_cfg.player.show_multi_points_color);
+//		render::get().rect(screen.x - 2, screen.y - 2, 5, 5, Color::Black);
+//	}
+//}

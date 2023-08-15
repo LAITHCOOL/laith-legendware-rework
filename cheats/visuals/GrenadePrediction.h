@@ -12,7 +12,7 @@ enum ACT
 	ACT_DROP,
 };
 
-class GrenadePrediction : public singleton<GrenadePrediction>
+class GrenadePrediction
 {
 private:
 	std::vector<Vector> path;
@@ -36,3 +36,5 @@ public:
 	void View(CViewSetup* setup, weapon_t* weapon);
 	void Paint();
 };
+
+inline GrenadePrediction* g_GrenadePrediction = new GrenadePrediction();

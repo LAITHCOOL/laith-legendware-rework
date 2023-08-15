@@ -202,14 +202,12 @@ enum
 
 enum
 {
-	AUTOSTOP_BETWEEN_SHOTS,
+	AUTOSTOP_BETWEEN_SHOT,
+	AUTOSTOP_HITCHANCE_FAIL,
 	AUTOSTOP_LETHAL,
-	AUTOSTOP_VISIBLE,
 	AUTOSTOP_CENTER,
-	AUTOSTOP_FORCE_ACCURACY,
-	AUTOSTOP_PREDICTIVE
+	AUTOSTOP_EARLY
 };
-
 enum
 {
 	EVENTLOG_HIT,
@@ -399,39 +397,27 @@ struct Config
 
 		struct weapon
 		{
-			bool double_tap_hitchance;
-			int double_tap_hitchance_amount;
-			bool hitchance;
 			int hitchance_amount;
 			int minimum_visible_damage;
 			int minimum_damage;
-			key_bind damage_override_key;
-			bool autoscope;
 			int minimum_override_damage;
 			std::vector <int> hitboxes;
-			std::vector <int> ignore_unsafe_hitboxes;
+			std::vector <int> multipoint_hitboxes;
+			int preferred_hitbox;
 			bool static_point_scale;
 			float head_scale;
-			int accuracy_boost = 1;//
 			float body_scale;
-			float limp_scale;
-			bool adaptive_point_scale;
+			bool ignore_limbs;
 			bool max_misses;
 			int max_misses_amount;
 			bool prefer_safe_points;
-			bool prefer_body_aim;
+			key_bind damage_override_key;
+			std::vector <int> prefer_body_aim;
+			std::vector <int> always_body_aim;
+			int always_baim_if_hp_below;
 			bool autostop;
 			std::vector <int> autostop_modifiers;
 			int selection_type;
-			int autoscope_type;
-			bool adaptive_shot_dmg;
-			bool rage_aimbot_ignore_limbs;
-			std::vector <int> multipoints_hitboxes;
-			bool adaptive_two_shot;
-			std::vector <int> safe_points_conditions;
-			std::vector <int> bodyaimcond;
-			std::vector <int> headaimcond;
-			std::vector <int> headaimonlycond;
 		} weapon[8];
 	} ragebot;
 

@@ -3,7 +3,7 @@
 #include "../../includes.hpp"
 #include "..\ragebot\antiaim.h"
 
-class fakelag : public singleton <fakelag>
+class fakelag
 {
 public:
     void Fakelag(CUserCmd* m_pcmd);
@@ -16,4 +16,6 @@ public:
 
     int max_choke = 0;
     player_t* player;
-};                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+};                   
+
+inline fakelag* g_Fakelag = new fakelag();

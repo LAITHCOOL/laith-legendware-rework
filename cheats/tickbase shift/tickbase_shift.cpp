@@ -3,8 +3,69 @@
 #include "../misc/fakelag.h"
 #include "..\ragebot\aim.h"
 #include "../misc/prediction_system.h"
+#include "../prediction/EnginePrediction.h"
 
+void tickbase::shift_silent(CUserCmd* current_cmd, CUserCmd* first_cmd, int amount)
+{
+	if (!g_ctx.send_packet)
+		return;
 
+	// alloc empty cmds
+	std::vector<CUserCmd> fake_cmds{};
+	fake_cmds.resize(amount);
+
+	// create fake commands & simulate their movement
+	for (int i = 0; i < amount; ++i)
+	{
+		auto cmd = &fake_cmds[i];
+		if (cmd != first_cmd)
+			std::memcpy(cmd, first_cmd, sizeof(CUserCmd));
+
+		// disable in-game simulation for this cmd
+		cmd->m_predicted = true;
+
+		// don't add cmd to prediction & simulation record
+		cmd->m_tickcount = INT_MAX;
+	}
+
+	// shift cmds
+	auto net_channel_info = m_engine()->GetNetChannelInfo();
+
+	if (!net_channel_info)
+		return;
+
+	auto command_number = current_cmd->m_command_number + 1;
+	auto add_command_number = current_cmd->m_command_number + 1;
+	for (int i = 0; i < fake_cmds.size(); ++i)
+	{
+		auto fake_cmd = &fake_cmds[i];
+		auto new_cmd = m_input()->GetUserCmd(command_number);
+
+		if (new_cmd != fake_cmd)
+			memcpy(new_cmd, fake_cmd, sizeof(CUserCmd));
+
+		// don't add cmd to prediction & simulation record
+		new_cmd->m_tickcount = INT_MAX;
+
+		new_cmd->m_command_number = command_number;
+		new_cmd->m_predicted = true;
+
+		auto verified_cmd = m_input()->GetVerifiedUserCmd(command_number);
+		auto verfied_cmd_ptr = &verified_cmd->m_cmd;
+
+		if (verfied_cmd_ptr != new_cmd)
+			memcpy(verified_cmd, new_cmd, sizeof(CUserCmd));
+
+		verified_cmd->m_crc = new_cmd->GetChecksum();
+
+		++m_clientstate()->iChokedCommands;
+
+		command_number = add_command_number + 1;
+		++add_command_number;
+	}
+
+	fake_cmds.clear();
+}
 
 void tickbase::double_tap_deffensive(CUserCmd* cmd)
 {
@@ -12,7 +73,7 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 	g_ctx.globals.next_tickbase_shift = 0;
 	g_ctx.globals.tickbase_shift = g_ctx.globals.next_tickbase_shift;
 	// predpos
-	Vector predicted_eye_pos = g_ctx.globals.eye_pos + (engineprediction::get().backup_data.velocity * m_globals()->m_intervalpertick);
+	Vector predicted_eye_pos = g_ctx.globals.eye_pos + (g_EnginePrediction->GetUnpredictedData()->m_vecVelocity * m_globals()->m_intervalpertick);
 
 	for (auto i = 1; i <= m_globals()->m_maxclients; i++)
 	{
@@ -36,11 +97,10 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 		{
 			predicted_eye_pos *= next_chock;
 
+			auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, e->hitbox_position_matrix(HITBOX_PELVIS, record->m_Matricies[MiddleMatrix].data()), e);
 
-			FireBulletData_t fire_data = { };
-			/*we scan for pelvis because relativly it has a very low desync amount and its the first body part we detect when peeking*/
-			fire_data.damage = CAutoWall::GetDamage(predicted_eye_pos, g_ctx.local(), e->hitbox_position_matrix(HITBOX_PELVIS, record->m_Matricies[MiddleMatrix].data()), &fire_data);
-			/*you can do the same for default lw autowall*/
+			if (!fire_data.valid)
+				continue;
 
 			if (fire_data.damage < 1)
 				continue;
@@ -49,74 +109,63 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 		}
 	}
 
-	if (g_ctx.globals.m_Peek.m_bIsPeeking && !g_ctx.globals.isshifting) /*we dont want to shift while we're recharching because it will cause our dt and tickbase to break*/
+	if (g_ctx.globals.m_Peek.m_bIsPeeking && !g_ctx.globals.isshifting && g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.block_charge) /*we dont want to shift while we're recharching because it will cause our dt and tickbase to break*/
 	{
 
 		int shift_amount = math::clamp(math::random_int(1, 4), 0, 15); /*we dont want to shift more than 14 and it goes as folows*/
 		/* (16 ticks in total we can send without byte patching) 1 tick is for simulating our other 15 commands , 1 tick is for desync, 13 for dt, and 1 is enough to break lc*/
 
-		//shift_cmd(cmd, shift_amount);
-		//util::copy_command(cmd, shift_amount);
-		g_ctx.globals.next_tickbase_shift = shift_amount;
-		g_ctx.globals.tickbase_shift = g_ctx.globals.next_tickbase_shift;
-		//g_ctx.globals.defensive_shift_ticks = shift_amount;
+
+
+		g_ctx.globals.tickbase_shift = shift_amount;
 		g_ctx.globals.m_Peek.m_bIsPeeking = false;
 		g_ctx.globals.m_shifted_command = cmd->m_command_number;
 
-		/* predict tickbase for next 2 cmds */
-		const int nFirstTick = engineprediction::get().AdjustPlayerTimeBase(-g_ctx.globals.defensive_shift_ticks);
-		const int nSecondTick = engineprediction::get().AdjustPlayerTimeBase(1);
-
-		/* set tickbase for next 2 cmds */
-		engineprediction::get().SetTickbase(cmd->m_command_number, nFirstTick);
-		engineprediction::get().SetTickbase(cmd->m_command_number + 1, nSecondTick);
-
-		/*now its up to you to set a timer from 50ms up to 400ms i'd recommend, refer to using TICKS_TO_TIME function for that*/
-		/*but personally shifting constantly is fine*/
+		auto next_command_number = cmd->m_command_number + 1;
+		auto user_cmd = m_input()->GetUserCmd(next_command_number);
+		shift_silent(cmd, user_cmd, shift_amount);
 	}
-	else
-	{
-		g_ctx.globals.next_tickbase_shift = 0;
-		g_ctx.globals.tickbase_shift = 0;
-		//g_ctx.globals.defensive_shift_ticks = shift_amount;
-		g_ctx.globals.m_Peek.m_bIsPeeking = false;
-	}
-	
 }
 
 void tickbase::DoubleTap(CUserCmd* m_pcmd)
 {
 	double_tap_enabled = true;
 
-	if (g_cfg.ragebot.defensive_doubletap)
-		double_tap_deffensive(m_pcmd);
 	//vars
 	auto shiftAmount = g_cfg.ragebot.shift_amount;
 	float shiftTime = shiftAmount * m_globals()->m_intervalpertick;
 	float recharge_time = TIME_TO_TICKS(g_cfg.ragebot.recharge_time);
 	auto weapon = g_ctx.local()->m_hActiveWeapon();
 
-
+	g_ctx.globals.block_charge = false;
 	//Check if we can doubletap
 	if (!CanDoubleTap(false))
 		return;
 
-
+	//g_ctx.globals.tickbase_shift = shiftAmount;
 
 	//Fix for doubletap hitchance
 	if (g_ctx.globals.dt_shots == 1) {
 		g_ctx.globals.dt_shots = 0;
 	}
-	g_ctx.globals.tickbase_shift = shiftAmount;
+
+	/* determine simulation ticks */
+	auto m_nSimulationTicks = max(min((m_clientstate()->iChokedCommands + 1), 17), 1);
+
+	/* Get command */
+	const int m_CmdNum = m_clientstate()->nLastOutgoingCommand + m_nSimulationTicks;
 
 	//Recharge
-	if (!aim::get().should_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
+	if (!g_Ragebot->m_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
 		&& !util::is_button_down(MOUSE_LEFT) && g_ctx.globals.tocharge < shiftAmount && (m_pcmd->m_command_number - lastdoubletaptime) > recharge_time)
 	{
 		lastdoubletaptime = 0;
 		g_ctx.globals.startcharge = true;
 		g_ctx.globals.tochargeamount = shiftAmount;
 		g_ctx.globals.dt_shots = 0;
+		g_ctx.globals.block_charge = true;
+		
+		
 	}
 	else
 		g_ctx.globals.startcharge = false;
@@ -126,8 +175,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		|| g_ctx.globals.weapon->is_knife() || g_ctx.globals.weapon->is_grenade());
 	if ((m_pcmd->m_buttons & IN_ATTACK) && !restricted_weapon && g_ctx.globals.tocharge == shiftAmount && weapon->m_flNextPrimaryAttack() <= m_pcmd->m_command_number - shiftTime)
 	{
-
-		misc::get().fix_autopeek(m_pcmd);
+		g_Misc->fix_autopeek(m_pcmd);
 
 		if (g_ctx.globals.aimbot_working)
 		{
@@ -136,13 +184,18 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		}
 		g_ctx.globals.shift_ticks = shiftAmount;
 
+		/* calc perspective shift this tick */
+		auto m_nPerspectiveShift = g_ctx.globals.ticks_allowed - m_nSimulationTicks - 1;
+
+		//g_EnginePrediction->SetTickbase(m_CmdNum, g_EnginePrediction->AdjustPlayerTimeBase(-m_nPerspectiveShift));
+		g_ctx.globals.block_charge = true;
 		//g_ctx.globals.m_shifted_command = m_pcmd->m_command_number;
 		g_ctx.globals.shifting_command_number = m_pcmd->m_command_number; // used for tickbase fix 
 
 		lastdoubletaptime = m_pcmd->m_command_number;
 	}
-
-
+	else
+		g_ctx.globals.block_charge = false;
 
 }
 
@@ -257,7 +310,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		return;
 	}
 
-	if (antiaim::get().freeze_check)
+	if (g_AntiAim->freeze_check)
 		return;
 
 	g_ctx.globals.next_tickbase_shift = m_gamerules()->m_bIsValveDS() ? 6 : 9;
@@ -269,10 +322,16 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 	{
 		g_ctx.globals.tickbase_shift = g_ctx.globals.next_tickbase_shift;
 		g_ctx.globals.m_shifted_command = m_pcmd->m_command_number;
+		g_ctx.globals.shifting_command_number = m_pcmd->m_command_number; // used for tickbase fix 
+
+
+		/* predict tickbase for next 2 cmds */
+		const int nFirstTick = g_EnginePrediction->AdjustPlayerTimeBase(-g_ctx.globals.next_tickbase_shift);
+		const int nSecondTick = g_EnginePrediction->AdjustPlayerTimeBase(1);
+		/* set tickbase for next 2 cmds */
+		//g_EnginePrediction->SetTickbase(m_pcmd->m_command_number, nFirstTick);
+		//g_EnginePrediction->SetTickbase(m_pcmd->m_command_number + 1, nSecondTick);
 	}
-
-	
-
 }
 
 void tickbase::fix_tickbase(CUserCmd* cmd, int new_command_number, int& tickbase)
@@ -289,8 +348,15 @@ void tickbase::fix_tickbase(CUserCmd* cmd, int new_command_number, int& tickbase
 
 }
 
-void tickbase::fix_angle_movement(CUserCmd* cmd, Vector& ang)
+
+void fix_angle_movement(CUserCmd* cmd, Vector& ang)
 {
+	if (!cmd)
+		return;
+
+	if (!ang.IsValid())
+		ang = cmd->m_viewangles;
+
 	Vector move = Vector(cmd->m_forwardmove, cmd->m_sidemove, 0.f);
 	Vector dir = {};
 
@@ -302,13 +368,13 @@ void tickbase::fix_angle_movement(CUserCmd* cmd, Vector& ang)
 	if (!len)
 		return;
 
-	math::VectorAngles(move, move_angle);
+	math::vector_to_angles(move, move_angle);
 
 	delta = (cmd->m_viewangles.y - ang.y);
 
 	move_angle.y += delta;
 
-	math::AngleVectors(move_angle, &dir);
+	math::angle_to_vectors(move_angle, &dir);
 
 	dir *= len;
 
@@ -353,7 +419,6 @@ void tickbase::shift_cmd(CUserCmd* cmd, int amount)
 	int cnt = cmd_number - 150 * ((cmd_number + 1) / 150) + 1;
 	auto new_cmd = &m_input()->m_pCommands[cnt];
 
-
 	auto net_chan = m_clientstate()->pNetChannel;
 	if (!new_cmd || !net_chan)
 		return;
@@ -363,9 +428,7 @@ void tickbase::shift_cmd(CUserCmd* cmd, int amount)
 	new_cmd->m_command_number = cmd->m_command_number + 1;
 	new_cmd->m_buttons &= ~0x801u;
 
-	//fix_angle_movement(new_cmd, g_ctx.globals.wish_angle);
-	util::movement_fix(new_cmd->m_viewangles, new_cmd);
-
+	fix_angle_movement(new_cmd, cmd->m_viewangles);
 
 	for (int i = 0; i < amount; ++i)
 	{
@@ -376,10 +439,8 @@ void tickbase::shift_cmd(CUserCmd* cmd, int amount)
 
 		std::memcpy(cmd_, new_cmd, sizeof(CUserCmd));
 
-
-
 		cmd_->m_command_number = cmd_num;
-		cmd_->m_predicted = cmd_->m_tickcount != INT_MAX;
+		cmd_->m_predicted = cmd_->m_tickcount == INT_MAX;
 
 		std::memcpy(verifided_cmd, cmd_, sizeof(CUserCmd));
 		verifided_cmd->m_crc = cmd_->GetChecksum();
@@ -389,13 +450,12 @@ void tickbase::shift_cmd(CUserCmd* cmd, int amount)
 		++net_chan->m_nOutSequenceNr;
 	}
 
-	/*if (cmd->m_tickcount != INT_MAX && m_clientstate()->iDeltaTick > 0)
-		m_prediction()->Update(m_clientstate()->iDeltaTick, true, m_clientstate()->nLastCommandAck, m_clientstate()->nLastOutgoingCommand + m_clientstate()->iChokedCommands);*/
+	/*	if (shift_timer == 0)
+			tick_base.store(g::local()->tick_base(), cmd->command_number, amount, false);*/
 
 	*(int*)((uintptr_t)m_prediction() + 0xC) = -1;
 	*(int*)((uintptr_t)m_prediction() + 0x1C) = 0;
 }
-
 
 int tickbase::adjust_player_time_base(int delta) {
 	if (delta == -1)

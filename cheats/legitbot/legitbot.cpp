@@ -393,10 +393,7 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 			if (fov > best_fov)
 				continue;
 
-			FireBulletData_t fire_data = { };
-
-			fire_data.damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), bone_pos, &fire_data);
-
+			auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
 			//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
 
 			if (!fire_data.visible && !g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].awall_dmg)
@@ -430,9 +427,7 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 		if (fov > best_fov)
 			return;
 
-		FireBulletData_t fire_data = { };
-
-		fire_data.damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), bone_pos, &fire_data);
+		auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
 
 		//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
 
@@ -467,9 +462,7 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 			if (fov > best_fov)
 				continue;
 
-			FireBulletData_t fire_data = { };
-
-			fire_data.damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), bone_pos, &fire_data);
+			auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
 
 			//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
 

@@ -1,63 +1,35 @@
 #pragma once
 #include "../../includes.hpp"
-#include "../MultiThread/shared_mutex.h"
-#include "../MultiThread/semaphores.h"
 
-struct WepData_t
+struct SimulateBulletObject_t
 {
-	float m_flMaxRange = 0.0f;
-	float m_flRangeModifier = 0.0f;
-	float m_flWeaponDamage = 0.0f;
-	float m_flPenetrationPower = 0.0f;
-	float m_flPenetrationDistance = 0.0f;
-	float m_flArmorRatio = 0.0f;
-};
-struct PenetrationData_t
-{
-	Semaphore* Semaphore;
-	SharedMutex* m_Mutex;
-
-	Vector m_vecShootPosition = Vector(0, 0, 0);
-	Vector m_vecTargetPosition = Vector(0, 0, 0);
-	Vector m_vecDirection = Vector(0, 0, 0);
-
-	bool m_bSuccess = false;
-	bool m_bFinished = false;
-
-	int m_PenetrationCount = 4;
-	int m_Hitbox = 0;
-	int m_nPriority = 0;
-
-	bool m_flVisible = true;
-	float m_flMinDamage = 0.0f;
-	float m_flDamageModifier = 0.5f;
-	float m_flPenetrationModifier = 1.0f;
-	float m_flCurrentDamage = 0.0f;
-	float m_flCurrentDistance = 0.0f;
-
-	CGameTrace m_EnterTrace;
-	CGameTrace m_ExitTrace;
+	Vector vecPosition = { };
+	Vector vecDirection = { };
+	trace_t enterTrace = { };
+	float flCurrentDamage = 0.0f;
+	int iPenetrateCount = 0;
 };
 
-class C_AutoWall
+// @credits: outlassn
+class c_newautowall
 {
-public:
-	virtual bool TraceToExit(PenetrationData_t* m_PenetrationData, const Vector& vecStart, CGameTrace* pEnterTrace, CGameTrace* pExitTrace);
-	virtual bool HandleBulletPenetration(PenetrationData_t* m_PenetrationData);
-	virtual bool IsArmored(player_t* pPlayer, const int& nHitGroup);
-	virtual void ScaleDamage(CGameTrace Trace, float& flDamage);
-	virtual void ClipTraceToPlayers(const Vector& vecStart, const Vector& vecEnd, CGameTrace* Trace, CTraceFilter* Filter, uint32_t nMask);
-	virtual Vector GetPointDirection(const Vector& vecShootPosition, const Vector& vecTargetPosition);
-	static void ScanPoint(PenetrationData_t* m_PenetrationData);
-	virtual bool SimulateFireBullet(PenetrationData_t* m_PenetrationData);
-	virtual bool IsPenetrablePoint(const Vector& vecShootPosition, const Vector& vecTargetPosition);
-	virtual void CacheWeaponData();
-	virtual WepData_t& GetWeaponData()
-	{
-		return m_Data;
-	}
-private:
-	WepData_t m_Data;
-};
+	/* @section: get */
+	/// @param[in] vecPoint another player's point to get damage on
+	/// @param[out] pDataOut [optional] simulated fire bullet data output
+	/// @returns: damage at given point from given player shoot position
+	float GetDamage(player_t* pAttacker, const Vector& vecPoint, SimulateBulletObject_t* pDataOut = nullptr);
+	/// scales given damage by various dependent factors
+	/// @param[in,out] pflDamageToScale damage value that being scaled
+	void ScaleDamage(const int iHitGroup, player_t* pCSPlayer, const float flWeaponArmorRatio, const float flWeaponHeadShotMultiplier, float* pflDamageToScale);
+	/// simulates fire bullet to penetrate up to 4 walls
+	/// @returns: true if simulated bullet hit the player, false otherwise
+	bool SimulateFireBullet(player_t* pAttacker, weapon_t* pWeapon, SimulateBulletObject_t& data);
 
-inline C_AutoWall* g_AutoWall = new C_AutoWall();
+	/* @section: main */
+	/// find exact penetration exit
+	/// @returns: true if successfully got penetration exit for current object, false otherwise
+	bool TraceToExit(const trace_t& enterTrace, trace_t& exitTrace, const Vector& vecPosition, const Vector& vecDirection, const IHandleEntity* pClipPlayer);
+	/// process bullet penetration to count penetrated objects it hits
+	/// @returns: true if bullet stopped and we should stop processing penetration, false otherwise
+	bool HandleBulletPenetration(player_t* pLocal, const weapon_info_t* pWeaponData, const surfacedata_t* pEnterSurfaceData, SimulateBulletObject_t& data);
+}

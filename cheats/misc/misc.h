@@ -1,9 +1,17 @@
 #include "..\..\includes.hpp"
 
-class misc : public singleton <misc> 
+class misc
 {
 public:
-
+	struct {
+		bool in_forward;
+		bool in_back;
+		bool in_right;
+		bool in_left;
+		bool in_moveright;
+		bool in_moveleft;
+		bool in_jump;
+	} movement;
 
 	int pressed_keys = 0;
 	enum state
@@ -61,9 +69,10 @@ public:
 	void NoDuck(CUserCmd* cmd);
 	void AutoCrouch(CUserCmd* cmd);
 	void SlideWalk(CUserCmd* cmd);
-	void fast_stop(CUserCmd* m_pcmd);
 
 	void FinishAutoPeek(CUserCmd* cmd, float wish_yaw);
+
+	void AutoPeek(CUserCmd* cmd, float wish_yaw);
 
 	void automatic_peek(CUserCmd* cmd, float wish_yaw);
 	void ViewModel();
@@ -82,11 +91,15 @@ public:
 
 	void rank_reveal();
 
+	void fast_stop(CUserCmd* m_pcmd, float wish_yaw);
+
 	
 
 	void ax();
 
 	void draw_server_hitboxes();
+
+	void buybot();
 
 	
 
@@ -97,3 +110,5 @@ public:
 	void EnableHiddenCVars();
 	int getCorrectTickbase(CUserCmd* m_pCmd, int tickbase) ;
 };
+
+inline misc* g_Misc = new misc();

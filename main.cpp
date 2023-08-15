@@ -9,7 +9,7 @@
 #include "nSkinz\SkinChanger.h"
 #include "steam/steam_api.h"
 #include "DiscordRpc.h"
-
+#include "cheats/prediction/Networking.h"
 
 
 int __cdecl sub_102A7940(void* Src, size_t Size)
@@ -255,7 +255,9 @@ DWORD WINAPI main(PVOID base)
 
 	setup_hooks();
 	Netvars::Netvars();
+	/* BUILD SEED TABLE. */
 
+	g_Networking->build_seed_table();
 	std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
 	return EXIT_SUCCESS;
@@ -608,7 +610,8 @@ __forceinline void setup_hooks()
 	static auto processinterpolatedlist = (DWORD)(util::FindSignature(crypt_str("client.dll"), g_ctx.signatures.at(19).c_str()));
 	hooks::original_processinterpolatedlist = (DWORD)DetourFunction((byte*)processinterpolatedlist, (byte*)hooks::processinterpolatedlist); //-V206
 
-
+	uint64_t setupaliveloop = util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 51 56 8B 71 60 83 BE 9C 29 00 00 00 0F 84 9C"));
+	DetourFunction((PBYTE)setupaliveloop, (PBYTE)hooks::hooked_setupaliveloop);
 
 	hooks::client_hook = new vmthook(reinterpret_cast<DWORD**>(m_client()));
 	hooks::client_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_fsn), 37); //-V107 //-V221

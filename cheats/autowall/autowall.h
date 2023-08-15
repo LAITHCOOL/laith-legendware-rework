@@ -4,38 +4,66 @@
 class weapon_info_t;
 class weapon_t;
 
-struct FireBulletData_t
+struct fire_bullet_data
 {
-    Vector            vecPosition = { };
-    Vector            vecDirection = { };
-    trace_t            enterTrace = { };
-    float            flCurrentDamage = 0.0f;
-    int                iPenetrateCount = 0;
-    bool visible;
-    int hitbox;
-    int damage;
+	Vector src;
+	trace_t enter_trace;
+	Vector direction;
+	CTraceFilter filter;
+	float trace_length;
+	float trace_length_remaining;
+	float current_damage;
+	int penetrate_count;
 };
-//#include "../ragebot/aim.h"
-// @credits: outlassn
-//@credits : flengo for converting it to lw
-class CAutoWall
+
+class autowall : public singleton <autowall>
 {
 public:
-    // Get
-    /* returns damage at point and simulated bullet data (if given) */
-    static float GetDamage(const Vector& eye_pos, player_t*, const Vector& vecPoint, FireBulletData_t* pDataOut = nullptr);
-    /* calculates damage factor */
-    static void ScaleDamage(const int iHitGroup, player_t* pEntity, const float flWeaponArmorRatio, const float flWeaponHeadShotMultiplier, float& flDamage);
-    /* simulates fire bullet to penetrate up to 4 walls, return true when hitting player */
-    static bool SimulateFireBullet(player_t* pLocal, weapon_t* pWeapon, FireBulletData_t& data);
-    static bool IsBreakableEntity(IClientEntity* e);
-    static bool HandleBulletPenetration(player_t* pLocal, weapon_info_t* pWeaponData, const surfacedata_t* pEnterSurfaceData, FireBulletData_t& data);
-    static bool handle_bullet_penetration_lw(weapon_info_t* weaponData, CGameTrace& enterTrace, Vector& eyePosition, const Vector& direction, int& possibleHitsRemaining, float& currentDamage, float penetrationPower, float ff_damage_reduction_bullets, float ff_damage_bullet_penetration, bool draw_impact = false);
+	struct returninfo_t
+	{
+		bool valid = false;
 
-private:
-    void PerformTrace(const Vector& vecAbsStart, const Vector& vecAbsEnd, float flMinRange, float flMaxRange, int fMask, CGameTrace* pTrace, const ITraceFilter* pFilter);
-    // Main
-    static void ClipTraceToPlayers(const Vector& vecAbsStart, const Vector& vecAbsEnd, const unsigned int fMask, ITraceFilter* pFilter, trace_t* pTrace, const float flMinRange = 0.0f);
-    //void clip_trace_to_player(const Vector& src, const Vector& dst, trace_t& trace,player_t* const player, const valve::should_hit_fn_t& should_hit_fn) const;
-    static bool TraceToExit(trace_t& enterTrace, trace_t& exitTrace, const Vector& vecPosition, const Vector& vecDirection, player_t* pClipPlayer);
+		bool visible = false;
+		int damage = -1;
+		int hitbox = -1;
+
+		returninfo_t()
+		{
+			valid = false;
+
+			visible = false;
+			damage = -1;
+			hitbox = -1;
+		}
+
+		returninfo_t(bool visible, int damage, int hitbox)
+		{
+			valid = true;
+
+			this->visible = visible;
+			this->damage = damage;
+			this->hitbox = hitbox;
+		}
+	};
+
+	struct FireBulletData
+	{
+		Vector src;
+		trace_t enter_trace;
+		Vector direction;
+		CTraceFilter filter;
+		weapon_info_t* wpn_data;
+		float trace_length;
+		float trace_length_remaining;
+		float length_to_end;
+		float current_damage;
+		int penetrate_count;
+	};
+
+	bool is_breakable_entity(IClientEntity* e);
+	void scale_damage(player_t* e, CGameTrace& enterTrace, weapon_info_t* weaponData, float& currentDamage);
+	bool trace_to_exit(CGameTrace& enterTrace, CGameTrace& exitTrace, Vector startPosition, const Vector& direction);
+	bool handle_bullet_penetration(weapon_info_t* weaponData, CGameTrace& enterTrace, Vector& eyePosition, const Vector& direction, int& possibleHitsRemaining, float& currentDamage, float penetrationPower, float ff_damage_reduction_bullets, float ff_damage_bullet_penetration, bool draw_impact = false);
+	returninfo_t wall_penetration(const Vector& eye_pos, Vector& point, IClientEntity* e);
+	bool fire_bullet(weapon_t* pWeapon, Vector& direction, bool& visible, float& currentDamage, int& hitbox, IClientEntity* e = nullptr, float length = 0.f, const Vector& pos = { 0.f,0.f,0.f });
 };

@@ -84,36 +84,25 @@ void C_ConfigManager::setup()
 	for (auto i = 0; i < 8; i++)
 	{
 		setup_item(&g_cfg.ragebot.weapon[i].selection_type, 0, std::to_string(i) + crypt_str("Ragebot.selection_type"));
-		setup_item(&g_cfg.ragebot.weapon[i].autoscope, false, std::to_string(i) + crypt_str("Ragebot_automaticscope"));
-		setup_item(&g_cfg.ragebot.weapon[i].autoscope_type, false, std::to_string(i) + crypt_str("Ragebot_automatic_scope_type"));
 		setup_item(&g_cfg.ragebot.weapon[i].autostop, false, std::to_string(i) + crypt_str("Ragebot_automaticstop"));
-		setup_item(&g_cfg.ragebot.weapon[i].autostop_modifiers, 6, std::to_string(i) + crypt_str("Ragebot.autostop_conditions"));
-		setup_item(&g_cfg.ragebot.weapon[i].safe_points_conditions, 7, std::to_string(i) + crypt_str("Ragebot.safe_points_conditions"));
-		setup_item(&g_cfg.ragebot.weapon[i].hitchance, false, std::to_string(i) + crypt_str("Ragebot.hitchance"));
+		setup_item(&g_cfg.ragebot.weapon[i].autostop_modifiers, 5, std::to_string(i) + crypt_str("Ragebot.autostop_conditions"));
 		setup_item(&g_cfg.ragebot.weapon[i].hitchance_amount, 1, std::to_string(i) + crypt_str("Ragebot.hitchance_amount"));
 		setup_item(&g_cfg.ragebot.weapon[i].minimum_visible_damage, 1, std::to_string(i) + crypt_str("Ragebot.minimum_visible_damage"));
 		setup_item(&g_cfg.ragebot.weapon[i].minimum_damage, 1, std::to_string(i) + crypt_str("Ragebot.minimum_damage"));
-		setup_item(&g_cfg.ragebot.weapon[i].damage_override_key, key_bind(HOLD), std::to_string(i) + crypt_str("Ragebot.damage_override_key"));
 		setup_item(&g_cfg.ragebot.weapon[i].minimum_override_damage, 1, std::to_string(i) + crypt_str("Ragebot.minimum_override_damage"));
 		setup_item(&g_cfg.ragebot.weapon[i].hitboxes, 9, std::to_string(i) + crypt_str("Ragebot.hitboxes"));
-		setup_item(&g_cfg.ragebot.weapon[i].adaptive_two_shot, false, std::to_string(i) + crypt_str("Ragebot.adaptive_two_shot"));
-		setup_item(&g_cfg.ragebot.weapon[i].bodyaimcond, 3, std::to_string(i) + crypt_str("Ragebot.bodyaimcond"));
-		setup_item(&g_cfg.ragebot.weapon[i].headaimcond, 2, std::to_string(i) + crypt_str("Ragebot.headaimcond"));
-		setup_item(&g_cfg.ragebot.weapon[i].headaimonlycond, 2, std::to_string(i) + crypt_str("Ragebot.headaimonlycond"));
-		//setup_item(&g_cfg.ragebot.weapon[i].static_point_scale, false, std::to_string(i) + crypt_str("Ragebot.static_point_scale"));
-		//setup_item(&g_cfg.ragebot.weapon[i].head_scale, 0.0f, std::to_string(i) + crypt_str("Ragebot.head_scale"));
-		//setup_item(&g_cfg.ragebot.weapon[i].body_scale, 0.0f, std::to_string(i) + crypt_str("Ragebot.body_scale"));
-		setup_item(&g_cfg.ragebot.weapon[i].static_point_scale, false, std::to_string(i) + crypt_str("Ragebot.multipoints"));
-		setup_item(&g_cfg.ragebot.weapon[i].multipoints_hitboxes, 9, std::to_string(i) + crypt_str("Ragebot.multipoints_hitboxes"));
-		setup_item(&g_cfg.ragebot.weapon[i].head_scale, 0.0f, std::to_string(i) + crypt_str("Ragebot.multipoints_scale"));
-		setup_item(&g_cfg.ragebot.weapon[i].body_scale, 0.0f, std::to_string(i) + crypt_str("Ragebot.stomach_scale"));
+		setup_item(&g_cfg.ragebot.weapon[i].multipoint_hitboxes, 5, std::to_string(i) + crypt_str("Ragebot.multipoint_hitboxes"));
+		setup_item(&g_cfg.ragebot.weapon[i].preferred_hitbox, 0, std::to_string(i) + crypt_str("Ragebot.preferred_hitbox"));
+		setup_item(&g_cfg.ragebot.weapon[i].static_point_scale, false, std::to_string(i) + crypt_str("Ragebot.static_point_scale"));
+		setup_item(&g_cfg.ragebot.weapon[i].head_scale, 0.0f, std::to_string(i) + crypt_str("Ragebot.head_scale"));
+		setup_item(&g_cfg.ragebot.weapon[i].body_scale, 0.0f, std::to_string(i) + crypt_str("Ragebot.body_scale"));
+		setup_item(&g_cfg.ragebot.weapon[i].ignore_limbs, false, std::to_string(i) + crypt_str("Ragebot.ignore_limbs"));
 		setup_item(&g_cfg.ragebot.weapon[i].max_misses, false, std::to_string(i) + crypt_str("Ragebot.max_misses"));
 		setup_item(&g_cfg.ragebot.weapon[i].max_misses_amount, 0, std::to_string(i) + crypt_str("Ragebot.max_misses_amount"));
 		setup_item(&g_cfg.ragebot.weapon[i].prefer_safe_points, false, std::to_string(i) + crypt_str("Ragebot.prefer_safe_points"));
-		setup_item(&g_cfg.ragebot.weapon[i].prefer_body_aim, false, std::to_string(i) + crypt_str("Ragebot.prefer_body_aim"));
-		setup_item(&g_cfg.ragebot.weapon[i].autoscope, false, std::to_string(i) + crypt_str("Ragebot.auto_scopee"));
-		setup_item(&g_cfg.ragebot.weapon[i].adaptive_point_scale, false, std::to_string(i) + crypt_str("Ragebot.adaptive_ps"));
-		setup_item(&g_cfg.ragebot.weapon[i].rage_aimbot_ignore_limbs, false, std::to_string(i) + crypt_str("Ragebot_ignore_limbs"));
+		setup_item(&g_cfg.ragebot.weapon[i].prefer_body_aim, 3, std::to_string(i) + crypt_str("Ragebot.prefer_body_aim1"));
+		setup_item(&g_cfg.ragebot.weapon[i].always_body_aim, 3, std::to_string(i) + crypt_str("Ragebot.always_body_aim"));
+		setup_item(&g_cfg.ragebot.weapon[i].always_baim_if_hp_below, 0, std::to_string(i) + crypt_str("Ragebot.always_baim_if_hp_below"));
 	}
 
 
@@ -157,7 +146,7 @@ void C_ConfigManager::setup()
 
 	setup_item(&g_cfg.antiaim.fakelag, false, crypt_str("Antiaim.fake_lag"));
 	setup_item(&g_cfg.antiaim.fakelag_type, 0, crypt_str("Antiaim.fake_lag_type"));
-	setup_item(&g_cfg.antiaim.fakelag_enablers, 4, crypt_str("Antiaim.fake_lag_enablers"));
+	setup_item(&g_cfg.antiaim.fakelag_enablers, 4, crypt_str("Antiaim.fake_lag_enablers1"));
 	setup_item(&g_cfg.antiaim.fakelag_amount, 12, crypt_str("Antiaim.fake_lag_limit"));
 	setup_item(&g_cfg.antiaim.triggers_fakelag_amount, 1, crypt_str("Antiaim.triggers_fakelag_limit"));
 

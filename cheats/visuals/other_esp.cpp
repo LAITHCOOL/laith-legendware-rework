@@ -34,10 +34,10 @@ bool can_penetrate(weapon_t* weapon)
 	auto damage = (float)weapon_info->iDamage;
 	auto penetration_power = weapon_info->flPenetration;
 
-	static auto damageReductionBullets = m_cvar()->FindVar(crypt_str("ff_damage_reduction_bullets"));
-	static auto damageBulletPenetration = m_cvar()->FindVar(crypt_str("ff_damage_bullet_penetration"));
+	float ff_damage_reduction_bullets = m_cvar()->FindVar(crypt_str("ff_damage_reduction_bullets"))->GetFloat();
+	float ff_damage_bullet_penetration = m_cvar()->FindVar(crypt_str("ff_damage_bullet_penetration"))->GetFloat();
 
-	return CAutoWall::handle_bullet_penetration_lw(weapon_info, trace, eye_pos, direction, hits, damage, penetration_power, damageReductionBullets->GetFloat(), damageBulletPenetration->GetFloat());
+	return autowall::get().handle_bullet_penetration(weapon_info, trace, eye_pos, direction, hits, damage, penetration_power,ff_damage_reduction_bullets, ff_damage_bullet_penetration);
 }
 
 void otheresp::penetration_reticle()
@@ -229,7 +229,7 @@ void otheresp::indicators()
 		render::get().gradient(10, g_ctx.globals.indicator_pos - 4, render::get().text_width(fonts[INDICATORFONT2], "DT") / 2, render::get().text_heigth(fonts[INDICATORFONT2], "DT") + 8, Color(0, 0, 0, 220), Color(0, 0, 0, 200), GRADIENT_HORIZONTAL);
 		render::get().gradient(10 + render::get().text_width(fonts[INDICATORFONT2], "DT") / 2, g_ctx.globals.indicator_pos - 4, render::get().text_width(fonts[INDICATORFONT2], "DT") / 2, render::get().text_heigth(fonts[INDICATORFONT2], "DT") + 8, Color(0, 0, 0, 200), Color(0, 0, 0, 0), GRADIENT_HORIZONTAL);
 		render::get().text(fonts[INDICATORFONT2], 11, g_ctx.globals.indicator_pos + 1, Color::Black, 0, "DT");
-		render::get().text(fonts[INDICATORFONT2], 10, g_ctx.globals.indicator_pos, !g_ctx.local()->m_bGunGameImmunity() && !(g_ctx.local()->m_fFlags() & FL_FROZEN) && !antiaim::get().freeze_check && tickbase::get().double_tap_enabled && !weapon->is_grenade() && weapon->m_iItemDefinitionIndex() != WEAPON_TASER && weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER && weapon->can_fire(false) ? Color(130, 20, 0, 255) : Color(255, 255, 255, 150), 0, "DT");
+		render::get().text(fonts[INDICATORFONT2], 10, g_ctx.globals.indicator_pos, !g_ctx.local()->m_bGunGameImmunity() && !(g_ctx.local()->m_fFlags() & FL_FROZEN) && !g_AntiAim->freeze_check && tickbase::get().double_tap_enabled && !weapon->is_grenade() && weapon->m_iItemDefinitionIndex() != WEAPON_TASER && weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER && weapon->can_fire(false) ? Color(130, 20, 0, 255) : Color(255, 255, 255, 150), 0, "DT");
 		g_ctx.globals.indicator_pos += 40;
 	}
 
@@ -263,7 +263,7 @@ void otheresp::indicators()
 		g_ctx.globals.indicator_pos += 40;
 	}
 
-	if (g_cfg.esp.indicators[INDICATOR_CHOKE] && !fakelag::get().condition && !tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled)
+	if (g_cfg.esp.indicators[INDICATOR_CHOKE] && !g_Fakelag->condition && !tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled)
 	{
 		auto colorfl = Color(130, 20 + (int)((m_clientstate()->iChokedCommands / 15.f) * 200.0f), 0);
 		render::get().gradient(10, g_ctx.globals.indicator_pos - 4, render::get().text_width(fonts[INDICATORFONT2], "FL ") / 2, render::get().text_heigth(fonts[INDICATORFONT2], "FL ") + 8, Color(0, 0, 0, 220), Color(0, 0, 0, 200), GRADIENT_HORIZONTAL);

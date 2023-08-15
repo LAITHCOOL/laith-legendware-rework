@@ -1615,32 +1615,18 @@ uint32_t& player_t::m_iMostRecentModelBoneCounter()
 	return *(uint32_t*)((uintptr_t)this + most_recent_model_bone_counter);
 }
 
+
+
 void player_t::SetCollisionBounds(const Vector& OBBMins, const Vector& OBBMaxs)
 {
 	const auto Collideable = GetCollideable();
 	if (!Collideable)
 		return;
 
-	static const auto nSetCollisionBounds = reinterpret_cast<void(__thiscall*)(ICollideable*, const Vector&, const Vector&)>(util::FindSignature(crypt_str("client.dll"), crypt_str("53 8B DC 83 EC 08 83 E4 F8 83 C4 04 55 8B 6B 04 89 6C 24 04 8B EC 83 EC 18 56 57 8B 7B")));
-
-	auto& flCollisionChangeOrigin = *reinterpret_cast<float*>(
-		reinterpret_cast<std::uintptr_t>(this) + 0x9920
-		);
-
-	auto& flCollisionChangeTime = *reinterpret_cast<float*>(
-		reinterpret_cast<std::uintptr_t>(this) + 0x9924
-		);
-
-	auto borigin = flCollisionChangeOrigin;
-	auto btime = flCollisionChangeTime;
-
-	flCollisionChangeOrigin = *reinterpret_cast<float*>(this + 0x4B) + Collideable->OBBMaxs().z;
-	flCollisionChangeTime = m_globals()->m_curtime;
+	static const auto nSetCollisionBounds = reinterpret_cast<void(__thiscall*)(ICollideable*, const Vector&, const Vector&)>(util::FindSignature(crypt_str("client.dll"), 
+		crypt_str("53 8B DC 83 EC 08 83 E4 F8 83 C4 04 55 8B 6B 04 89 6C 24 04 8B EC 83 EC 18 56 57 8B 7B 08 8B D1 8B 4B 0C")));
 
 	nSetCollisionBounds(Collideable, OBBMins , OBBMaxs);
-
-	flCollisionChangeOrigin = borigin;
-	flCollisionChangeTime = btime;
 }
 
 void player_t::UpdateCollisionBounds()

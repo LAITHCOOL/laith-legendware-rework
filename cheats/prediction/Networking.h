@@ -34,7 +34,7 @@ public:
 	void reset_data();
 	void build_seed_table();
 	void process_packets(CUserCmd* m_pcmd);
-	void finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket);
+	void finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket , bool shifting);
 };
 
 inline networking* g_Networking = new networking();

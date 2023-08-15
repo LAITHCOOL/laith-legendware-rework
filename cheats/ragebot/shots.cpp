@@ -219,12 +219,20 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 	{
 		otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
 		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());
+		Color result;
+
+		if (hitgroup == HITGROUP_HEAD)
+			result = Color::Red;
+		else if (hitgroup == HITGROUP_CHEST)
+			result = Color::Yellow;
+		else
+			result = Color::White;
 
 		otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
 		{
 			entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base()),
 			m_globals()->m_curtime,
-			Color::White,
+			result,
 			damage,
 			hitgroup
 		};

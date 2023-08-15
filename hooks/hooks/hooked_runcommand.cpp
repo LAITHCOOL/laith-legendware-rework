@@ -116,23 +116,24 @@ void __fastcall hooks::hooked_runcommand(void* ecx, void* edx, player_t* player,
 		if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
 		{
 			//player->m_nTickBase() = (g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift);
-			player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
+			player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_ctx.globals.shift_ticks);
 			m_globals()->m_curtime = TICKS_TO_TIME(player->m_nTickBase());
 		}
 
 		g_ctx.globals.fixed_tickbase = player->m_nTickBase();
 
 		original_fn(ecx, player, m_pcmd, move_helper);
-		
-		if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
-		{
-			//player->m_nTickBase() = (g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift);
-			player->m_nTickBase() = g_ctx.globals.backup_tickbase;
-			m_globals()->m_curtime = m_flCurtime;
-		}
-	
+
 		/* store predicted netvars */
 		g_EnginePrediction->OnRunCommand(m_pcmd->m_command_number);
+
+		//if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
+		//{
+		//	//player->m_nTickBase() = (g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift);
+		//	player->m_nTickBase() = g_ctx.globals.backup_tickbase;
+		//	m_globals()->m_curtime = m_flCurtime;
+		//}
+
 		player->m_flVelocityModifier() = fix_velocity_modifier(player, m_pcmd->m_command_number, false);
 		if (!g_ctx.globals.override_velmod)
 			player->m_flVelocityModifier() = backup_velocity_modifier;

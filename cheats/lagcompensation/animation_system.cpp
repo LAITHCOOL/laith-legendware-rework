@@ -25,11 +25,6 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 	if (!lagcompensation::get().valid(i, e))
 		return;
 
-	auto time_delta = abs(TIME_TO_TICKS(e->m_flSimulationTime()) - m_globals()->m_tickcount);
-
-	if (time_delta > 1.0f / m_globals()->m_intervalpertick)
-		return;
-
 	auto update = player_records[i].empty() || e->m_flSimulationTime() != e->m_flOldSimulationTime();
 	if (update && !player_records[i].empty())
 	{
@@ -43,7 +38,8 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 
 			if (layer->m_flCycle == previous_layer->m_flCycle) //-V550
 			{
-				e->m_flSimulationTime() = e->m_flOldSimulationTime();
+				e->m_flSimulationTime() = player_records[i].front().simulation_time;
+				e->m_flOldSimulationTime() = player_records[i].front().old_simtime;
 				update = false;
 			}
 		}
@@ -441,7 +437,6 @@ void lagcompensation::SetupCollision(player_t* pPlayer, adjust_data* m_LagRecord
 	if (!m_Collideable)
 		return;
 
-	pPlayer->UpdateCollisionBounds();
 	m_LagRecord->mins = m_Collideable->OBBMins();
 	m_LagRecord->maxs = m_Collideable->OBBMaxs();
 }
@@ -658,10 +653,10 @@ void lagcompensation::update_player_animations(player_t* e)
 
 	auto record = &records->front();
 
-	AnimationLayer animlayers[13];
+	//AnimationLayer animlayers[13];
 
-	memcpy(animlayers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
-	memcpy(record->layers, animlayers, e->animlayer_count() * sizeof(AnimationLayer));
+	//memcpy(animlayers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
+	memcpy(record->layers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
 
 	GameGlobals_t m_Globals;
 	PlayersGlobals_t m_PlayerGlobals;
@@ -696,7 +691,7 @@ void lagcompensation::update_player_animations(player_t* e)
 	/* Invalidate EFlags */
 	e->m_iEFlags() &= ~(EFL_DIRTY_ABSVELOCITY | EFL_DIRTY_ABSTRANSFORM);
 
-	if (e->m_fFlags() & FL_ONGROUND && e->m_vecVelocity().Length() > 0.0f && animlayers[6].m_flWeight <= 0.0f)
+	if (e->m_fFlags() & FL_ONGROUND && e->m_vecVelocity().Length() > 0.0f && record->layers[6].m_flWeight <= 0.0f)
 		record->velocity.Zero();
 
 	/* Update collision bounds */
@@ -828,7 +823,7 @@ void lagcompensation::update_player_animations(player_t* e)
 	}
 
 	/* Reset animation layers */
-	std::memcpy(e->get_animlayers(), animlayers, sizeof(AnimationLayer) * 13);
+	std::memcpy(e->get_animlayers(), record->layers, sizeof(AnimationLayer) * 13);
 
 	/* Reset player's origin */
 	e->set_abs_origin(m_PlayerGlobals.m_vecAbsOrigin);
@@ -861,11 +856,11 @@ void lagcompensation::update_player_animations(player_t* e)
 			UpdatePlayerAnimations(e, record, animstate);
 
 			// Update animlayers and cached bone data
-			setup_matrix(e, animlayers, i, record);
+			setup_matrix(e, record->layers, i, record);
 			memcpy(player_resolver[e->EntIndex()].resolver_layers[i], e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
 			//memcpy(c_DesyncCorrection[e->EntIndex()].ResolverLayers[i], e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
 			memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[i].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-			memcpy(e->get_animlayers(), animlayers, e->animlayer_count() * sizeof(AnimationLayer));
+			memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 			memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
 		}
 
@@ -877,7 +872,7 @@ void lagcompensation::update_player_animations(player_t* e)
 	UpdatePlayerAnimations(e, record, animstate);
 
 
-	setup_matrix(e, animlayers, MAIN, record);
+	setup_matrix(e, record->layers, MAIN, record);
 	memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[MiddleMatrix].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
 	e->m_flLowerBodyYawTarget() = m_PlayerGlobals.m_flLowerBodyYawTarget;
@@ -886,10 +881,10 @@ void lagcompensation::update_player_animations(player_t* e)
 	e->m_iEFlags() = m_PlayerGlobals.m_iEFlags;
 	m_Globals.AdjustData();
 
-	memcpy(e->get_animlayers(), animlayers, e->animlayer_count() * sizeof(AnimationLayer));
-	memcpy(player_resolver[e->EntIndex()].previous_layers, animlayers, e->animlayer_count() * sizeof(AnimationLayer));
+	memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+	memcpy(player_resolver[e->EntIndex()].previous_layers, record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 
-	record->store_data(e, false);
+	record->store_data(e, true);
 
 	if (previous_record)
 	{
@@ -904,15 +899,11 @@ void lagcompensation::update_player_animations(player_t* e)
 			record->invalid = true;
 			record->m_bHasBrokenLC = true;
 		}
-
 		/* handle break lagcompensation by high speed and fakelags */
-		if (previous_record->m_bRestoreData)
+		if ((record->origin - previous_record->origin).Length2DSqr() > 4096.0f)
 		{
-			if ((record->origin - previous_record->origin).Length2DSqr() > 4096.0f)
-			{
-				record->m_bHasBrokenLC = true;
-				CleanPlayer(e, record);
-			}
+			record->m_bHasBrokenLC = true;
+			CleanPlayer(e, record);
 		}
 
 		/* Determine simulation ticks */

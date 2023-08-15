@@ -527,6 +527,10 @@ void aimbot::think(CUserCmd* m_pcmd) {
 	if (!g_ctx.globals.weapon->can_fire(true))
 		return;
 
+	// no point in aimbotting if we cannot fire this tick.
+	if (g_ctx.globals.isshifting)
+		return;
+
 	// setup bones for all valid targets.
 	for (auto i = 0; i < m_globals()->m_maxclients; ++i)
 	{
@@ -556,8 +560,11 @@ void aimbot::think(CUserCmd* m_pcmd) {
 	}
 
 	// auto-stop if we about to peek this guy.
-	if (!this->m_stop && this->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true))
+	if (!this->m_stop && this->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true)) {
 		this->m_stop = true;
+		g_EnginePrediction->RePredict();
+	}
+
 
 	// scan available targets... if we even have any.
 	this->find(m_pcmd);
@@ -684,6 +691,8 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			// autostop hitchance fail.
 			else if (g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_HITCHANCE_FAIL] && flCalculatedHitchance < nHitChance)
 				this->m_stop = true;
+
+			g_EnginePrediction->RePredict();
 		}
 
 		this->AutoStop(m_pcmd);
@@ -696,14 +705,17 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			if (flCalculatedHitchance < nHitChance)
 			{
 				m_pcmd->m_buttons |= IN_ATTACK2;
+				g_EnginePrediction->RePredict();
 				return;
 			}
 		}
 
 		if (flCalculatedHitchance > nHitChance)
 		{
-			if (g_cfg.ragebot.autoshoot)
+			if (g_cfg.ragebot.autoshoot) {
 				m_pcmd->m_buttons |= IN_ATTACK;
+
+			}
 		}
 	}
 }
@@ -974,10 +986,6 @@ bool AimPlayer::SetupHitboxPoints(adjust_data* record, matrix3x4_t* bones, int i
 
 bool aimbot::IsSafePoint(adjust_data* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox)
 {
-	// don't run the code if our enemy is a bot.
-	if (LagRecord->bot)
-		return true;
-
 	if (!this->CanHit(vecStartPosition, vecEndPosition, LagRecord, iHitbox, true, LagRecord->m_Matricies[LeftMatrix].data()))
 		return false;
 
@@ -995,7 +1003,7 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 	// get player hp.
 	int hp = min(100, record->player->m_iHealth());
-	auto force_safe_points = hp <= g_ctx.globals.weapon->get_csweapon_info()->iDamage || key_binds::get().get_key_bind_state(3) || this->m_missed_shots && this->m_missed_shots >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount;
+	auto force_safe_points = key_binds::get().get_key_bind_state(3) || this->m_missed_shots && this->m_missed_shots >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount;
 
 	m_matrix = record->m_Matricies[MiddleMatrix].data();
 
@@ -1115,6 +1123,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 								 g_Ragebot->m_stop = true;
 							else if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
 								 g_Ragebot->m_stop = true;
+
+							g_EnginePrediction->RePredict();
 						}
 
 						// save new best data.
@@ -1136,6 +1146,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 						 g_Ragebot->m_stop = true;
 					if (! g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
 						 g_Ragebot->m_stop = true;
+
+					g_EnginePrediction->RePredict();
 
 					// save new best data.
 					scan.m_damage = out.m_damage;

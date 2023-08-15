@@ -383,11 +383,12 @@ public:
 		m_vecAbsOrigin = player->get_abs_origin();
 		velocity = player->m_vecVelocity();
 		origin = player->m_vecOrigin();
+		player->UpdateCollisionBounds();
 		mins = player->GetCollideable()->OBBMins();
 		maxs = player->GetCollideable()->OBBMaxs();
-		m_bRestoreData = true;
-		//player->UpdateCollisionBounds();
+		///player->UpdateCollisionBounds();
 		//player->SetCollisionBounds(mins, maxs);
+		m_bRestoreData = true;
 	}
 
 	void adjust_player()

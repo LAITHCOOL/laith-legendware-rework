@@ -304,10 +304,14 @@ void networking::process_packets(CUserCmd* m_pcmd)
 	}//
 }
 
-void networking::finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket)
+void networking::finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket, bool shifting)
 {
-	verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
-	verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
+	if (!shifting)
+	{
+		verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
+		verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
+	}
+	
 	g_ctx.globals.in_createmove = false;
 	bSendPacket = g_ctx.send_packet;
 }

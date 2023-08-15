@@ -142,7 +142,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 	if (!CanDoubleTap(false))
 		return;
 
-	//g_ctx.globals.tickbase_shift = shiftAmount;
+	g_ctx.globals.tickbase_shift = 0;
 
 	//Fix for doubletap hitchance
 	if (g_ctx.globals.dt_shots == 1) {

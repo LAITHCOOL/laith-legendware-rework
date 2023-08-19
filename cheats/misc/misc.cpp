@@ -1107,6 +1107,94 @@ void misc::AutoPeek(CUserCmd* cmd, float wish_yaw)
 		g_ctx.globals.start_position.Zero();
 	}
 }
+bool misc::IsFiring()
+{
+	auto weapon = g_ctx.globals.weapon;
+	if (!weapon)
+		return false;
+
+	float cur_time = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+
+	bool attack = (g_ctx.get_command()->m_buttons & IN_ATTACK) || (g_ctx.get_command()->m_buttons & IN_ATTACK2);
+
+	if (weapon->is_grenade())
+		return !weapon->m_bPinPulled() && weapon->m_fThrowTime() > 0.f && weapon->m_fThrowTime() < cur_time;
+
+	if (weapon->is_knife())
+		return attack && weapon->can_fire(false);
+
+	return (g_ctx.get_command()->m_buttons & IN_ATTACK) && weapon->can_fire(true);
+}
+void misc::ForceStop()
+{
+	auto _velocity = g_ctx.local()->m_vecVelocity();
+
+	Vector direction{ };
+	math::vector_to_angles(_velocity, direction);
+	direction.y = g_ctx.globals.original_viewangles.y - direction.y;
+
+	Vector forward{ };
+	math::angle_to_vectors(direction, forward);
+
+	Vector negated_direction = forward * -_velocity.length(true);
+	g_ctx.get_command()->m_forwardmove = negated_direction.x;
+	g_ctx.get_command()->m_sidemove = negated_direction.y;
+}
+
+void misc::AutoPeek(CUserCmd* cmd)
+{
+	static bool old_move = false;
+	bool m_peek = false;
+	bool m_move = false;
+	bool moving = cmd->m_buttons & IN_MOVELEFT
+		|| cmd->m_buttons & IN_MOVERIGHT
+		|| cmd->m_buttons & IN_FORWARD
+		|| cmd->m_buttons & IN_BACK;
+
+	Vector origin = g_ctx.local()->m_vecOrigin();
+
+	auto ShouldPeek = [&]() {
+		if (!(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND) || g_ctx.globals.weapon->is_non_aim())
+			return false;
+
+		if (!g_ctx.globals.start_position.IsValid())
+			g_ctx.globals.start_position = origin;
+
+		m_peek = true;
+
+		if (IsFiring() || (key_binds::get().get_key_bind_state(18) && !moving))
+			m_move = true;
+
+		if (key_binds::get().get_key_bind_state(18) && moving && !old_move)
+			m_move = false;
+
+		Vector origin_delta = g_ctx.globals.start_position - origin;
+		float distance = origin_delta.length(true);
+
+		if (m_move) {
+			if (distance > 10.f) {
+				Vector return_position = math::angle_from_vectors(origin, g_ctx.globals.start_position);
+				g_ctx.globals.original_viewangles.y = return_position.y;
+
+				cmd->m_forwardmove = 450.f;
+				cmd->m_sidemove = 0.f;
+			}
+			else {
+				this->ForceStop();
+				m_move = false;
+			}
+		}
+
+		old_move = moving;
+		return true;
+	};
+
+	if (!ShouldPeek()) {
+		g_ctx.globals.start_position.Zero();
+		m_peek = false;
+		m_move = false;
+	}
+}
 
 void misc::automatic_peek(CUserCmd* cmd, float wish_yaw)
 {

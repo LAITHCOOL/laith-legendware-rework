@@ -85,6 +85,13 @@ public:
 	short   m_mousedy;			 // 0x46 mouse accum in y from create move
 	bool    m_predicted;		// 0x48 Client only, tracks whether we've predicted this command at least once
 	char    pad_0x4C[0x18];		// 0x4C Current sizeof( usercmd ) =  100  = 0x64
+
+	 void InvalidatePackets() {
+		this->m_tickcount = INT_MAX;
+		this->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
+
+		this->m_forwardmove = this->m_sidemove = this->m_upmove = 0.f;
+	}
 };
 
 class CVerifiedUserCmd 

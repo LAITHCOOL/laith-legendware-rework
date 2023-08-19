@@ -839,6 +839,7 @@ public:
     bool setup_bones1(matrix3x4_t* pBoneToWorldOut, bool safe_matrix = false);
     bool setup_bones(player_t* const player, matrix3x4_t& bones, const float time, const int flags);
     bool setup_bones_rebuilt(matrix3x4_t* matrix, int mask);
+    bool setup_bones_latest(matrix3x4_t* pBoneToWorldOut, bool safe_matrix);
     Vector& get_abs_origin();
     float& m_flCollisionChangeTime();
     float& m_flCollisionChangeOrigin();

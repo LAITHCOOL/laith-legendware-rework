@@ -53,6 +53,7 @@ void C_LocalAnimations::OnCreateMove()
 	/* copy data */
 	g_LocalAnimations->CopyPlayerAnimationData(false);
 
+	
 	/* UpdatePlayerAnimations */
 	for (int nSimulationTick = 1; nSimulationTick <= m_LocalData.m_nSimulationTicks; nSimulationTick++)
 	{
@@ -131,8 +132,7 @@ void C_LocalAnimations::OnCreateMove()
 	g_ctx.local()->set_abs_origin(m_LocalData.m_vecAbsOrigin);
 	//if ( !g_Globals->m_Packet.m_bSkipMatrix )
 	g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Real.m_Matrix.data(), BONE_USED_BY_ANYTHING);
-	g_LocalAnimations->UpdateDesyncAnimations();
-
+	//g_LocalAnimations->UpdateDesyncAnimations();
 
 	/* restore globals */
 	m_globals()->m_curtime = std::get < 0 >(m_Globals);
@@ -182,6 +182,7 @@ void C_LocalAnimations::CopyPlayerAnimationData(bool bFake)
 		sizeof(AnimationLayer)
 	);
 }
+
 void C_LocalAnimations::UpdateDesyncAnimations()
 {
 	C_CSGOPlayerAnimationState m_AnimationState;
@@ -224,6 +225,9 @@ void C_LocalAnimations::UpdateDesyncAnimations()
 		m_globals()->m_tickcount = nTickBase;
 
 		AnimationRecord_t* m_Record = &m_LocalData.m_AnimRecords[(g_ctx.get_command()->m_command_number - m_LocalData.m_nSimulationTicks + nSimulationTick) % MULTIPLAYER_BACKUP];
+		if (!m_Record)
+			continue;
+
 		if (m_Record)
 		{
 			static auto recoil_scale = m_cvar()->FindVar("weapon_recoil_scale")->GetFloat();
@@ -674,6 +678,7 @@ void C_LocalAnimations::TransformateMatricies()
 }
 bool C_LocalAnimations::CopyCachedMatrix(matrix3x4_t* aInMatrix, int nBoneCount)
 {
+
 	std::memcpy(aInMatrix, m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * nBoneCount);
 	return true;
 }

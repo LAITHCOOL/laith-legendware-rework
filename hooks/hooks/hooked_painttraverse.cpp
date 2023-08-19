@@ -188,7 +188,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 					g_ctx.globals.fired_shots[i] = 0;
 					//g_ctx.globals.missed_shots[i] = 0;
 				}
-				local_animations::get().local_data.fake_animstate = nullptr;
+				//local_animations::get().local_data.fake_animstate = nullptr;
 				//local_animations::get().local_data.real_animstate = nullptr;
 				g_LocalAnimations->ResetData();
 				g_ctx.globals.weapon = nullptr;

@@ -5,6 +5,7 @@
 #include "..\misc\misc.h"
 #include "..\ragebot\aim.h"
 #include "../tickbase shift/tickbase_shift.h"
+#include "../prediction/EnginePrediction.h"
 #define M_PI 3.14159265358979323846f
 #define M_PI_2 M_PI * 2
 void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
@@ -35,18 +36,10 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 	g_ctx.globals.exploits = tickbase::get().double_tap_key || tickbase::get().hide_shots_key;
 	g_ctx.globals.current_weapon = g_ctx.globals.weapon->get_weapon_group(g_cfg.ragebot.enable);
 	g_ctx.globals.slowwalking = false;
+	g_ctx.globals.original_viewangles = m_pcmd->m_viewangles;
 	g_ctx.globals.original_forwardmove = m_pcmd->m_forwardmove;
 	g_ctx.globals.original_sidemove = m_pcmd->m_sidemove;
 
-
-
-
-	/*if (g_ctx.globals.tickbase_shift)
-		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.tickbase_shift;
-	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;*/
-
-	//g_ctx.local()->m_nTickBase() = g_ctx.globals.backup_tickbase;
 
 	if (hooks::menu_open)
 	{

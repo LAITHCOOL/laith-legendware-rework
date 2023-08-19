@@ -5,51 +5,39 @@
 
 void eventlogs::paint_traverse()
 {
-	constexpr float showtime = 5.f;
-	constexpr float animation_time = 0.2f;
-
 	if (logs.empty())
 		return;
 
 	while (logs.size() > 10)
-		logs.erase(logs.begin());
+		logs.pop_back();
 
-	static const auto easeOutQuad = [](float x) {
-		return 1 - (1 - x) * (1 - x);
-	};
+	auto last_y = 146;
 
-	static const auto easeInQuad = [](float x) {
-		return x * x;
-	};
-
-	for (int i = logs.size() - 1; i >= 0; i--)
+	for (size_t i = 0; i < logs.size(); i++)
 	{
-		float in_anim = math::clamp((util::epoch_time() - logs[i].log_time) / animation_time, 0.01f, 1.f);
-		float out_anim = math::clamp(((util::epoch_time() - logs[i].log_time) - showtime) / animation_time, 0.f, FLT_MAX);
+		auto& log = logs.at(i);
 
-		logs[i].color.SetAlpha(in_anim * (1.f - out_anim) * 255.f);
+		if (util::epoch_time() - log.log_time > 4600)
+		{
+			auto factor = log.log_time + 5000.0f - (float)util::epoch_time();
+			factor *= 0.001f;
 
-		if (out_anim > 1.f)
-			logs[i].color.SetAlpha(0.f);
-		if (in_anim > 1.f)
-			logs[i].color.SetAlpha(255.f);
+			auto opacity = (int)(255.0f * factor);
 
-		in_anim = easeInQuad(in_anim);
-		out_anim = easeOutQuad(out_anim);
+			if (opacity < 2)
+			{
+				logs.erase(logs.begin() + i);
+				continue;
+			}
 
-		if (logs[i].color.a() > 0.f) {
-			const float x_position = in_anim * 5.f - out_anim * 5.f;
-			const float y_position = 14.f * i;
-
-			render::get().text(fonts[LOGS], x_position, y_position + 6.5f, Color(255, 255, 255, logs[i].color.a()), HFONT_CENTERED_NONE, logs[i].message.c_str());
+			log.color.SetAlpha(opacity);
+			log.y -= factor * 1.25f;
 		}
-	}
 
-	for (int i = logs.size() - 1; i >= 0; i--) {
-		if (logs[i].color.a() <= 0.f) {
-			logs.erase(logs.begin() + i);
-			break;
-		}
+		last_y -= 14;
+
+		auto logs_size_inverted = 10 - logs.size();
+		render::get().text(fonts[LOGS], log.x, last_y + log.y - logs_size_inverted * 14, log.color, HFONT_CENTERED_NONE, log.message.c_str());
 	}
 }
 
@@ -106,13 +94,13 @@ void eventlogs::events(IGameEvent* event)
 
 			add(ss.str());
 		}
-		else if (userid_id == m_engine()->GetLocalPlayer() && attacker_id != m_engine()->GetLocalPlayer())
+		/*else if (userid_id == m_engine()->GetLocalPlayer() && attacker_id != m_engine()->GetLocalPlayer())
 		{
 			ss << crypt_str("take ") << event->GetInt(crypt_str("dmg_health")) << crypt_str(" damage from ") << attacker_info.szName << crypt_str(" in the ") << get_hitgroup_name(event->GetInt(crypt_str("hitgroup")));
 			ss << crypt_str(" (") << event->GetInt(crypt_str("health")) << crypt_str(" health remaining).");
 
 			add(ss.str());
-		}
+		}*/
 	}
 
 	if (g_cfg.misc.events_to_log[EVENTLOG_ITEM_PURCHASES] && !strcmp(event->GetName(), crypt_str("item_purchase")))

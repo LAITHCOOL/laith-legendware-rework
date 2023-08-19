@@ -69,9 +69,6 @@ void tickbase::shift_silent(CUserCmd* current_cmd, CUserCmd* first_cmd, int amou
 
 void tickbase::double_tap_deffensive(CUserCmd* cmd)
 {
-	
-	g_ctx.globals.next_tickbase_shift = 0;
-	g_ctx.globals.tickbase_shift = g_ctx.globals.next_tickbase_shift;
 	// predpos
 	Vector predicted_eye_pos = g_ctx.globals.eye_pos + (g_EnginePrediction->GetUnpredictedData()->m_vecVelocity * m_globals()->m_intervalpertick);
 
@@ -142,7 +139,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 	if (!CanDoubleTap(false))
 		return;
 
-	g_ctx.globals.tickbase_shift = 0;
+	g_ctx.globals.tickbase_shift = shiftAmount;
 
 	//Fix for doubletap hitchance
 	if (g_ctx.globals.dt_shots == 1) {
@@ -157,7 +154,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 
 	//Recharge
 	if (!g_Ragebot->m_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
-		&& !util::is_button_down(MOUSE_LEFT) && g_ctx.globals.tocharge < shiftAmount && (m_pcmd->m_command_number - lastdoubletaptime) > recharge_time)
+		&& (!util::is_button_down(MOUSE_LEFT) || g_ctx.globals.aimbot_working) && g_ctx.globals.tocharge < shiftAmount && (m_pcmd->m_command_number - lastdoubletaptime) > recharge_time)
 	{
 		lastdoubletaptime = 0;
 		g_ctx.globals.startcharge = true;

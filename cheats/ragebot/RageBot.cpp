@@ -347,6 +347,7 @@ void AimPlayer::SetupHitboxes(adjust_data* record, bool history) {
 void aimbot::init() {
 	// clear globals.
 	g_ctx.globals.aimbot_working = false;
+	g_ctx.globals.aimbot_shooting = false;
 	g_ctx.globals.revolver_working = false;
 
 	// clear old targets.
@@ -371,6 +372,20 @@ void aimbot::init() {
 
 	this->m_current_matrix = nullptr;
 }
+
+static bool compare_records(const optimized_adjust_data& first, const optimized_adjust_data& second)
+{
+	auto first_pitch = math::normalize_pitch(first.angles.x);
+	auto second_pitch = math::normalize_pitch(second.angles.x);
+
+	if (first.shot)
+		return first.shot > second.shot;
+	else if (second.shot)
+		return second.shot > first.shot;
+	else
+		return first.simulation_time > second.simulation_time;
+}
+
 adjust_data* aimbot::get_record(std::deque <adjust_data>* records)
 {
 	for (auto i = 0; i < records->size(); ++i)
@@ -461,8 +476,8 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 			first_record->player->m_vecOrigin() = backup_origin;
 			first_record->player->set_abs_origin(backup_abs_origin);
 			first_record->player->set_abs_angles(backup_abs_angles);
-			first_record->player->m_vecMins() = backup_obb_mins;
-			first_record->player->m_vecMaxs() = backup_obb_maxs;
+			first_record->player->UpdateCollisionBounds();
+			first_record->player->SetCollisionBounds(backup_obb_mins, backup_obb_maxs);
 			std::memcpy(first_record->player->m_CachedBoneData().Base(), backup_cache, first_record->player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 		};
 
@@ -483,8 +498,8 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 		first_record->player->m_vecOrigin() = first_record->origin;
 		first_record->player->set_abs_origin(first_record->m_vecAbsOrigin);
 		first_record->player->set_abs_angles(first_record->abs_angles);
-		first_record->player->m_vecMins() = first_record->mins;
-		first_record->player->m_vecMaxs() = first_record->maxs;
+		first_record->player->UpdateCollisionBounds();
+		first_record->player->SetCollisionBounds(first_record->mins, first_record->maxs);
 		std::memcpy(first_record->player->m_CachedBoneData().Base(), first_record->m_Matricies[MiddleMatrix].data(), sizeof(first_record->m_Matricies[MiddleMatrix].data()));
 
 		// run our p100 penetration code.
@@ -527,7 +542,7 @@ void aimbot::think(CUserCmd* m_pcmd) {
 	if (!g_ctx.globals.weapon->can_fire(true))
 		return;
 
-	// no point in aimbotting if we cannot fire this tick.
+	// no point in aimbotting if we are shifting.
 	if (g_ctx.globals.isshifting)
 		return;
 
@@ -734,7 +749,7 @@ bool aimbot::HasMaximumAccuracy()
 	else
 		flDefaultInaccuracy = g_ctx.globals.scoped ? g_ctx.globals.weapon->get_csweapon_info()->flInaccuracyStandAlt : g_ctx.globals.weapon->get_csweapon_info()->flInaccuracyStand;
 
-	return g_ctx.globals.weapon->get_inaccuracy() - flDefaultInaccuracy < 0.0001f;
+	return g_ctx.globals.inaccuracy - flDefaultInaccuracy < 0.0001f;
 }
 
 float aimbot::CheckHitchance(player_t* player, const Vector& angle, adjust_data* record, int hitbox) {
@@ -748,7 +763,9 @@ float aimbot::CheckHitchance(player_t* player, const Vector& angle, adjust_data*
 	constexpr int   SEED_MAX = 255;
 
 	Vector start = g_ctx.globals.eye_pos, end, fwd, right, up, dir, wep_spread;
-	float inaccuracy = g_ctx.globals.weapon->get_inaccuracy(), spread = g_ctx.globals.weapon->get_spread(), hitchance = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER ? 50 : g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
+	float inaccuracy = g_ctx.globals.inaccuracy;
+	float spread = g_ctx.globals.spread;
+	float hitchance = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER ? 50 : g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
 
 	size_t total_hits = 0;
 
@@ -819,7 +836,7 @@ bool AimPlayer::SetupHitboxPoints(adjust_data* record, matrix3x4_t* bones, int i
 	// calculate dynamic scale.
 	if (!g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].static_point_scale)
 	{
-		float spread = g_ctx.globals.weapon->get_inaccuracy() + g_ctx.globals.weapon->get_spread();
+		float spread = g_ctx.globals.inaccuracy + g_ctx.globals.spread;
 		float distance = transformed_center.DistTo(g_ctx.globals.eye_pos);
 
 		distance /= math::fast_sin(DEG2RAD(90.f - RAD2DEG(spread)));
@@ -994,7 +1011,19 @@ bool aimbot::IsSafePoint(adjust_data* LagRecord, Vector vecStartPosition, Vector
 
 	return true;
 }
+bool aimbot::bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, adjust_data* pRecord)
+{
+	// Initialize our trace data & information
+	trace_t traceData = trace_t();
+	Ray_t traceRay = Ray_t(vecEyePosition, vecEnd);
 
+	// trace a ray to the entity
+	m_trace()->ClipRayToCollideable(traceRay, MASK_SHOT, pRecord->player->GetCollideable(), &traceData);
+
+	// check if trace did hit the desired hitbox and not other
+	// example: aiming for head -> its behind his chest -> return chest == head
+	return traceData.hitbox == iHitbox;
+}
 bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, adjust_data* record, float& tmp_min_damage) {
 	bool                  done, pen;
 	float                 dmg, pendmg;
@@ -1048,8 +1077,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 		record->player->m_vecOrigin() = backup_origin;
 		record->player->set_abs_origin(backup_abs_origin);
 		record->player->set_abs_angles(backup_abs_angles);
-		record->player->m_vecMins() = backup_obb_mins;
-		record->player->m_vecMaxs() = backup_obb_maxs;
+		record->player->UpdateCollisionBounds();
+		record->player->SetCollisionBounds(backup_obb_mins, backup_obb_maxs);
 		std::memcpy(record->player->m_CachedBoneData().Base(), backup_cache, record->player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 	};
 
@@ -1074,6 +1103,10 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 			penetration::PenetrationOutput_t out;
 
+			//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
+			if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
+				continue;
+
 			// code for safepoint matrix, the point should (!) be a safe point.
 			bool safe =  g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, it.m_index);
 
@@ -1085,8 +1118,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 			record->player->m_vecOrigin() = record->origin;
 			record->player->set_abs_origin(record->m_vecAbsOrigin);
 			record->player->set_abs_angles(record->abs_angles);
-			record->player->m_vecMins() = record->mins;
-			record->player->m_vecMaxs() = record->maxs;
+			record->player->UpdateCollisionBounds();
+			record->player->SetCollisionBounds(record->mins, record->maxs);
 			std::memcpy(record->player->m_CachedBoneData().Base(), m_matrix, sizeof(m_matrix));
 
 			// we can hit p!
@@ -1173,7 +1206,10 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 	// we found something that we can damage.
 	// set out vars.
-	if (scan.m_damage > 0.f) {
+	if (scan.m_damage > 0.f)
+	{
+
+
 		point = scan.m_point;
 		damage = scan.m_damage;
 		hitbox = scan.m_hitbox;
@@ -1293,8 +1329,9 @@ void aimbot::apply(CUserCmd* m_pcmd) {
 
 		shots::get().register_shot(this->m_target, g_ctx.globals.eye_pos, this->m_record, m_globals()->m_tickcount, this->m_point, this->m_safe);
 	}
+	if (g_Misc->IsFiring())
+		g_ctx.globals.aimbot_shooting = true;
 
-	g_ctx.globals.aimbot_working = true;
 	g_ctx.globals.revolver_working = false;
 	g_ctx.globals.last_aimbot_shot = m_globals()->m_tickcount;
 }
@@ -1358,8 +1395,8 @@ bool aimbot::CanHit(Vector start, Vector end, adjust_data* record, int box, bool
 		record->player->m_vecOrigin() = record->origin;
 		record->player->set_abs_origin(record->m_vecAbsOrigin);
 		record->player->set_abs_angles(record->abs_angles);
-		record->player->m_vecMins() = record->mins;
-		record->player->m_vecMaxs() = record->maxs;
+		record->player->UpdateCollisionBounds();
+		record->player->SetCollisionBounds(record->mins, record->maxs);
 		std::memcpy(record->player->m_CachedBoneData().Base(), matrix, sizeof(matrix));
 
 		// setup ray and trace.
@@ -1368,8 +1405,8 @@ bool aimbot::CanHit(Vector start, Vector end, adjust_data* record, int box, bool
 		record->player->m_vecOrigin() = backup_origin;
 		record->player->set_abs_origin(backup_abs_origin);
 		record->player->set_abs_angles(backup_abs_angles);
-		record->player->m_vecMins() = backup_obb_mins;
-		record->player->m_vecMaxs() = backup_obb_maxs;
+		record->player->UpdateCollisionBounds();
+		record->player->SetCollisionBounds(backup_obb_mins, backup_obb_maxs);
 		std::memcpy(record->player->m_CachedBoneData().Base(), backup_cache, record->player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
 		// check if we hit a valid player_t / hitgroup on the player_t and increment total hits.

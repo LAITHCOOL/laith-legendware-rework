@@ -55,6 +55,7 @@ public:
 		bool setuping_bones = false;
 		bool updating_animation = false;
 		bool aimbot_working = false;
+		bool aimbot_shooting = false;
 		bool revolver_working = false;
 		bool slowwalking = false;
 		bool change_materials = false;

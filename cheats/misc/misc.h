@@ -74,6 +74,12 @@ public:
 
 	void AutoPeek(CUserCmd* cmd, float wish_yaw);
 
+	bool IsFiring();
+
+	void ForceStop();
+
+	void AutoPeek(CUserCmd* cmd);
+
 	void automatic_peek(CUserCmd* cmd, float wish_yaw);
 	void ViewModel();
 	void PovArrows(player_t* e, Color color);

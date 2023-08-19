@@ -156,6 +156,7 @@ namespace hooks
 	//bool __fastcall handle_break_lc(const std::uintptr_t ecx, const std::uintptr_t edx, const int slot, bf_write* buffer, int& from, int& to, move_msg_t* move_msg);
 
 	bool __fastcall handle_break_lc(void* ecx, void* edx, const int slot, bf_write* buffer, int& from, int& to, bool is_new_command);
+	bool _fastcall ShiftCmdBuffer(int* new_commands, int* backup_commands, void* ecx, int slot, void* buf, int from, int to, bool real_cmd);
 	//void __cdecl hooked_clmove(float accumulated_extra_samples, bool bFinalTick);
 	bool __fastcall hooked_writeusercmddeltatobuffer(void* ecx, void* edx, int slot, bf_write* buf, int from, int to, bool is_new_command);
 

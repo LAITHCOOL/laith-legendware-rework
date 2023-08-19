@@ -182,6 +182,7 @@
     <ClCompile Include="cheats\ragebot\ray_tracer.cpp" />
     <ClCompile Include="cheats\ragebot\shots.cpp" />
     <ClCompile Include="cheats\ragebot\zeusbot.cpp" />
+    <ClCompile Include="cheats\tickbase shift\TickbaseManipulation.cpp" />
     <ClCompile Include="cheats\tickbase shift\tickbase_shift.cpp" />
     <ClCompile Include="cheats\visuals\bullet_tracers.cpp" />
     <ClCompile Include="cheats\visuals\dormant_esp.cpp" />
@@ -339,6 +340,7 @@
     <ClInclude Include="cheats\ragebot\ray_tracer.hpp" />
     <ClInclude Include="cheats\ragebot\shots.h" />
     <ClInclude Include="cheats\ragebot\zeusbot.h" />
+    <ClInclude Include="cheats\tickbase shift\TickbaseManipulation.h" />
     <ClInclude Include="cheats\tickbase shift\tickbase_shift.h" />
     <ClInclude Include="cheats\visuals\bullet_tracers.h" />
     <ClInclude Include="cheats\visuals\dormant_esp.h" />

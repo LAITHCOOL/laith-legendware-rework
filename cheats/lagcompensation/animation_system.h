@@ -345,7 +345,8 @@ public:
 		curSide = NO_SIDE;
 		curMode = NO_MODE;
 
-		//invalid = false;
+		invalid = false;
+		m_bHasBrokenLC = false;
 		store_data(e, store);
 	}
 
@@ -411,8 +412,12 @@ public:
 		player->m_vecVelocity() = velocity;
 		player->m_vecOrigin() = origin;
 		player->set_abs_origin(origin);
-		player->GetCollideable()->OBBMins() = mins;
-		player->GetCollideable()->OBBMaxs() = maxs;
+
+		player->UpdateCollisionBounds();
+		player->SetCollisionBounds(mins, maxs);
+
+		//player->GetCollideable()->OBBMins() = mins;
+		//player->GetCollideable()->OBBMaxs() = maxs;
 		m_bRestoreData = false;
 	}
 
@@ -431,58 +436,85 @@ public:
 		return true;
 	}
 
-	bool valid(bool extra_checks = true)
-	{
-		if (!this)
+	//bool valid(bool extra_checks = true)
+	//{
+	//	if (!this)
+	//		return false;
+
+	//	if (i > 0)
+	//		player = (player_t*)m_entitylist()->GetClientEntity(i);
+
+	//	if (!player)
+	//		return false;
+
+	//	if (player->m_lifeState() != LIFE_ALIVE)
+	//		return false;
+
+	//	if (immune)
+	//		return false;
+
+	//	if (dormant)
+	//		return false;
+
+	//	if (!extra_checks)
+	//		return true;
+
+	//	if (invalid || m_bHasBrokenLC)
+	//		return false;
+
+
+	//	/* set networking data */
+	//	int m_nTickRate = (int)(1.0f / m_globals()->m_intervalpertick);
+	//	int m_nMaximumChoke = 14;
+	//	int m_bSkipDatagram = true;
+
+
+	//	auto net_channel_info = m_engine()->GetNetChannelInfo();
+	//	/* calc latency */
+	//	INetChannel* m_NetChannel = m_clientstate()->pNetChannel;
+
+	//	if (net_channel_info != nullptr && m_NetChannel != nullptr)
+	//	{
+	//		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
+	//		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
+	//		/* set latency */
+	//		latency = outgoing + incoming;
+	//		/* set sequence */
+	//		int m_nSequence = m_NetChannel->m_nOutSequenceNr;
+	//	}
+
+	//	/* set servertick */
+	//	int m_nServerTick = m_globals()->m_tickcount + TIME_TO_TICKS(latency);
+	//	m_nCompensatedServerTick = m_nServerTick;
+
+	//	return IsTimeValid(simulation_time, g_ctx.globals.fixed_tickbase);
+	//}
+
+	float GetLerpTime() {
+		static auto cl_updaterate = m_cvar()->FindVar("cl_updaterate");
+		static auto cl_interp = m_cvar()->FindVar("cl_interp");
+
+		const auto update_rate = cl_updaterate->GetInt();
+		const auto interp_ratio = cl_interp->GetFloat();
+
+		auto lerp = interp_ratio / update_rate;
+
+		if (lerp <= interp_ratio)
+			lerp = interp_ratio;
+
+		return lerp;
+	}
+	bool valid(float range = .2f, float max_unlag = .2f) {
+
+		auto netchannel = m_engine()->GetNetChannelInfo();
+		if (!netchannel || invalid || m_bHasBrokenLC)
 			return false;
 
-		if (i > 0)
-			player = (player_t*)m_entitylist()->GetClientEntity(i);
+		const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING)+ netchannel->GetLatency(FLOW_OUTGOING) + GetLerpTime(), 0.f, max_unlag);
 
-		if (!player)
-			return false;
+		float curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 
-		if (player->m_lifeState() != LIFE_ALIVE)
-			return false;
-
-		if (immune)
-			return false;
-
-		if (dormant)
-			return false;
-
-		if (!extra_checks)
-			return true;
-
-		if (invalid || m_bHasBrokenLC)
-			return false;
-
-
-		/* set networking data */
-		int m_nTickRate = (int)(1.0f / m_globals()->m_intervalpertick);
-		int m_nMaximumChoke = 14;
-		int m_bSkipDatagram = true;
-
-
-		auto net_channel_info = m_engine()->GetNetChannelInfo();
-		/* calc latency */
-		INetChannel* m_NetChannel = m_clientstate()->pNetChannel;
-
-		if (net_channel_info != nullptr && m_NetChannel != nullptr)
-		{
-			auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-			auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-			/* set latency */
-			latency = outgoing + incoming;
-			/* set sequence */
-			int m_nSequence = m_NetChannel->m_nOutSequenceNr;
-		}
-
-		/* set servertick */
-		int m_nServerTick = m_globals()->m_tickcount + TIME_TO_TICKS(latency);
-		m_nCompensatedServerTick = m_nServerTick;
-
-		return IsTimeValid(simulation_time, g_ctx.globals.fixed_tickbase);
+		return std::fabsf(correct - (curtime - simulation_time)) <= range;
 	}
 
 	//bool valid(bool extra_checks = true)
@@ -592,7 +624,7 @@ class lagcompensation : public singleton <lagcompensation>
 public:
 	void apply_interpolation_flags(player_t* e);
 
-	void HandleTickbaseShift(player_t* pPlayer, adjust_data* m_PreviousRecord, adjust_data* record);
+	void HandleTickbaseShift(player_t* pPlayer, adjust_data* record);
 
 	
 	void CleanPlayer(player_t* pPlayer, adjust_data* record);

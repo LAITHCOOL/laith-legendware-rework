@@ -45,6 +45,24 @@ namespace math
 		// set out angles.
 		angles = { pitch, yaw, roll };
 	}
+
+	Vector angle_from_vectors(Vector a, Vector b)
+	{
+		Vector angles{};
+
+		Vector delta = a - b;
+		float hyp = delta.length(true);
+
+		// 57.295f - pi in degrees
+		angles.y = std::atan(delta.y / delta.x) * 57.2957795131f;
+		angles.x = std::atan(-delta.z / hyp) * -57.2957795131f;
+		angles.z = 0.0f;
+
+		if (delta.x >= 0.0f)
+			angles.y += 180.0f;
+
+		return angles;
+	}
 	void angle_vectors_deg(const QAngle& angles, Vector* forward, Vector* right, Vector* up)
 	{
 		float cp = std::cos(DEG2RAD(angles.pitch)), sp = std::sin(DEG2RAD(angles.pitch));
@@ -454,7 +472,20 @@ namespace math
 		angles.y = yaw;
 		angles.x = 0;
 	}
+	void angle_to_vectors(Vector angles, Vector& forward)
+	{
+		float sp, sy, cp, cy;
 
+		sy = sin(math::deg_to_rad(angles[1]));
+		cy = cos(math::deg_to_rad(angles[1]));
+
+		sp = sin(math::deg_to_rad(angles[0]));
+		cp = cos(math::deg_to_rad(angles[0]));
+
+		forward.x = cp * cy;
+		forward.y = cp * sy;
+		forward.z = -sp;
+	}
 	void angle_to_vectors(const Vector& angles, Vector* forward, Vector* right, Vector* up)
 	{
 		float cp = std::cos(deg_to_rad(angles.x)), sp = std::sin(deg_to_rad(angles.x));

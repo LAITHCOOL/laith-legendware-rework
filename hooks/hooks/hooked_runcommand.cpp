@@ -60,32 +60,21 @@ void __fastcall hooks::hooked_runcommand(void* ecx, void* edx, player_t* player,
 	if (!player || player != g_ctx.local())
 		return original_fn(ecx, player, m_pcmd, move_helper);
 
-	if (!m_pcmd)
+	if (!m_pcmd || !player->is_alive())
 		return original_fn(ecx, player, m_pcmd, move_helper);
 
-	int m_tickrate = ((int)(1.0f / m_globals()->m_intervalpertick));
-
-	if (m_globals()->m_tickcount + m_tickrate + 8 <= m_pcmd->m_tickcount) //-V807
+	if (m_pcmd->m_tickcount > m_globals()->m_tickcount + g_Networking->tickrate())
 	{
 		m_pcmd->m_predicted = true;
-		if (m_engine()->GetNetChannelInfo())
-		{
-			auto serverTickcount = g_ctx.globals.fakeducking ? m_globals()->m_tickcount : m_globals()->m_tickcount;
-
-			const auto outgoing = m_engine()->GetNetChannelInfo()->GetLatency(FLOW_OUTGOING);
-
-			serverTickcount += (outgoing / m_globals()->m_intervalpertick/* + incoming*/) + 3;
-			player->m_nFinalPredictedTick() = serverTickcount;
-		}
-
-		player->set_abs_origin(player->m_vecOrigin());
-		if (m_globals()->m_frametime > 0.0f && !m_prediction()->EnginePaused)
-		{
-			++player->m_nTickBase();
-			m_globals()->m_curtime = TICKS_TO_TIME(player->m_nTickBase());
-		}
 		return;
 	}
+
+	g_ctx.globals.backup_tickbase = player->m_nTickBase();
+
+	if (g_ctx.globals.tickbase_shift)
+		g_ctx.globals.fixed_tickbase = player->m_nTickBase() - g_ctx.globals.tickbase_shift;
+	else
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
 
 
 	/* force predicted tickbase */
@@ -104,45 +93,24 @@ void __fastcall hooks::hooked_runcommand(void* ecx, void* edx, player_t* player,
 	//g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
 
 
-	if (g_cfg.ragebot.enable && player->is_alive())
-	{
-		const auto backup_velocity_modifier = player->m_flVelocityModifier();
-		const int m_nTickbase = player->m_nTickBase();
-		const float m_flCurtime = m_globals()->m_curtime;
-		g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
-		FixAttackPacket(m_pcmd, true);
-		player->m_flVelocityModifier() = fix_velocity_modifier(player, m_pcmd->m_command_number, true);
+	
+	const auto backup_velocity_modifier = player->m_flVelocityModifier();
+	const int m_nTickbase = player->m_nTickBase();
+	const float m_flCurtime = m_globals()->m_curtime;
+	FixAttackPacket(m_pcmd, true);
+	player->m_flVelocityModifier() = fix_velocity_modifier(player, m_pcmd->m_command_number, true);
 
-		if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
-		{
-			//player->m_nTickBase() = (g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift);
-			player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_ctx.globals.shift_ticks);
-			m_globals()->m_curtime = TICKS_TO_TIME(player->m_nTickBase());
-		}
+	original_fn(ecx, player, m_pcmd, move_helper);
 
-		g_ctx.globals.fixed_tickbase = player->m_nTickBase();
+	/* store predicted netvars */
+	g_EnginePrediction->OnRunCommand(m_pcmd->m_command_number);
 
-		original_fn(ecx, player, m_pcmd, move_helper);
 
-		/* store predicted netvars */
-		g_EnginePrediction->OnRunCommand(m_pcmd->m_command_number);
-
-		//if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
-		//{
-		//	//player->m_nTickBase() = (g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift);
-		//	player->m_nTickBase() = g_ctx.globals.backup_tickbase;
-		//	m_globals()->m_curtime = m_flCurtime;
-		//}
-
-		player->m_flVelocityModifier() = fix_velocity_modifier(player, m_pcmd->m_command_number, false);
-		if (!g_ctx.globals.override_velmod)
-			player->m_flVelocityModifier() = backup_velocity_modifier;
-		FixAttackPacket(m_pcmd, false);
-		player->m_vphysicsCollisionState() = false;
-	}
-	else
-		return original_fn(ecx, player, m_pcmd, move_helper);
-
+	player->m_flVelocityModifier() = fix_velocity_modifier(player, m_pcmd->m_command_number, false);
+	if (!g_ctx.globals.override_velmod)
+		player->m_flVelocityModifier() = backup_velocity_modifier;
+	FixAttackPacket(m_pcmd, false);
+	player->m_vphysicsCollisionState() = false;
 }
 
 using InPrediction_t = bool(__thiscall*)(void*);

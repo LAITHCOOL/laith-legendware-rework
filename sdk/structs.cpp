@@ -759,6 +759,7 @@ void entity_t::set_abs_origin(const Vector& origin)
 
 	return fn(this, origin);
 }
+#include "../cheats/prediction/EnginePrediction.h"
 using GetShotgunSpread_t = void(__stdcall*)(int, int, int, float*, float*);
 Vector weapon_t::calculate_spread(int seed, float inaccuracy, float spread, bool revolver2) {
 	weapon_info_t* wep_info;
@@ -772,7 +773,7 @@ Vector weapon_t::calculate_spread(int seed, float inaccuracy, float spread, bool
 
 	// get some data for later.
 	item_def_index = m_iItemDefinitionIndex();
-	recoil_index = m_flRecoilSeed();
+	recoil_index = g_EnginePrediction->GetUnpredictedData()->m_flRecoilIndex;
 	static auto weapon_accuracy_shotgun_spread_patterns  = m_cvar()->FindVar(crypt_str("weapon_accuracy_shotgun_spread_patterns"));
 	static auto get_shotgun_spread = util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 EC 10 56 8B 75 08 8D")); // GetShotgunSpread()
 	// generate needed floats.
@@ -1067,7 +1068,7 @@ bool weapon_t::is_non_aim(bool disable_knife)
 
 	auto idx = m_iItemDefinitionIndex();
 
-	if (idx == WEAPON_C4 || idx == WEAPON_HEALTHSHOT)
+	if (idx == WEAPON_C4 || idx == WEAPON_HEALTHSHOT || idx == WEAPON_TASER)
 		return true;
 
 	if (disable_knife)
@@ -1623,10 +1624,28 @@ void player_t::SetCollisionBounds(const Vector& OBBMins, const Vector& OBBMaxs)
 	if (!Collideable)
 		return;
 
+
+	auto& flCollisionChangeOrigin = *reinterpret_cast<float*>(
+		reinterpret_cast<std::uintptr_t>(this) + 0x9920
+		);
+
+	auto& flCollisionChangeTime = *reinterpret_cast<float*>(
+		reinterpret_cast<std::uintptr_t>(this) + 0x9924
+		);
+
+	auto borigin = flCollisionChangeOrigin;
+	auto btime = flCollisionChangeTime;
+
+	flCollisionChangeOrigin = *reinterpret_cast<float*>(this + 0x4B) + Collideable->OBBMaxs().z;
+	flCollisionChangeTime = m_globals()->m_curtime;
+
 	static const auto nSetCollisionBounds = reinterpret_cast<void(__thiscall*)(ICollideable*, const Vector&, const Vector&)>(util::FindSignature(crypt_str("client.dll"), 
 		crypt_str("53 8B DC 83 EC 08 83 E4 F8 83 C4 04 55 8B 6B 04 89 6C 24 04 8B EC 83 EC 18 56 57 8B 7B 08 8B D1 8B 4B 0C")));
 
 	nSetCollisionBounds(Collideable, OBBMins , OBBMaxs);
+
+	flCollisionChangeOrigin = borigin;
+	flCollisionChangeTime = btime;
 }
 
 void player_t::UpdateCollisionBounds()
@@ -1977,7 +1996,93 @@ bool player_t::setup_bones_rebuilt(matrix3x4_t* matrix, int mask)
 
 	return setuped;
 }
+bool player_t::setup_bones_latest(matrix3x4_t* pBoneToWorldOut, bool safe_matrix)
+{
+	if (!this)
+		return false;
 
+	AnimationLayer backup_layers[13];
+
+	const float flCurTime = m_globals()->m_curtime;
+	const float flRealTime = m_globals()->m_realtime;
+	const float flFrameTime = m_globals()->m_frametime;
+	const float flAbsFrameTime = m_globals()->m_absoluteframetime;
+	const int iFrameCount = m_globals()->m_framecount;
+	const int iTickCount = m_globals()->m_tickcount;
+	const float flInterpolation = m_globals()->m_interpolation_amount;
+
+	m_globals()->m_curtime = m_globals()->m_realtime = this->m_flSimulationTime();
+	m_globals()->m_frametime = m_globals()->m_absoluteframetime = m_globals()->m_intervalpertick;
+	m_globals()->m_framecount = INT_MAX;
+	m_globals()->m_tickcount = TIME_TO_TICKS(m_globals()->m_realtime);
+	m_globals()->m_interpolation_amount = 0.f;
+
+	const uint32_t iClientEffects = this->m_nClientEffects();
+	const uint32_t iOcclusionFramecount = this->m_iOcclusionFramecount();
+	const uint32_t iOcclusionFlags = this->m_iOcclusionFlags();
+	const uint32_t nLastSkipFramecount = this->m_nLastSkipFramecount();
+	const uint32_t iEffects = this->m_fEffects();
+	const bool bMaintainSequenceTransition = this->m_bMaintainSequenceTransition();
+	const Vector vecAbsOrigin = this->GetAbsOrigin();
+
+	int iMask = BONE_USED_BY_ANYTHING;
+	if (safe_matrix)
+		iMask = BONE_USED_BY_HITBOX;
+
+	this->copy_animlayers(backup_layers);
+	this->invalidate_bone_cache();
+	this->m_BoneAccessor().m_ReadableBones = this->m_BoneAccessor().m_WritableBones = NULL;
+
+	if (this->get_animation_state())
+		this->get_animation_state()->m_pLastActiveWeapon = this->get_animation_state()->m_pActiveWeapon;
+
+	this->m_iOcclusionFramecount() = this->m_iOcclusionFlags() = this->m_nLastSkipFramecount() = NULL;
+
+	if (this != g_ctx.local())
+		this->set_abs_origin(this->m_vecOrigin());
+
+	this->m_fEffects() |= 8;
+	this->m_nClientEffects() |= 2;
+	this->m_bMaintainSequenceTransition() = false;
+
+	this->get_animlayers()[ANIMATION_LAYER_LEAN].m_flWeight = 0.0f;
+	if (safe_matrix)
+		this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_pOwner = NULL;
+	else if (this == g_ctx.local())
+	{
+		if (this->sequence_activity(this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_nSequence) == ACT_CSGO_IDLE_TURN_BALANCEADJUST)
+		{
+			this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_flCycle = 0.0f;
+			this->get_animlayers()[ANIMATION_LAYER_ADJUST].m_flWeight = 0.0f;
+		}
+	}
+
+	g_ctx.globals.setuping_bones = true;
+	auto res = this->SetupBones(pBoneToWorldOut, MAXSTUDIOBONES, iMask, 0.f);
+	g_ctx.globals.setuping_bones = false;
+
+	this->m_bMaintainSequenceTransition() = bMaintainSequenceTransition;
+	this->m_nClientEffects() = iClientEffects;
+	this->m_fEffects() = iEffects;
+	this->m_nLastSkipFramecount() = nLastSkipFramecount;
+	this->m_iOcclusionFlags() = iOcclusionFlags;
+	this->m_iOcclusionFramecount() = iOcclusionFramecount;
+
+	if (this != g_ctx.local())
+		this->set_abs_origin(vecAbsOrigin);
+
+	this->set_animlayers(backup_layers);
+
+	m_globals()->m_curtime = flCurTime;
+	m_globals()->m_realtime = flRealTime;
+	m_globals()->m_frametime = flFrameTime;
+	m_globals()->m_absoluteframetime = flAbsFrameTime;
+	m_globals()->m_framecount = iFrameCount;
+	m_globals()->m_tickcount = iTickCount;
+	m_globals()->m_interpolation_amount = flInterpolation;
+
+	return res;
+}
 
 bool player_t::setup_bones1(matrix3x4_t* pBoneToWorldOut, bool safe_matrix)
 {

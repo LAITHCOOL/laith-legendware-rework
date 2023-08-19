@@ -269,6 +269,7 @@ public:
 	void AutoRevolver(CUserCmd* m_pcmd);
 	void AdjustRevolverData(int commandnumber, int buttons);
 	bool IsSafePoint(adjust_data* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox);
+	bool bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, adjust_data* pRecord);
 	adjust_data* get_record(std::deque <adjust_data>* records);
 	adjust_data* get_record_history(std::deque <adjust_data>* records);
 	// knifebot.

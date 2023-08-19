@@ -28,7 +28,7 @@ void C_EnginePrediction::OnRunCommand(int nCommand)
 {
 	NetvarData_t* m_Data = &m_NetVars[nCommand % MULTIPLAYER_BACKUP];
 
-	m_Data->m_nTickBase = g_ctx.local()->m_nTickBase();
+	m_Data->m_nTickBase = g_ctx.globals.fixed_tickbase;
 	m_Data->m_angAimPunchAngle = g_ctx.local()->m_aimPunchAngle();
 	m_Data->m_angViewPunchAngle = g_ctx.local()->m_viewPunchAngle();
 	m_Data->m_vecAimPunchAngleVel = g_ctx.local()->m_aimPunchAngleVel();
@@ -178,7 +178,7 @@ void C_EnginePrediction::OnPostNetworkDataReceived()
 	{
 		m_bHadPredictionErrors = true;
 	}
-	if (!AdjustFieldVector(g_ctx.local()->m_vecVelocity(), aNetVars->m_vecVelocity, 0.5f, "m_vecVelocity"))
+	if (!AdjustFieldVector(g_ctx.local()->m_vecVelocity(), aNetVars->m_vecVelocity, 0.05f, "m_vecVelocity"))
 	{
 		m_bHadPredictionErrors = true;
 	}
@@ -332,6 +332,9 @@ void C_EnginePrediction::RunPrediction()
 
 	// restore old buttons
 	g_ctx.get_command()->m_buttons = nButtons;
+
+	/*set predicted tickbase*/
+	g_ctx.local()->m_nTickBase() = g_ctx.globals.fixed_tickbase;
 
 	// reset host
 	m_movehelper()->set_host(nullptr);

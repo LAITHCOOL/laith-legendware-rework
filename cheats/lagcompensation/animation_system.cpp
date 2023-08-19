@@ -107,12 +107,8 @@ void lagcompensation::apply_interpolation_flags(player_t* e)
 	for (auto j = 0; j < map->m_nInterpolatedEntries; j++)
 		map->m_Entries[j].m_bNeedsToInterpolate = false;
 }
-void lagcompensation::HandleTickbaseShift(player_t* pPlayer, adjust_data* m_PreviousRecord, adjust_data* record)
+void lagcompensation::HandleTickbaseShift(player_t* pPlayer, adjust_data* record)
 {
-	float flOldSimulationTime = pPlayer->m_flOldSimulationTime();
-	if (m_PreviousRecord)
-		flOldSimulationTime = m_PreviousRecord->simulation_time;
-
 	record->m_flExploitTime = pPlayer->m_flSimulationTime();
 	CleanPlayer(pPlayer, record);
 }
@@ -125,6 +121,7 @@ void lagcompensation::CleanPlayer(player_t* pPlayer, adjust_data* record)
 	if (!m_LagRecords)
 		return;
 	m_LagRecords->invalid = true;
+	//m_LagRecords->reset();
 }
 
 Vector lagcompensation::DeterminePlayerVelocity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord, c_baseplayeranimationstate* m_AnimationState)
@@ -324,22 +321,22 @@ void lagcompensation::setup_matrix(player_t* e, AnimationLayer* layers, const in
 	switch (matrix)
 	{
 	case MiddleMatrix:
-		e->setup_bones_rebuilt(record->m_Matricies[MiddleMatrix].data(), BONE_USED_BY_ANYTHING);
+		e->setup_bones_latest(record->m_Matricies[MiddleMatrix].data(), false);
 		break;
 	case LeftMatrix:
-		e->setup_bones_rebuilt(record->m_Matricies[LeftMatrix].data(), BONE_USED_BY_HITBOX);
+		e->setup_bones_latest(record->m_Matricies[LeftMatrix].data(), true);
 		break;
 	case RightMatrix:
-		e->setup_bones_rebuilt(record->m_Matricies[RightMatrix].data(), BONE_USED_BY_HITBOX);
+		e->setup_bones_latest(record->m_Matricies[RightMatrix].data(), true);
 		break;
 	case LowLeftMatrix:
-		e->setup_bones_rebuilt(record->m_Matricies[LowLeftMatrix].data(), BONE_USED_BY_HITBOX);
+		e->setup_bones_latest(record->m_Matricies[LowLeftMatrix].data(), true);
 		break;
 	case LowRightMatrix:
-		e->setup_bones_rebuilt(record->m_Matricies[LowRightMatrix].data(), BONE_USED_BY_HITBOX);
+		e->setup_bones_latest(record->m_Matricies[LowRightMatrix].data(), true);
 		break;
 	case ZeroMatrix:
-		e->setup_bones_rebuilt(record->m_Matricies[ZeroMatrix].data(), BONE_USED_BY_HITBOX);
+		e->setup_bones_latest(record->m_Matricies[ZeroMatrix].data(), true);
 		break;
 	}
 	
@@ -480,7 +477,7 @@ void lagcompensation::UpdatePlayerAnimations(player_t* pPlayer, adjust_data* m_L
 void lagcompensation::SetupData(player_t* pPlayer, adjust_data* m_Record , adjust_data* m_PrevRecord)
 {
 	/* Determine simulation ticks with anim cycle */
-	if (!m_PrevRecord)
+	if (!m_PrevRecord || m_Record->bot)
 	{
 		m_Record->m_nSimulationTicks = 1;
 		return;
@@ -830,7 +827,7 @@ void lagcompensation::update_player_animations(player_t* e)
 
 	memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
 
-	if (/*!record->bot &&*/ /*g_ctx.local()->is_alive() &&*/ e->m_iTeamNum() != g_ctx.local()->m_iTeamNum() && !g_cfg.legitbot.enabled)
+	if (!record->bot && /*g_ctx.local()->is_alive() &&*/ e->m_iTeamNum() != g_ctx.local()->m_iTeamNum() && !g_cfg.legitbot.enabled)
 	{
 		player_resolver[e->EntIndex()].initialize_yaw(e, record, previous_record);
 		/*rebuild setup velocity for more accurate rotations for the resolver and safepoints*/
@@ -855,16 +852,20 @@ void lagcompensation::update_player_animations(player_t* e)
 			animstate->m_flGoalFeetYaw = math::normalize_yaw(EyeYaw + deltaAngle);
 			UpdatePlayerAnimations(e, record, animstate);
 
-			// Update animlayers and cached bone data
-			setup_matrix(e, record->layers, i, record);
+			// copy layer data to use it in in the resolver
 			memcpy(player_resolver[e->EntIndex()].resolver_layers[i], e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
-			//memcpy(c_DesyncCorrection[e->EntIndex()].ResolverLayers[i], e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
-			memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[i].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
+
+			//setup bones 
+			setup_matrix(e, record->layers, i, record);
+
+			// restore data
 			memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 			memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
+
+			/* Restore Globals */
+			m_Globals.AdjustData();
 		}
 
-		//c_DesyncCorrection[e->EntIndex()].Run(record, e);
 		player_resolver[e->EntIndex()].initialize(e, record, previous_goal_feet_yaw[e->EntIndex()], e->m_angEyeAngles().x, previous_record);
 		player_resolver[e->EntIndex()].resolve_desync();
 	}
@@ -884,13 +885,14 @@ void lagcompensation::update_player_animations(player_t* e)
 	memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 	memcpy(player_resolver[e->EntIndex()].previous_layers, record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 
-	record->store_data(e, true);
+	//record->store_data(e, true);
+	//record->adjust_player();
 
 	if (previous_record)
 	{
 		/* Check tickbase exploits */
 		if (previous_record->simulation_time > record->simulation_time)
-			HandleTickbaseShift(e, previous_record, record);
+			HandleTickbaseShift(e, record);
 
 		/* Invalidate records for defensive and break lc */
 		if (record->simulation_time <= record->m_flExploitTime)

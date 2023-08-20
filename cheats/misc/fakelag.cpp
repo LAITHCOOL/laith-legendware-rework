@@ -215,7 +215,7 @@ void fakelag::Createmove()
 
 	Fakelag(g_ctx.get_command());
 
-	if (!m_gamerules()->m_bIsValveDS() && m_clientstate()->iChokedCommands <= 16)
+	/*if (!m_gamerules()->m_bIsValveDS() && m_clientstate()->iChokedCommands <= 16)
 	{
 		static auto Fn = util::FindSignature(crypt_str("engine.dll"), crypt_str("B8 ? ? ? ? 3B F0 0F 4F F0 89 5D FC")) + 0x1;
 		DWORD old = 0;
@@ -223,9 +223,16 @@ void fakelag::Createmove()
 		VirtualProtect((void*)Fn, sizeof(uint32_t), PAGE_EXECUTE_READWRITE, &old);
 		*(uint32_t*)Fn = 17;
 		VirtualProtect((void*)Fn, sizeof(uint32_t), old, &old);
-	}
+	}*/
 }
-
+void fakelag::SetMoveChokeClampLimit()
+{
+	unsigned long protect = 0;
+	static auto sendmove_choke_clamp = util::FindSignature(crypt_str("engine.dll"), crypt_str("B8 ? ? ? ? 3B F0 0F 4F F0 89 5D FC")) + 0x1;;
+	VirtualProtect((void*)sendmove_choke_clamp, 4, PAGE_EXECUTE_READWRITE, &protect);
+	*(uint32_t*)sendmove_choke_clamp = 62;
+	VirtualProtect((void*)sendmove_choke_clamp, 4, protect, &protect);
+}
 bool fakelag::FakelagCondition(CUserCmd* m_pcmd)
 {
 	condition = false;

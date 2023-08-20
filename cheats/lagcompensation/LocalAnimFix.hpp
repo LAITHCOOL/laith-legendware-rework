@@ -32,7 +32,7 @@ public:
 	virtual void BeforePrediction();
 	virtual void StoreAnimationRecord();
 	virtual void ModifyEyePosition(Vector& vecInputEyePos, matrix3x4_t* aMatrix);
-	virtual void SetupPlayerBones(matrix3x4_t* aMatrix, int nMask);
+	virtual bool SetupPlayerBones(matrix3x4_t* aMatrix, int nMask);
 	virtual void InterpolateMatricies();
 	virtual void DoAnimationEvent(int nButtons, bool bIsFakeAnimations = false);
 	virtual void SimulateStrafe(int nButtons);
@@ -74,6 +74,7 @@ private:
 		{
 			int m_nMoveType = 0;
 			int m_nFlags = 0;
+			bool m_nBonesRet = false;
 
 			std::array < AnimationLayer, 13 > m_Layers = { };
 			std::array < AnimationLayer, 13 > m_CleanLayers = { };
@@ -97,6 +98,7 @@ private:
 		{
 			int m_nMoveType = 0;
 			int m_nFlags = 0;
+			bool m_nBonesRet = false;
 
 			std::array < AnimationLayer, 13 > m_Layers = { };
 			std::array < float, MAXSTUDIOPOSEPARAM > m_PoseParameters = { };

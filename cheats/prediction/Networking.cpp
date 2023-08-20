@@ -40,6 +40,12 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 	g_ctx.globals.original_forwardmove = m_pcmd->m_forwardmove;
 	g_ctx.globals.original_sidemove = m_pcmd->m_sidemove;
 
+	g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
+
+	if (g_ctx.globals.tickbase_shift)
+		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.tickbase_shift;
+	else
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
 
 	if (hooks::menu_open)
 	{

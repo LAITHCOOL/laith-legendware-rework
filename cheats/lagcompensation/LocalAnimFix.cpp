@@ -131,8 +131,9 @@ void C_LocalAnimations::OnCreateMove()
 
 	g_ctx.local()->set_abs_origin(m_LocalData.m_vecAbsOrigin);
 	//if ( !g_Globals->m_Packet.m_bSkipMatrix )
-	g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Real.m_Matrix.data(), BONE_USED_BY_ANYTHING);
-	//g_LocalAnimations->UpdateDesyncAnimations();
+	m_LocalData.m_Real.m_nBonesRet = g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Real.m_Matrix.data(), BONE_USED_BY_ANYTHING);
+
+	g_LocalAnimations->UpdateDesyncAnimations();
 
 	/* restore globals */
 	m_globals()->m_curtime = std::get < 0 >(m_Globals);
@@ -307,7 +308,7 @@ void C_LocalAnimations::UpdateDesyncAnimations()
 
 	m_LocalData.m_flYawDelta = std::roundf(math::AngleDiff(math::normalize_yaw(g_ctx.local()->get_animation_state1()->m_flFootYaw), math::normalize_yaw(m_AnimationState.m_flFootYaw)));
 
-	g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Fake.m_Matrix.data(), BONE_USED_BY_ANYTHING);
+	m_LocalData.m_Fake.m_nBonesRet = g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Fake.m_Matrix.data(), BONE_USED_BY_ANYTHING);
 
 	std::memcpy(g_ctx.local()->get_animation_state1(), &m_AnimationState, sizeof(C_CSGOPlayerAnimationState));
 	std::memcpy(g_ctx.local()->get_animlayers(), m_LocalData.m_Real.m_Layers.data(), sizeof(AnimationLayer) * 13);
@@ -521,7 +522,7 @@ void C_LocalAnimations::SetupShootPosition()
 	g_ctx.globals.eye_pos = GetShootPosition();
 	//g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
 }
-void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
+bool C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 {
 	// save globals
 	std::tuple < float, float, float, float, float, int, int > m_Globals = std::make_tuple
@@ -601,7 +602,7 @@ void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 
 	// setup bones
 	g_ctx.globals.setuping_bones = true;
-	g_ctx.local()->SetupBones(aMatrix, MAXSTUDIOBONES, nMask, 0.0f);
+	auto res = g_ctx.local()->SetupBones(aMatrix, MAXSTUDIOBONES, nMask, 0.0f);
 	g_ctx.globals.setuping_bones = false;
 
 	// restore animation layers
@@ -625,6 +626,8 @@ void C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 	// restore frame count and tick count
 	m_globals()->m_framecount = std::get < 5 >(m_Globals);
 	m_globals()->m_tickcount = std::get < 6 >(m_Globals);
+
+	return res;
 }
 void C_LocalAnimations::ModifyEyePosition(Vector& vecInputEyePos, matrix3x4_t* aMatrix)
 {
@@ -678,8 +681,9 @@ void C_LocalAnimations::TransformateMatricies()
 }
 bool C_LocalAnimations::CopyCachedMatrix(matrix3x4_t* aInMatrix, int nBoneCount)
 {
+	if (m_LocalData.m_Real.m_nBonesRet)
+		std::memcpy(aInMatrix, m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * nBoneCount);
 
-	std::memcpy(aInMatrix, m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * nBoneCount);
 	return true;
 }
 void C_LocalAnimations::CleanSnapshots()
@@ -698,6 +702,7 @@ void C_LocalAnimations::ResetData()
 
 	m_LocalData.m_Real.m_nMoveType = 0;
 	m_LocalData.m_Real.m_nFlags = 0;
+	m_LocalData.m_Real.m_nBonesRet = false;
 	m_LocalData.m_Real.m_Layers = { };
 	m_LocalData.m_Real.m_PoseParameters = { };
 	m_LocalData.m_Real.m_vecMatrixOrigin = Vector(0, 0, 0);
@@ -705,6 +710,7 @@ void C_LocalAnimations::ResetData()
 
 	m_LocalData.m_Fake.m_nMoveType = 0;
 	m_LocalData.m_Fake.m_nFlags = 0;
+	m_LocalData.m_Fake.m_nBonesRet = false;
 	m_LocalData.m_Fake.m_Layers = { };
 	m_LocalData.m_Fake.m_CleanLayers = { };
 	m_LocalData.m_Fake.m_PoseParameters = { };

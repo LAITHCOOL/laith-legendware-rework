@@ -8,6 +8,7 @@ class fakelag
 public:
     void Fakelag(CUserCmd* m_pcmd);
     void Createmove();
+    void SetMoveChokeClampLimit();
     bool FakelagCondition(CUserCmd* m_pcmd);
     void FakeLatency(INetChannel* LatencyChannel, float Latency);
     player_t* e;

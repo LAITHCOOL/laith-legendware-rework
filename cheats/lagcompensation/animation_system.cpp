@@ -25,50 +25,108 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 	if (!lagcompensation::get().valid(i, e))
 		return;
 
-	auto update = player_records[i].empty() || e->m_flSimulationTime() != e->m_flOldSimulationTime();
-	if (update && !player_records[i].empty())
-	{
-		auto server_tick = m_clientstate()->m_iServerTick - i % m_globals()->m_timestamprandomizewindow;
-		auto current_tick = server_tick - server_tick % m_globals()->m_timestampnetworkingbase;
+	if (stage == FRAME_NET_UPDATE_POSTDATAUPDATE_END)
+		lagcompensation::get().apply_interpolation_flags(e);
 
-		if (TIME_TO_TICKS(e->m_flOldSimulationTime()) < current_tick && TIME_TO_TICKS(e->m_flSimulationTime()) == current_tick)
+	else if (stage == FRAME_RENDER_START)
+		lagcompensation::get().FixPvs(e);
+
+	else if (stage == FRAME_NET_UPDATE_END) {
+
+		player_records[i].emplace_front(adjust_data(e));
+
+		auto records = &player_records[e->EntIndex()]; //-V826
+
+		if (records->empty())
+			return;
+
+		adjust_data* previous_record = nullptr;
+
+		if (records->size() >= 2)
+			previous_record = &records->at(1);
+
+		adjust_data* record = &records->front();
+
+		auto update = player_records[i].empty() || e->m_flSimulationTime() != e->m_flOldSimulationTime();
+		if (update && !player_records[i].empty())
 		{
-			auto layer = &e->get_animlayers()[11];
-			auto previous_layer = &player_records[i].front().layers[11];
+			auto server_tick = m_clientstate()->m_iServerTick - i % m_globals()->m_timestamprandomizewindow;
+			auto current_tick = server_tick - server_tick % m_globals()->m_timestampnetworkingbase;
 
-			if (layer->m_flCycle == previous_layer->m_flCycle) //-V550
+			if (TIME_TO_TICKS(e->m_flOldSimulationTime()) < current_tick && TIME_TO_TICKS(e->m_flSimulationTime()) == current_tick)
 			{
-				e->m_flSimulationTime() = player_records[i].front().simulation_time;
-				e->m_flOldSimulationTime() = player_records[i].front().old_simtime;
-				update = false;
+				auto layer = &e->get_animlayers()[11];
+				auto previous_layer = &player_records[i].front().layers[11];
+
+				if (layer->m_flCycle == previous_layer->m_flCycle) //-V550
+				{
+					e->m_flSimulationTime() = player_records[i].front().simulation_time;
+					e->m_flOldSimulationTime() = player_records[i].front().old_simtime;
+					update = false;
+				}
 			}
 		}
-	}
 
-	switch (stage)
-	{
-	case FRAME_NET_UPDATE_POSTDATAUPDATE_END:
-		lagcompensation::get().apply_interpolation_flags(e);
-		break;
-	case FRAME_NET_UPDATE_END:
 		if (update)
 		{
-			/*if (!player_records[i].empty() && (e->m_vecOrigin() - player_records[i].front().origin).LengthSqr() > 4096.0f) {
-				for (auto& record : player_records[i])
-					record.invalid = true;
-			}*/
-
-			player_records[i].emplace_front(adjust_data(e));
-			lagcompensation::get().update_player_animations(e);
-
-			while (player_records[i].size() > 32)
-				player_records[i].pop_back();
+			lagcompensation::get().ProccessShitingPlayers(e, record, previous_record);
+			lagcompensation::get().SimulatePlayerAnimations(e, record, previous_record);
 		}
-		break;
-	case FRAME_RENDER_START:
-		//e->set_abs_origin(e->m_vecOrigin());
-		lagcompensation::get().FixPvs(e);
-		break;
+
+		while (player_records[i].size() > g_Networking->tickrate())
+			player_records[i].pop_back();
+	}
+}
+
+
+void lagcompensation::ProccessShitingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
+{
+	if (previous_record && record)
+	{
+		if (!e || e->is_alive())
+			return;
+
+		/* Check tickbase exploits */
+		if (previous_record->simulation_time > record->simulation_time)
+			HandleTickbaseShift(e, record);
+
+		/* Invalidate records for defensive and break lc */
+		if (record->simulation_time <= record->m_flExploitTime)
+		{
+			/* Don't care at all about this cases if we have anti-exploit */
+			record->invalid = true;
+			record->m_bHasBrokenLC = true;
+		}
+
+		/* handle break lagcompensation by high speed and fakelags */
+		if (previous_record->m_bRestoreData)
+		{
+			if ((record->origin - previous_record->origin).Length2DSqr() > 4096.0f)
+			{
+				record->m_bHasBrokenLC = true;
+				CleanPlayer(e, record);
+			}
+		}
+
+		/* Determine simulation ticks */
+		/* Another code for tickbase shift */
+		if (record->simulation_time < previous_record->simulation_time)
+		{
+			record->invalid = true;
+			record->m_bHasBrokenLC = true;
+
+			if (previous_record->m_bRestoreData)
+				record->m_nSimulationTicks = TIME_TO_TICKS(record->old_simtime - previous_record->old_simtime);
+			else
+				record->m_nSimulationTicks = previous_record->m_nSimulationTicks;
+		}
+		else
+		{
+			if (previous_record->m_bRestoreData)
+				record->m_nSimulationTicks = TIME_TO_TICKS(record->simulation_time - previous_record->simulation_time);
+			else
+				record->m_nSimulationTicks = TIME_TO_TICKS(record->simulation_time - record->old_simtime);
+		}
 	}
 }
 
@@ -117,10 +175,11 @@ void lagcompensation::CleanPlayer(player_t* pPlayer, adjust_data* record)
 	if (!pPlayer)
 		return;
 
-	auto m_LagRecords = record;
+	auto m_LagRecords = &player_records[pPlayer->EntIndex()];
 	if (!m_LagRecords)
 		return;
-	m_LagRecords->invalid = true;
+	m_LagRecords->clear();
+	//m_LagRecords->invalid = true;
 	//m_LagRecords->reset();
 }
 
@@ -310,14 +369,6 @@ static T interpolate(const T& current, const T& target, const int progress, cons
 
 void lagcompensation::setup_matrix(player_t* e, AnimationLayer* layers, const int& matrix , adjust_data* record)
 {
-	e->invalidate_physics_recursive(8);
-
-	/*AnimationLayer backup_layers[13];
-	std::array < float, 24 > m_PoseParameters;
-	memcpy(backup_layers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
-
-	memcpy(e->get_animlayers(), layers, e->animlayer_count() * sizeof(AnimationLayer));*/
-
 	switch (matrix)
 	{
 	case MiddleMatrix:
@@ -339,8 +390,6 @@ void lagcompensation::setup_matrix(player_t* e, AnimationLayer* layers, const in
 		e->setup_bones_latest(record->m_Matricies[ZeroMatrix].data(), true);
 		break;
 	}
-	
-	//memcpy(e->get_animlayers(), backup_layers, e->animlayer_count() * sizeof(AnimationLayer));
 }
 void lagcompensation::HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Record, c_baseplayeranimationstate* m_AnimationState)
 {
@@ -576,11 +625,35 @@ void lagcompensation::SimulatePlayerActivity(player_t* pPlayer, adjust_data* m_L
 		}
 	}
 }
+float lagcompensation::ComputeActivityPlayback(player_t* pPlayer, adjust_data* m_Record)
+{
+	/* Get animation layers */
+	AnimationLayer* m_JumpingLayer = &m_Record->layers[ANIMATION_LAYER_MOVEMENT_JUMP_OR_FALL];
+	AnimationLayer* m_LandingLayer = &m_Record->layers[ANIMATION_LAYER_MOVEMENT_LAND_OR_CLIMB];
 
+	/* Determine playback */
+	float flActivityPlayback = 0.0f;
+	switch (m_Record->m_nActivityType)
+	{
+	case EPlayerActivity::Jump:
+	{
+		flActivityPlayback = pPlayer->GetLayerSequenceCycleRate(m_JumpingLayer, m_JumpingLayer->m_nSequence);
+	}
+	break;
+
+	case EPlayerActivity::Land:
+	{
+		flActivityPlayback = pPlayer->GetLayerSequenceCycleRate(m_LandingLayer, m_LandingLayer->m_nSequence);
+	}
+	break;
+	}
+
+	return flActivityPlayback;
+}
 void lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* record, adjust_data* previous_record)
 {
 
-	if (!previous_record) {
+	if (!previous_record || !record || !player) {
 		record->m_nSimulationTicks = 1;
 		return;
 	}
@@ -626,11 +699,11 @@ void lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* re
 		record->m_nSimulationTicks = std::clamp(ticks, 0, 15);
 	}
 }
-void lagcompensation::update_player_animations(player_t* e)
+void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* previous_record)
 {
 	auto animstate = e->get_animation_state();
 
-	if (!animstate)
+	if (!animstate || !record)
 		return;
 
 	player_info_t player_info;
@@ -638,21 +711,6 @@ void lagcompensation::update_player_animations(player_t* e)
 	if (!m_engine()->GetPlayerInfo(e->EntIndex(), &player_info))
 		return;
 
-	auto records = &player_records[e->EntIndex()]; //-V826
-
-	if (records->empty())
-		return;
-
-	adjust_data* previous_record = nullptr;
-
-	if (records->size() >= 2)
-		previous_record = &records->at(1);
-
-	auto record = &records->front();
-
-	//AnimationLayer animlayers[13];
-
-	//memcpy(animlayers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
 	memcpy(record->layers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
 
 	GameGlobals_t m_Globals;
@@ -724,7 +782,11 @@ void lagcompensation::update_player_animations(player_t* e)
 	}
 	else if (previous_record && record->m_nSimulationTicks > 1)
 	{
+		/* Simulate player activity ( jump and land ) */
 		SimulatePlayerActivity(e, record, previous_record);
+
+		/* Compute activity playback ( jump and land ) */
+		record->m_flActivityPlayback = ComputeActivityPlayback(e, record);
 
 		for (int iSimulationTick = 1; iSimulationTick <= record->m_nSimulationTicks; iSimulationTick++)
 		{
@@ -876,46 +938,11 @@ void lagcompensation::update_player_animations(player_t* e)
 	setup_matrix(e, record->layers, MAIN, record);
 	memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[MiddleMatrix].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
-	e->m_flLowerBodyYawTarget() = m_PlayerGlobals.m_flLowerBodyYawTarget;
-	e->m_flDuckAmount() = m_PlayerGlobals.m_flDuckAmount;
-	e->m_fFlags() = m_PlayerGlobals.m_fFlags;
-	e->m_iEFlags() = m_PlayerGlobals.m_iEFlags;
-	m_Globals.AdjustData();
-
 	memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 	memcpy(player_resolver[e->EntIndex()].previous_layers, record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 
-	//record->store_data(e, true);
-	//record->adjust_player();
-
-	if (previous_record)
-	{
-		/* Check tickbase exploits */
-		if (previous_record->simulation_time > record->simulation_time)
-			HandleTickbaseShift(e, record);
-
-		/* Invalidate records for defensive and break lc */
-		if (record->simulation_time <= record->m_flExploitTime)
-		{
-			/* Don't care at all about this cases if we have anti-exploit */
-			record->invalid = true;
-			record->m_bHasBrokenLC = true;
-		}
-		/* handle break lagcompensation by high speed and fakelags */
-		if ((record->origin - previous_record->origin).Length2DSqr() > 4096.0f)
-		{
-			record->m_bHasBrokenLC = true;
-			CleanPlayer(e, record);
-		}
-
-		/* Determine simulation ticks */
-		/* Another code for tickbase shift */
-		if (record->simulation_time < previous_record->simulation_time)
-		{
-			record->invalid = true;
-			record->m_bHasBrokenLC = true;
-		}
-	}
+	m_PlayerGlobals.AdjustData(e);
+	m_Globals.AdjustData();
 }
 
 void lagcompensation::FixPvs(player_t* pCurEntity)

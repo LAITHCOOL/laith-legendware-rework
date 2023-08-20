@@ -190,7 +190,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 				}
 				//local_animations::get().local_data.fake_animstate = nullptr;
 				//local_animations::get().local_data.real_animstate = nullptr;
-				g_LocalAnimations->ResetData();
+				//g_LocalAnimations->ResetData();
 				g_ctx.globals.weapon = nullptr;
 				g_ctx.globals.should_choke_packet = false;
 				g_ctx.globals.should_send_packet = false;

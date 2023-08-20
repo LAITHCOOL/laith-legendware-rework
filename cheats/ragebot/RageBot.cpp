@@ -542,10 +542,6 @@ void aimbot::think(CUserCmd* m_pcmd) {
 	if (!g_ctx.globals.weapon->can_fire(true))
 		return;
 
-	// no point in aimbotting if we are shifting.
-	if (g_ctx.globals.isshifting)
-		return;
-
 	// setup bones for all valid targets.
 	for (auto i = 0; i < m_globals()->m_maxclients; ++i)
 	{
@@ -573,6 +569,8 @@ void aimbot::think(CUserCmd* m_pcmd) {
 
 		return;
 	}
+
+	g_Ragebot->AutoRevolver(m_pcmd);
 
 	// auto-stop if we about to peek this guy.
 	if (!this->m_stop && this->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true)) {

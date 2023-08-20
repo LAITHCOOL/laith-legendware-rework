@@ -69,12 +69,7 @@ void __fastcall hooks::hooked_runcommand(void* ecx, void* edx, player_t* player,
 		return;
 	}
 
-	g_ctx.globals.backup_tickbase = player->m_nTickBase();
-
-	if (g_ctx.globals.tickbase_shift)
-		g_ctx.globals.fixed_tickbase = player->m_nTickBase() - g_ctx.globals.tickbase_shift;
-	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
+	
 
 
 	/* force predicted tickbase */
@@ -261,8 +256,8 @@ bool __fastcall hooks::hooked_writeusercmddeltatobuffer(void* ecx, void* edx, in
 	if (from != -1)
 		return true;
 
-	//if (tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled && g_ctx.globals.defensive_shift_ticks)
-		//return handle_break_lc(ecx, edx, slot, buf, from, to , is_new_command);
+	/*if (tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled && g_ctx.globals.defensive_shift_ticks)
+		return handle_break_lc(ecx, edx, slot, buf, from, to , is_new_command);*/
 
 	auto final_from = -1;
 

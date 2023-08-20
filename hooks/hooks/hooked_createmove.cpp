@@ -117,6 +117,11 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 			g_ctx.globals.aimbot_working = false;
 			g_ctx.globals.revolver_working = false;
 
+
+			g_Ragebot->think(m_pcmd);
+
+			g_LegitBot->createmove(m_pcmd);
+
 			g_Misc->ax();
 
 			g_AntiAim->desync_angle = 0.0f;

@@ -55,10 +55,10 @@ void shots::on_fsn()
 	if (current_shot == this->m_shots.end())
 		return;
 
-	auto data = & g_Ragebot->m_players[current_shot->target->EntIndex()];
+	/*auto data = &g_Ragebot->m_players[current_shot->target->EntIndex()];
 
 	if (!data)
-		return;
+		return;*/
 
 	if (!current_shot->latency)
 	{
@@ -68,7 +68,7 @@ void shots::on_fsn()
 		{
 			if (current_shot->impact_hit_player)
 			{
-				++data->m_missed_shots;
+				g_ctx.globals.missed_shots[current_shot->target->EntIndex()];
 
 				if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
 					eventlogs::get().add(crypt_str("missed shot due to resolver"), true, Color(255, 100, 100));

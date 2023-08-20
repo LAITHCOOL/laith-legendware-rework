@@ -297,6 +297,9 @@ void C_CSGOPlayerAnimationState::set_layer_sequence(AnimationLayer* animlayer, i
 
 	animlayer->m_nSequence = sequence;
 
+	if (!m_pBasePlayer->is_alive() || !g_ctx.available())
+		return;
+
 	if (m_pBasePlayer && sequence && animlayer)
 		animlayer->m_flPlaybackRate = m_pBasePlayer->GetLayerSequenceCycleRate(animlayer, sequence);
 

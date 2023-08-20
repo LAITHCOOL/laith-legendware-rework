@@ -313,6 +313,7 @@ public:
 		curMode = NO_MODE;
 		bot = false;
 		invalid = false;
+		m_bHasBrokenLC = false;
 		immune = false;
 		dormant = false;
 		m_flAnimationVelocity = 0;
@@ -631,6 +632,7 @@ public:
 
 	int GetRecordPriority(adjust_data* m_Record);
 	adjust_data* FindBestRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords, int& nPriority, const float& flSimTime);
+	void ProccessShitingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record);
 	void fsn(ClientFrameStage_t stage);
 	bool valid(int i, player_t* e);
 	adjust_data* FindFirstRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords);
@@ -651,7 +653,8 @@ public:
 	void DetermineSimulationTicks(player_t* player, adjust_data* record, adjust_data* previous_record);
 	void setup_matrix(player_t* e, AnimationLayer* layers, const int& matrix, adjust_data* record);
 	void SimulatePlayerActivity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord);
-	void update_player_animations(player_t* e);
+	float ComputeActivityPlayback(player_t* pPlayer, adjust_data* m_Record);
+	void SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* previous_record);
 	void FixPvs(player_t* e);
 	void SetupCollision(player_t* pPlayer, adjust_data* m_LagRecord);
 	float land_time = 0.0f;

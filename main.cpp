@@ -11,7 +11,7 @@
 #include "DiscordRpc.h"
 #include "cheats/prediction/Networking.h"
 
-
+#include "cheats/misc/fakelag.h"
 int __cdecl sub_102A7940(void* Src, size_t Size)
 {
 	return 1;
@@ -687,5 +687,6 @@ __forceinline void setup_hooks()
 	hooks::directx_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_present), 17); //-V107 //-V221
 	hooks::directx_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::Hooked_EndScene), 42); //-V107 //-V221
 
+	g_Fakelag->SetMoveChokeClampLimit();
 	hooks::hooked_events.RegisterSelf();
 }

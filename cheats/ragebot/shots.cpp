@@ -68,7 +68,7 @@ void shots::on_fsn()
 		{
 			if (current_shot->impact_hit_player)
 			{
-				g_ctx.globals.missed_shots[current_shot->target->EntIndex()];
+				g_ctx.globals.missed_shots[current_shot->target->EntIndex()]++;
 
 				if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
 					eventlogs::get().add(crypt_str("missed shot due to resolver"), true, Color(255, 100, 100));

@@ -664,6 +664,13 @@ void playeresp::draw_flags(player_t* e, const Box& box)
 
 		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, buffer);
 		_y += 8;
+
+		/*if (g_ctx.globals.broke_lc[e->EntIndex()])
+			render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, "BrokeLc: YES");
+		else
+			render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, "BrokeLc: NO");*/
+
+		_y += 8;
 	}
 }
 

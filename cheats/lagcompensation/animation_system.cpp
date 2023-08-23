@@ -4,7 +4,7 @@
 #include "../../utils/threadmanager.hpp"
 #include "../MultiThread/Multithread.hpp"
 #include "AnimSync/LagComp.hpp"
-
+std::deque <adjust_data> player_records[65];
 struct EntityJobDataStruct
 {
 	int index;
@@ -42,8 +42,16 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 
 		adjust_data* previous_record = nullptr;
 
-		if (records->size() >= 2)
-			previous_record = &records->at(1);
+		/*if (records->size() >= 2)
+			previous_record = &records->at(1);*/
+
+		if (records->size() >= 2) {
+			auto recordIterator = records->begin(); // Iterator pointing to the front record
+			++recordIterator; // Move iterator to the second record (previous_record)
+			adjust_data* previous_record = &(*recordIterator);
+
+			// Now you can use 'record' and 'previous_record'
+		}
 
 		adjust_data* record = &records->front();
 
@@ -76,6 +84,32 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 		while (player_records[i].size() > g_Networking->tickrate())
 			player_records[i].pop_back();
 	}
+}
+
+void lagcompensation::fsn(ClientFrameStage_t stage)
+{
+	if (!g_cfg.ragebot.enable)
+		return;
+
+	std::vector<EntityJobDataStruct> jobDataVec(m_globals()->m_maxclients);
+
+	// Prepare the job data
+	for (int i = 0; i < m_globals()->m_maxclients; i++)
+	{
+		EntityJobDataStruct jobData;
+		jobData.index = i;
+		jobData.stage = stage;
+		jobDataVec[i] = jobData;
+	}
+
+	// Enqueue the jobs 
+	for (auto& jobData : jobDataVec)
+	{
+		Threading::QueueJobRef(ProcessEntityJob, &jobData);
+	}
+
+	// Wait for all the jobs to finish 
+	Threading::FinishQueue(true);
 }
 
 
@@ -130,32 +164,6 @@ void lagcompensation::ProccessShitingPlayers(player_t* e, adjust_data* record, a
 	}
 }
 
-void lagcompensation::fsn(ClientFrameStage_t stage)
-{
-	if (!g_cfg.ragebot.enable)
-		return;
-
-	std::vector<EntityJobDataStruct> jobDataVec(m_globals()->m_maxclients);
-
-	// Prepare the job data
-	for (int i = 0; i < m_globals()->m_maxclients; i++)
-	{
-		EntityJobDataStruct jobData;
-		jobData.index = i;
-		jobData.stage = stage;
-		jobDataVec[i] = jobData;
-	}
-
-	// Enqueue the jobs 
-	for (auto& jobData : jobDataVec)
-	{
-		Threading::QueueJobRef(ProcessEntityJob, &jobData);
-	}
-
-	// Wait for all the jobs to finish 
-	Threading::FinishQueue(true);
-}
-std::deque <adjust_data> player_records[65];
 
 void lagcompensation::apply_interpolation_flags(player_t* e)
 {
@@ -658,46 +666,46 @@ void lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* re
 		return;
 	}
 
-	// copy previous layers from previous lag_record data.
-	std::memcpy(previous_record->layers, player->get_animlayers(), 13 * sizeof(AnimationLayer));
+	auto sim_ticks = TIME_TO_TICKS(record->simulation_time - previous_record->simulation_time);
 
-	// fix with simulation ticks.
-	auto play_back_rate = record->layers[11].m_flPlaybackRate;
-	if (play_back_rate != 0.f) {
-		auto ticks = 0;
-
-		auto layer_cycle = record->layers[11].m_flCycle;
-		auto previous_play_back_rate = previous_record->layers[11].m_flPlaybackRate;
-		if (previous_play_back_rate != 0.f) {
-			auto previous_cycle = previous_record->layers[11].m_flCycle;
-			ticks = 0;
-
-			if (previous_cycle > layer_cycle)
-				layer_cycle += 1.f;
-
-			while (layer_cycle > previous_cycle) {
-				const auto ticks_backup = ticks;
-				const auto playback_mult_ipt = m_globals()->m_intervalpertick * previous_play_back_rate;
-
-				previous_cycle += m_globals()->m_intervalpertick * previous_play_back_rate;
-
-				if (previous_cycle >= 1.0f)
-					previous_play_back_rate = play_back_rate;
-
-				++ticks;
-
-				if (previous_cycle > layer_cycle && (previous_cycle - layer_cycle) > (playback_mult_ipt * 0.5f))
-					ticks = ticks_backup;
-			}
-		}
-
-		// max choking value for sv_maxusrcmdprocessticks its 15, 16 is prediction error.
-		// refs:
-		// https://github.com/perilouswithadollarsign/cstrike15_src/blob/f82112a2388b841d72cb62ca48ab1846dfcc11c8/game/server/player.cpp#L129
-		// https://github.com/perilouswithadollarsign/cstrike15_src/blob/master/game/server/player_command.cpp#L318
-		// https://github.com/perilouswithadollarsign/cstrike15_src/blob/f82112a2388b841d72cb62ca48ab1846dfcc11c8/game/server/player.cpp#L3579-L3590
-		record->m_nSimulationTicks = std::clamp(ticks, 0, 15);
+	if (sim_ticks - 1 > 31 || previous_record->simulation_time == 0.f)
+	{
+		sim_ticks = 1;
 	}
+
+	auto cur_cycle = record->layers[11].m_flCycle;
+	auto prev_rate = previous_record->layers[11].m_flPlaybackRate;
+
+	if (prev_rate > 0.f && record->layers[11].m_flPlaybackRate > 0.f)
+	{
+		auto prev_cycle = previous_record->layers[11].m_flCycle;
+		sim_ticks = 0;
+
+		if (prev_cycle > cur_cycle)
+			cur_cycle += 1.f;
+
+		while (cur_cycle > prev_cycle) {
+			const auto last_cmds = sim_ticks;
+
+			const auto next_rate = m_globals()->m_intervalpertick * prev_rate;
+			prev_cycle += m_globals()->m_intervalpertick * prev_rate;
+
+			if (prev_cycle >= 1.f)
+				prev_rate = record->layers[11].m_flPlaybackRate;
+
+			++sim_ticks;
+
+			if (prev_cycle > cur_cycle && (prev_cycle - cur_cycle) > (next_rate * 0.5f))
+				sim_ticks = last_cmds;
+		}
+	}
+
+	
+	// refs:
+	// https://github.com/perilouswithadollarsign/cstrike15_src/blob/f82112a2388b841d72cb62ca48ab1846dfcc11c8/game/server/player.cpp#L129
+	// https://github.com/perilouswithadollarsign/cstrike15_src/blob/master/game/server/player_command.cpp#L318
+	// https://github.com/perilouswithadollarsign/cstrike15_src/blob/f82112a2388b841d72cb62ca48ab1846dfcc11c8/game/server/player.cpp#L3579-L3590
+	record->m_nSimulationTicks = std::clamp(sim_ticks, 0, 17);
 }
 void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* previous_record)
 {
@@ -730,8 +738,8 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	m_Globals.CaptureData();
 	m_PlayerGlobals.CaptureData(e);
 
-	SetupData(e, record, previous_record);
-	//DetermineSimulationTicks(e, record, previous_record);
+	//SetupData(e, record, previous_record);
+	DetermineSimulationTicks(e, record, previous_record);
 
 	/* Determine player's velocity */
     record->velocity = DeterminePlayerVelocity(e, record, previous_record, animstate);
@@ -871,13 +879,14 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 			Vector& vecVelocity = e->m_vecVelocity();
 			vecVelocity.x = interpolate(previous_record->velocity.x, record->velocity.x, iSimulationTick, record->m_nSimulationTicks);
 			vecVelocity.y = interpolate(previous_record->velocity.y, record->velocity.y, iSimulationTick, record->m_nSimulationTicks);
+			//e->m_vecVelocity() = vecVelocity;
 			e->m_vecAbsVelocity() = vecVelocity;
 
 			/* Update animations */
 			UpdatePlayerAnimations(e, record, animstate);
 
 			/* Restore Globals */
-			m_Globals.AdjustData();
+			//m_Globals.AdjustData();
 		}
 	}
 
@@ -902,7 +911,6 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 		previous_goal_feet_yaw[e->EntIndex()] = animstate->m_flGoalFeetYaw;
 		memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
 
-
 		// Define the delta angles array
 		const float deltaAngles[] = { 0.0f, -60.0f, 60.0f, -30.0f, 30.0f, 0.0f };
 
@@ -923,9 +931,6 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 			// restore data
 			memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 			memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
-
-			/* Restore Globals */
-			m_Globals.AdjustData();
 		}
 
 		player_resolver[e->EntIndex()].initialize(e, record, previous_goal_feet_yaw[e->EntIndex()], e->m_angEyeAngles().x, previous_record);
@@ -940,6 +945,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 
 	memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 	memcpy(player_resolver[e->EntIndex()].previous_layers, record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+	memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
 
 	m_PlayerGlobals.AdjustData(e);
 	m_Globals.AdjustData();

@@ -7,8 +7,8 @@
 #include "..\misc\fakelag.h"
 #include "..\misc\prediction_system.h"
 #include "..\misc\misc.h"
-#include "..\lagcompensation\local_animations.h"
 #include "../prediction/EnginePrediction.h"
+#include "../lagcompensation/LocalAnimFix.hpp"
 
 void antiaim::create_move(CUserCmd* m_pcmd)
 {
@@ -326,11 +326,14 @@ float antiaim::get_yaw(CUserCmd* m_pcmd)
 	{
 		force_choke = false;
 		g_ctx.send_packet = false;
-
 		return yaw;
 	}
 	else if (g_ctx.send_packet)
+	{
 		yaw += desync_angle;
+
+	}
+	
 
 	return yaw;
 }

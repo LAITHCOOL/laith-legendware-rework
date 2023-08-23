@@ -507,13 +507,33 @@ public:
 	}
 	bool valid(float range = .2f, float max_unlag = .2f) {
 
+
+		if (!this)
+			return false;
+
+		if (i > 0)
+			player = (player_t*)m_entitylist()->GetClientEntity(i);
+
+		if (!player)
+			return false;
+
+		if (player->m_lifeState() != LIFE_ALIVE || !player->is_alive())
+			return false;
+
+		if (immune)
+			return false;
+
+		if (dormant)
+			return false;
+
 		auto netchannel = m_engine()->GetNetChannelInfo();
 		if (!netchannel || invalid || m_bHasBrokenLC)
 			return false;
 
-		const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING)+ netchannel->GetLatency(FLOW_OUTGOING) + GetLerpTime(), 0.f, max_unlag);
+		const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING) + netchannel->GetLatency(FLOW_OUTGOING) + GetLerpTime(), 0.f, max_unlag);
 
-		float curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+		//float curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+		float curtime = m_globals()->m_curtime;
 
 		return std::fabsf(correct - (curtime - simulation_time)) <= range;
 	}

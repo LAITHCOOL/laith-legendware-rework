@@ -150,6 +150,7 @@ public:
 		float middle;
 		float middle_logged;
 		float mlog1[65];
+		bool broke_lc[65];
 
 
 		std::string time = crypt_str("unknown");

@@ -150,7 +150,6 @@
     <ClCompile Include="cheats\lagcompensation\AnimSync\LagComp.cpp" />
     <ClCompile Include="cheats\lagcompensation\DesyncCorrection.cpp" />
     <ClCompile Include="cheats\lagcompensation\LocalAnimFix.cpp" />
-    <ClCompile Include="cheats\lagcompensation\local_animations.cpp" />
     <ClCompile Include="cheats\lagcompensation\resolver.cpp" />
     <ClCompile Include="cheats\lagcompensation\setup_bones.cpp" />
     <ClCompile Include="cheats\legitbot\backtrack.cpp" />
@@ -308,7 +307,6 @@
     <ClInclude Include="cheats\lagcompensation\AnimSync\LagComp.hpp" />
     <ClInclude Include="cheats\lagcompensation\DesyncCorrection.h" />
     <ClInclude Include="cheats\lagcompensation\LocalAnimFix.hpp" />
-    <ClInclude Include="cheats\lagcompensation\local_animations.h" />
     <ClInclude Include="cheats\lagcompensation\resolver.h" />
     <ClInclude Include="cheats\lagcompensation\setup_bones.h" />
     <ClInclude Include="cheats\legitbot\backtrack.h" />

@@ -172,7 +172,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		|| g_ctx.globals.weapon->is_knife() || g_ctx.globals.weapon->is_grenade());
 	if ((m_pcmd->m_buttons & IN_ATTACK) && !restricted_weapon && g_ctx.globals.tocharge == shiftAmount && weapon->m_flNextPrimaryAttack() <= m_pcmd->m_command_number - shiftTime)
 	{
-		g_Misc->fix_autopeek(m_pcmd);
+		//g_Misc->fix_autopeek(m_pcmd);
 
 		if (g_ctx.globals.aimbot_working)
 		{

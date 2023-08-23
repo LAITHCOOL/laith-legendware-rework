@@ -995,6 +995,8 @@ void CResolver::resolve_desync()
 	player_record->flipped_s = g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()];
 	player_record->low_delta_s = g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()];
 	g_ctx.globals.mlog1[e->EntIndex()] = player_record->desync_amount;
+	g_ctx.globals.broke_lc[e->EntIndex()] = player_record->m_bHasBrokenLC;
+
 
 	// set player's gfy to guessed desync value :3
 	player->get_animation_state()->m_flGoalFeetYaw = eye_yaw + player_record->desync_amount;

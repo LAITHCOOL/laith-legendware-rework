@@ -416,7 +416,7 @@ void networking::process_interpolation(ClientFrameStage_t Stage, bool bPostFrame
 		this->final_predicted_tick = g_ctx.local()->m_nFinalPredictedTick();
 		this->interp = m_globals()->m_interpolation_amount;
 
-		g_ctx.local()->m_nFinalPredictedTick() = g_ctx.local()->m_nTickBase();
+		g_ctx.local()->m_nFinalPredictedTick() = g_ctx.globals.fixed_tickbase;
 
 		if (g_ctx.globals.isshifting)
 			m_globals()->m_interpolation_amount = 0.0f;

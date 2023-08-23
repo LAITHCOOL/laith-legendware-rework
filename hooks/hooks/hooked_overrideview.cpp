@@ -4,7 +4,7 @@
 #include "..\hooks.hpp"
 #include "..\..\cheats\visuals\GrenadePrediction.h"
 #include "..\..\cheats\misc\fakelag.h"
-#include "..\..\cheats\lagcompensation\local_animations.h"
+
 
 using OverrideView_t = void(__stdcall*)(CViewSetup*);
 

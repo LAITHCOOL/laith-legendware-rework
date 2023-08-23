@@ -266,7 +266,8 @@ namespace util
 		return 0;
 	}
 
-	bool get_bbox(entity_t* e, Box& box, bool player_esp)
+
+	/*	bool get_bbox(entity_t* e, Box& box, bool player_esp)
 	{
 		auto collideable = e->GetCollideable();
 		auto m_rgflCoordinateFrame = e->m_rgflCoordinateFrame();
@@ -346,6 +347,62 @@ namespace util
 		box.y = bottom;
 		box.w = right - left;
 		box.h = top - bottom;
+
+		return true;
+	}*/
+
+	bool get_bbox(entity_t* e, Box& box, bool player_esp)
+	{
+		auto collideable = e->GetCollideable();
+		auto m_rgflCoordinateFrame = e->m_rgflCoordinateFrame();
+
+		Vector min = collideable->OBBMins();
+		Vector max = collideable->OBBMaxs();
+
+		Vector points[8] =
+		{
+			Vector(min.x, min.y, min.z),
+			Vector(min.x, max.y, min.z),
+			Vector(max.x, max.y, min.z),
+			Vector(max.x, min.y, min.z),
+			Vector(max.x, max.y, max.z),
+			Vector(min.x, max.y, max.z),
+			Vector(min.x, min.y, max.z),
+			Vector(max.x, min.y, max.z)
+		};
+
+		Vector pointsTransformed[8];
+
+		for (int i = 0; i < 8; i++)
+		{
+			math::vector_transform(points[i], m_rgflCoordinateFrame, pointsTransformed[i]);
+		}
+
+		Vector screenPoints[8];
+
+		for (int i = 0; i < 8; i++)
+		{
+			if (!math::world_to_screen(pointsTransformed[i], screenPoints[i]))
+			{
+				return false;
+			}
+		}
+
+		Vector minScreen = screenPoints[0];
+		Vector maxScreen = screenPoints[0];
+
+		for (int i = 1; i < 8; i++)
+		{
+			minScreen.x = min(minScreen.x, screenPoints[i].x);
+			minScreen.y = min(minScreen.y, screenPoints[i].y);
+			maxScreen.x = max(maxScreen.x, screenPoints[i].x);
+			maxScreen.y = max(maxScreen.y, screenPoints[i].y);
+		}
+
+		box.x = minScreen.x;
+		box.y = minScreen.y;
+		box.w = maxScreen.x - minScreen.x;
+		box.h = maxScreen.y - minScreen.y;
 
 		return true;
 	}

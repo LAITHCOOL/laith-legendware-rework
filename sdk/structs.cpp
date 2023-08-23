@@ -5,7 +5,6 @@
 #include "structs.hpp"
 #include "..\cheats\misc\misc.h"
 #include "..\cheats\misc\logs.h"
-#include "..\cheats\lagcompensation\local_animations.h"
 #include "..\cheats\lagcompensation\setup_bones.h"
 #include "../cheats/prediction/Networking.h"
 

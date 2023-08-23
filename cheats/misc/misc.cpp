@@ -1139,6 +1139,8 @@ void misc::ForceStop()
 	Vector negated_direction = forward * -_velocity.length(true);
 	g_ctx.get_command()->m_forwardmove = negated_direction.x;
 	g_ctx.get_command()->m_sidemove = negated_direction.y;
+
+	g_EnginePrediction->RePredict();
 }
 
 void misc::AutoPeek(CUserCmd* cmd)
@@ -1221,7 +1223,7 @@ void misc::automatic_peek(CUserCmd* cmd, float wish_yaw)
 		{
 			auto revolver_shoot = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER && !g_ctx.globals.revolver_working && (cmd->m_buttons & IN_ATTACK || cmd->m_buttons & IN_ATTACK2);
 
-			if (cmd->m_buttons & IN_ATTACK && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER || revolver_shoot || cmd->m_command_number == g_ctx.globals.shot_command - 1)
+			if (cmd->m_buttons & IN_ATTACK && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER || revolver_shoot)
 				g_ctx.globals.fired_shot = true;
 
 			if (g_ctx.globals.fired_shot)

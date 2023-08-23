@@ -29,6 +29,9 @@ struct PredictionData_t
 	Vector m_vecOrigin = Vector(0, 0, 0);
 	Vector m_vecAimPunchAngleVel = Vector(0, 0, 0);
 
+	Vector OBBMins = Vector(0.0f, 0.0f, 0.0f);
+	Vector OBBMaxs = Vector(0.0f, 0.0f, 0.0f);
+
 	Vector m_angAimPunchAngle = Vector(0, 0, 0);
 	Vector m_angViewPunchAngle = Vector(0, 0, 0);
 
@@ -58,6 +61,7 @@ struct NetvarData_t
 	Vector m_vecVelocity = Vector(0.0f, 0.0f, 0.0f);
 	Vector m_vecAbsVelocity = Vector(0.0f, 0.0f, 0.0f);
 	Vector m_vecBaseVelocity = Vector(0.0f, 0.0f, 0.0f);
+
 
 	Vector m_vecNetworkOrigin = Vector(0.f, 0.f, 0.f);
 	Vector m_vecViewOffset = Vector(0.f, 0.f, 0.f);

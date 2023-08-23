@@ -20,8 +20,8 @@ void shots::register_shot(player_t* target, Vector eye_pos, adjust_data* record,
 
 	if (target)
 	{
-		AimPlayer* data = & g_Ragebot->m_players[target->EntIndex()];
-		++data->m_shots;
+		//AimPlayer* data = & g_Ragebot->m_players[target->EntIndex()];
+		++g_AimPlayerData->m_shots;
 	}
 }
 
@@ -215,7 +215,7 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 		break;
 	}
 
-	if (weapon_is_aim(weapon))
+	if (weapon_is_aim(weapon) && current_shot)
 	{
 		otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
 		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());

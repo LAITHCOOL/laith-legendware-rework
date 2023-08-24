@@ -1,4 +1,5 @@
 #include "EnginePrediction.h"
+#include "../lagcompensation/local_animations.h"
 #include "../lagcompensation/LocalAnimFix.hpp"
 
 #define VEC_VIEW			Vector( 0, 0, 64 )
@@ -40,8 +41,6 @@ void C_EnginePrediction::OnRunCommand(int nCommand)
 	m_Data->m_flDuckAmount = g_ctx.local()->m_flDuckAmount();
 	m_Data->m_flDuckSpeed = g_ctx.local()->m_flDuckSpeed();
 	m_Data->m_flVelocityModifier = g_ctx.local()->m_flVelocityModifier();
-
-
 	m_Data->m_bIsPredictedData = true;
 }
 void C_EnginePrediction::OnVelocityModifierProxy(float flValue)
@@ -159,7 +158,7 @@ void C_EnginePrediction::OnPostNetworkDataReceived()
 	{
 		m_bHadPredictionErrors = true;
 	}
-	if (!AdjustFieldFloat(g_ctx.local()->m_flFallVelocity(), aNetVars->m_flFallVelocity, 0.05f, "m_flFallVelocity"))
+	if (!AdjustFieldFloat(g_ctx.local()->m_flFallVelocity(), aNetVars->m_flFallVelocity, 0.5f, "m_flFallVelocity"))
 	{
 		m_bHadPredictionErrors = true;
 	}
@@ -167,15 +166,15 @@ void C_EnginePrediction::OnPostNetworkDataReceived()
 	{
 		m_bHadPredictionErrors = true;
 	}
-	if (!AdjustFieldFloat(g_ctx.local()->m_flDuckAmount(), aNetVars->m_flDuckAmount, 0.05f, "m_flDuckAmount"))
+	if (!AdjustFieldFloat(g_ctx.local()->m_flDuckAmount(), aNetVars->m_flDuckAmount, 0.0f, "m_flDuckAmount"))
 	{
 		m_bHadPredictionErrors = true;
 	}
-	if (!AdjustFieldFloat(g_ctx.local()->m_flDuckSpeed(), aNetVars->m_flDuckSpeed, 0.05f, "m_flDuckSpeed"))
+	if (!AdjustFieldFloat(g_ctx.local()->m_flDuckSpeed(), aNetVars->m_flDuckSpeed, 0.0f, "m_flDuckSpeed"))
 	{
 		m_bHadPredictionErrors = true;
 	}
-	if (!AdjustFieldVector(g_ctx.local()->m_vecNetworkOrigin(), aNetVars->m_vecNetworkOrigin, 0.005f, "m_vecNetworkOrigin"))
+	if (!AdjustFieldVector(g_ctx.local()->m_vecNetworkOrigin(), aNetVars->m_vecNetworkOrigin, 0.0625f, "m_vecNetworkOrigin"))
 	{
 		m_bHadPredictionErrors = true;
 	}
@@ -306,7 +305,7 @@ void C_EnginePrediction::RunPrediction()
 	g_EnginePrediction->UpdateButtonState();
 
 	// push globals data
-	m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+	m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
 	m_globals()->m_frametime = m_globals()->m_intervalpertick;
 
 	// setup velocity
@@ -395,7 +394,6 @@ void C_EnginePrediction::UpdateButtonState()
 	int nOldButtons = g_ctx.get_command()->m_buttons;
 	int nButtonDifference = nOldButtons ^ *(int*)((DWORD)(g_ctx.local()) + 0x3208);
 
-
 	// update button state
 	*(int*)((DWORD)(g_ctx.local()) + 0x31FC) = *(int*)((DWORD)(g_ctx.local()) + 0x3208);
 	*(int*)((DWORD)(g_ctx.local()) + 0x3208) = nOldButtons;
@@ -426,9 +424,6 @@ void C_EnginePrediction::SaveNetvars()
 	m_PredictionData.m_vecOrigin = g_ctx.local()->m_vecOrigin();
 	m_PredictionData.m_vecViewOffset = g_ctx.local()->m_vecViewOffset();
 
-	m_PredictionData.OBBMins = g_ctx.local()->GetCollideable()->OBBMins();
-	m_PredictionData.OBBMaxs = g_ctx.local()->GetCollideable()->OBBMaxs();
-
 	weapon_t* pCombatWeapon = g_ctx.local()->m_hActiveWeapon();
 	if (pCombatWeapon)
 	{
@@ -452,9 +447,6 @@ void C_EnginePrediction::RestoreNetvars()
 	g_ctx.local()->m_vecViewOffset() = m_PredictionData.m_vecViewOffset;
 	g_ctx.local()->m_flVelocityModifier() = m_PredictionData.m_flVelocityModifier;
 	g_ctx.local()->m_flStamina() = m_PredictionData.m_flStamina;
-
-	g_ctx.local()->UpdateCollisionBounds();
-	g_ctx.local()->SetCollisionBounds(m_PredictionData.OBBMins, m_PredictionData.OBBMaxs);
 
 	weapon_t* pCombatWeapon = g_ctx.local()->m_hActiveWeapon();
 	if (pCombatWeapon)

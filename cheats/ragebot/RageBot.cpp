@@ -14,7 +14,7 @@
 #include "..\misc\prediction_system.h"
 #include "..\autowall\penetration.h"
 #include "..\fakewalk\slowwalk.h"
-
+#include "..\lagcompensation\local_animations.h"
 #include "..\visuals\hitchams.h"
 #include "../prediction/Networking.h"
 #include "../prediction/EnginePrediction.h"
@@ -87,8 +87,6 @@ void aimbot::AutoStop(CUserCmd* m_pcmd)
 		m_pcmd->m_forwardmove = negative_forward_direction.x;
 		m_pcmd->m_sidemove = negative_side_direction.y;
 	}
-
-	g_EnginePrediction->RePredict();
 }
 
 void aimbot::AutoRevolver(CUserCmd* m_pcmd)
@@ -141,7 +139,7 @@ void aimbot::AdjustRevolverData(int commandnumber, int buttons)
 		static bool in_attack[MULTIPLAYER_BACKUP];
 		static bool can_shoot[MULTIPLAYER_BACKUP];
 
-		tickbase_records[commandnumber % MULTIPLAYER_BACKUP] = g_ctx.globals.fixed_tickbase;
+		tickbase_records[commandnumber % MULTIPLAYER_BACKUP] = g_ctx.local()->m_nTickBase();
 		in_attack[commandnumber % MULTIPLAYER_BACKUP] = buttons & IN_ATTACK || buttons & IN_ATTACK2;
 		can_shoot[commandnumber % MULTIPLAYER_BACKUP] = weapon->can_fire(false);
 
@@ -232,8 +230,10 @@ void AimPlayer::SetupHitboxes(adjust_data* record, bool history) {
 	}
 
 	auto only = false;
+	AimPlayer* data = & g_Ragebot->m_players[record->i];
+
 	// only, always.
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].always_body_aim.at(ALWAYS_BAIM_ALWAYS) || key_binds::get().get_key_bind_state(22) || (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses && g_ctx.globals.missed_shots[record->i] >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount)) {
+	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].always_body_aim.at(ALWAYS_BAIM_ALWAYS) || key_binds::get().get_key_bind_state(22) || (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses && data->m_missed_shots >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount)) {
 		only = true;
 		m_hitboxes.push_back({ HITBOX_CHEST, HitscanMode::PREFER });
 		m_hitboxes.push_back({ HITBOX_STOMACH, HitscanMode::PREFER });
@@ -353,9 +353,6 @@ void aimbot::init() {
 	// clear old targets.
 	if (!m_targets.empty())
 		m_targets.clear();
-
-	
-	g_AimPlayerData->reset();
 
 	m_target = nullptr;
 	m_point = HitscanPoint_t{};
@@ -578,6 +575,7 @@ void aimbot::think(CUserCmd* m_pcmd) {
 	// auto-stop if we about to peek this guy.
 	if (!this->m_stop && this->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true)) {
 		this->m_stop = true;
+		g_EnginePrediction->RePredict();
 	}
 
 
@@ -628,8 +626,6 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		t->SetupHitboxes(ideal, false);
 		if (t->m_hitboxes.empty())
 			continue;
-
-		/*randomly crashing here*/
 
 		// try to select best record as target.
 		if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, ideal, tmp_min_damage)) {
@@ -708,6 +704,8 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			// autostop hitchance fail.
 			else if (g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_HITCHANCE_FAIL] && flCalculatedHitchance < nHitChance)
 				this->m_stop = true;
+
+			g_EnginePrediction->RePredict();
 		}
 
 		this->AutoStop(m_pcmd);
@@ -728,7 +726,6 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		if (flCalculatedHitchance > nHitChance)
 		{
 			if (g_cfg.ragebot.autoshoot) {
-
 				m_pcmd->m_buttons |= IN_ATTACK;
 
 			}
@@ -1104,6 +1101,10 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 			penetration::PenetrationOutput_t out;
 
+			//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
+			if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
+				continue;
+
 			// code for safepoint matrix, the point should (!) be a safe point.
 			bool safe =  g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, it.m_index);
 
@@ -1153,6 +1154,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 								 g_Ragebot->m_stop = true;
 							else if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
 								 g_Ragebot->m_stop = true;
+
+							g_EnginePrediction->RePredict();
 						}
 
 						// save new best data.
@@ -1174,6 +1177,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 						 g_Ragebot->m_stop = true;
 					if (! g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
 						 g_Ragebot->m_stop = true;
+
+					g_EnginePrediction->RePredict();
 
 					// save new best data.
 					scan.m_damage = out.m_damage;
@@ -1201,22 +1206,16 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 	// set out vars.
 	if (scan.m_damage > 0.f)
 	{
-		//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
-		/*if (g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, scan.m_point.point, scan.m_hitbox, record))
-		{
-			
-		}
-		else
-			return false;*/
+
 
 		point = scan.m_point;
 		damage = scan.m_damage;
 		hitbox = scan.m_hitbox;
 		safe = scan.m_safepoint;
 
-		g_Ragebot->m_current_matrix = m_matrix;
-		return true;
+		 g_Ragebot->m_current_matrix = m_matrix;
 
+		return true;
 	}
 
 	return false;

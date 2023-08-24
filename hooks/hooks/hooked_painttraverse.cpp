@@ -12,7 +12,7 @@
 #include "..\..\cheats\visuals\GrenadePrediction.h"
 #include "..\..\cheats\visuals\bullet_tracers.h"
 #include "..\..\cheats\visuals\dormant_esp.h"
-
+#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "../../cheats/tickbase shift/tickbase_shift.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
 using PaintTraverse_t = void(__thiscall*)(void*, vgui::VPANEL, bool, bool);

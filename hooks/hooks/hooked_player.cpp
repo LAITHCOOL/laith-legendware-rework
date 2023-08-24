@@ -2,7 +2,7 @@
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
 #include "..\hooks.hpp"
-
+#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "..\..\cheats\misc\prediction_system.h"
 #include "../../cheats/prediction/EnginePrediction.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"

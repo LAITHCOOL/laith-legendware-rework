@@ -17,6 +17,7 @@
 #include "..\..\cheats\visuals\GrenadePrediction.h"
 #include "..\..\cheats\ragebot\knifebot.h"
 #include "..\..\cheats\ragebot\zeusbot.h"
+#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "..\..\cheats\lagcompensation\animation_system.h"
 #include "..\..\cheats\tickbase shift\tickbase_shift.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
@@ -128,8 +129,8 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 
 			g_Networking->packet_cycle(m_pcmd, g_ctx.send_packet);
 
-			g_Misc->automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
-			//g_Misc->AutoPeek(m_pcmd);
+			//g_Misc->automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
+			g_Misc->AutoPeek(m_pcmd);
 			g_Networking->process_dt_aimcheck(m_pcmd);
 
 		}

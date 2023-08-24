@@ -313,8 +313,8 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 			if (!player || player == g_ctx.local())
 				continue;
 
-		
-			g_AimPlayerData->OnRoundStart(player);
+			AimPlayer* data = & g_Ragebot->m_players[i];
+			data->OnRoundStart(player);
 		}
 
 		g_AntiAim->freeze_check = true;

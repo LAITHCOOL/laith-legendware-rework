@@ -3,6 +3,7 @@
 
 #include "..\hooks.hpp"
 #include "..\..\cheats\misc\fakelag.h"
+#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "..\..\cheats\visuals\player_esp.h"
 // hitchams ../../cheats/visual/hitchams.h
 #include "../../cheats/visuals/hitchams.h"

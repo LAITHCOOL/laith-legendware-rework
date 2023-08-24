@@ -281,5 +281,3 @@ public:
 };
 
 inline aimbot* g_Ragebot = new aimbot();
-
-inline AimPlayer* g_AimPlayerData = new AimPlayer();

@@ -11,7 +11,7 @@
 #include "..\..\cheats\visuals\world_esp.h"
 #include "..\..\cheats\misc\logs.h"
 #include "..\..\cheats\misc\prediction_system.h"
-
+#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "../../cheats/ragebot/aim.h"
 #include "../../cheats/misc/ShotSystem.hpp"
 #include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
@@ -332,8 +332,8 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 
 			g_cfg.player_list.players.emplace_back(Player_list_data(i, player_info.szName));
 
-			//AimPlayer* data = & g_Ragebot->m_players[i];
-			g_AimPlayerData->OnNetUpdate(e);
+			AimPlayer* data = & g_Ragebot->m_players[i];
+			data->OnNetUpdate(e);
 		}
 
 		g_cfg.player_list.refreshing = false;

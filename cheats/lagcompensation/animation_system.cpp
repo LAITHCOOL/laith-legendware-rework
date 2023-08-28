@@ -69,7 +69,7 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 
 		if (update)
 		{
-			lagcompensation::get().ProccessShitingPlayers(e, record, previous_record);
+			lagcompensation::get().ProccessShiftingPlayers(e, record, previous_record);
 			lagcompensation::get().SimulatePlayerAnimations(e, record, previous_record);
 		}
 
@@ -79,7 +79,7 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 }
 
 
-void lagcompensation::ProccessShitingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
+void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
 {
 	if (previous_record && record)
 	{
@@ -153,7 +153,7 @@ void lagcompensation::fsn(ClientFrameStage_t stage)
 	}
 
 	// Wait for all the jobs to finish 
-	Threading::FinishQueue(true);
+	Threading::FinishQueue();
 }
 std::deque <adjust_data> player_records[65];
 
@@ -183,7 +183,7 @@ void lagcompensation::CleanPlayer(player_t* pPlayer, adjust_data* record)
 	//m_LagRecords->reset();
 }
 
-Vector lagcompensation::DeterminePlayerVelocity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord, c_baseplayeranimationstate* m_AnimationState)
+Vector lagcompensation::DeterminePlayerVelocity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord, C_CSGOPlayerAnimationState* m_AnimationState)
 {
 	
 	auto pCombatWeapon = pPlayer->m_hActiveWeapon();
@@ -238,7 +238,7 @@ Vector lagcompensation::DeterminePlayerVelocity(player_t* pPlayer, adjust_data* 
 					if (m_AliveLoop->m_flCycle > m_PrevAliveLoop->m_flCycle)
 					{
 						/* Check weapon */
-						if (m_AnimationState->m_pActiveWeapon == pPlayer->m_hActiveWeapon())
+						if (m_AnimationState->m_pWeapon == pPlayer->m_hActiveWeapon())
 						{
 							/* Get m_flSpeedAsPortionOfRunTopSpeed */
 							float m_flSpeedAsPortionOfRunTopSpeed = ((1.0f - flWeight) / 2.8571432f) + 0.55f;
@@ -391,7 +391,7 @@ void lagcompensation::setup_matrix(player_t* e, AnimationLayer* layers, const in
 		break;
 	}
 }
-void lagcompensation::HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Record, c_baseplayeranimationstate* m_AnimationState)
+void lagcompensation::HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Record, C_CSGOPlayerAnimationState* m_AnimationState)
 {
 	/* Get animation layers */
 	const AnimationLayer* m_JumpingLayer = &m_Record->layers[ANIMATION_LAYER_MOVEMENT_JUMP_OR_FALL];
@@ -415,14 +415,14 @@ void lagcompensation::HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Re
 			if (flLandingTime == m_flLastUpdateTime)
 			{
 				m_AnimationState->m_bOnGround = true;
-				m_AnimationState->m_bInHitGroundAnimation = true;
-				m_AnimationState->m_fLandingDuckAdditiveSomething = 0.0f;
+				m_AnimationState->m_bLanding = true;
+				m_AnimationState->m_flDuckAdditional = 0.0f;
 			}
 			else if (flLandingTime - m_globals()->m_intervalpertick == m_flLastUpdateTime)
 			{
 				m_AnimationState->m_bOnGround = false;
-				m_AnimationState->m_bInHitGroundAnimation = false;
-				m_AnimationState->m_fLandingDuckAdditiveSomething = 0.0f;
+				m_AnimationState->m_bLanding = false;
+				m_AnimationState->m_flDuckAdditional = 0.0f;
 			}
 
 			/* Determine duration in air */
@@ -431,13 +431,13 @@ void lagcompensation::HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Re
 				flDurationInAir += 1.0f;
 
 			/* Set time in air */
-			m_AnimationState->time_since_in_air() = flDurationInAir / m_JumpingLayer->m_flPlaybackRate;
+			m_AnimationState->m_flDurationInAir = flDurationInAir / m_JumpingLayer->m_flPlaybackRate;
 
 			/* Check bounds.*/
 			/* There's two conditions to let this data be useful: */
 			/* It's useful if player has landed after the latest client animation update */
 			/* It's useful if player has landed before the previous tick */
-			if (flLandingTime < m_flLastUpdateTime && flLandingTime > m_AnimationState->m_flLastClientSideAnimationUpdateTime)
+			if (flLandingTime < m_flLastUpdateTime && flLandingTime > m_AnimationState->m_flLastUpdateTime)
 				m_flLastUpdateTime = flLandingTime;
 		}
 	}
@@ -461,19 +461,19 @@ void lagcompensation::HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Re
 			/* There's two conditions to let this data be useful: */
 			/* It's useful if player has jumped after the latest client animation update */
 			/* It's useful if player has jumped before the previous tick */
-			if (flJumpingTime < m_flLastUpdateTime && flJumpingTime > m_AnimationState->m_flLastClientSideAnimationUpdateTime)
+			if (flJumpingTime < m_flLastUpdateTime && flJumpingTime > m_AnimationState->m_flLastUpdateTime)
 				m_flLastUpdateTime = flJumpingTime;
 
 			/* Set time in air */
-			m_AnimationState->time_since_in_air() = flDurationInAir - m_globals()->m_intervalpertick;
+			m_AnimationState->m_flDurationInAir = flDurationInAir - m_globals()->m_intervalpertick;
 
 			/* Disable landing */
-			m_AnimationState->m_bInHitGroundAnimation = false;
+			m_AnimationState->m_bLanding = false;
 		}
 	}
 
 	/* Set m_flLastUpdateTime */
-	m_AnimationState->m_flLastClientSideAnimationUpdateTime = m_flLastUpdateTime;
+	m_AnimationState->m_flLastUpdateTime = m_flLastUpdateTime;
 }
 
 void lagcompensation::SetupCollision(player_t* pPlayer, adjust_data* m_LagRecord)
@@ -491,17 +491,17 @@ float lagcompensation::BuildFootYaw(player_t* pPlayer, adjust_data* m_LagRecord)
 {
 	return player_resolver->b_yaw(pPlayer , pPlayer->m_angEyeAngles().y , 5);
 }
-void lagcompensation::UpdatePlayerAnimations(player_t* pPlayer, adjust_data* m_LagRecord, c_baseplayeranimationstate* m_AnimationState)
+void lagcompensation::UpdatePlayerAnimations(player_t* pPlayer, adjust_data* m_LagRecord, C_CSGOPlayerAnimationState* m_AnimationState)
 {
 
 	/* Bypass this check https://github.com/perilouswithadollarsign/cstrike15_src/blob/f82112a2388b841d72cb62ca48ab1846dfcc11c8/game/shared/cstrike15/csgo_playeranimstate.cpp#L266 */
-	m_AnimationState->m_iLastClientSideAnimationUpdateFramecount = 0;
-	if (m_AnimationState->m_flLastClientSideAnimationUpdateTime == m_globals()->m_curtime)
-		m_AnimationState->m_flLastClientSideAnimationUpdateTime = m_globals()->m_curtime + m_globals()->m_intervalpertick;
+	m_AnimationState->m_nLastUpdateFrame = 0;
+	if (m_AnimationState->m_flLastUpdateTime == m_globals()->m_curtime)
+		m_AnimationState->m_flLastUpdateTime = m_globals()->m_curtime + m_globals()->m_intervalpertick;
 
 	/* Force animation state player and previous weapon */
-	m_AnimationState->m_pBaseEntity = pPlayer;
-	m_AnimationState->m_pLastActiveWeapon = pPlayer->m_hActiveWeapon();
+	m_AnimationState->m_pBasePlayer = pPlayer;
+	m_AnimationState->m_pWeaponLast = pPlayer->m_hActiveWeapon();
 
 	/* Force the owner of animation layers */
 	for (int iLayer = 0; iLayer < 13; iLayer++)
@@ -701,10 +701,47 @@ void lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* re
 }
 void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* previous_record)
 {
-	auto animstate = e->get_animation_state();
+	auto animstate = e->get_animation_state1();
 
 	if (!animstate || !record)
 		return;
+
+	if (previous_record) {
+		animstate->m_flPrimaryCycle = previous_record->layers[6].m_flCycle;
+		animstate->m_flMoveWeight = previous_record->layers[6].m_flWeight;
+
+		const auto& layer7 = previous_record->layers[7];
+
+		animstate->m_flStrafeChangeWeight = layer7.m_flWeight;
+		animstate->m_nStrafeSequence = layer7.m_nSequence;
+		animstate->m_flStrafeChangeCycle = layer7.m_flCycle;
+		animstate->m_flAccelerationWeight = previous_record->layers[12].m_flWeight;
+
+		memcpy(e->get_animlayers(), previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+	}
+	else {
+		if (record->flags & FL_ONGROUND) {
+			animstate->m_bOnGround = true;
+			animstate->m_bLanding = false;
+		}
+
+		animstate->m_flDurationInAir = 0.f;
+		animstate->m_flPrimaryCycle = record->layers[6].m_flCycle;
+		animstate->m_flMoveWeight = record->layers[6].m_flWeight;
+		animstate->m_flStrafeChangeWeight = record->layers[7].m_flWeight;
+		animstate->m_nStrafeSequence = record->layers[7].m_nSequence;
+		animstate->m_flStrafeChangeCycle = record->layers[7].m_flCycle;
+		animstate->m_flAccelerationWeight = record->layers[12].m_flWeight;
+
+		e->m_flPoseParameter().at(6) = 0.f;
+		memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+
+		auto walk_run_transition = record->velocity.Length2D() <= 135.f ? 0.f : 1.f;
+
+		animstate->m_flWalkToRunTransition = walk_run_transition;
+		animstate->m_flLastUpdateTime = record->simulation_time - m_globals()->m_intervalpertick;
+	}
+
 
 	player_info_t player_info;
 
@@ -730,8 +767,8 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	m_Globals.CaptureData();
 	m_PlayerGlobals.CaptureData(e);
 
-	SetupData(e, record, previous_record);
-	//DetermineSimulationTicks(e, record, previous_record);
+	//SetupData(e, record, previous_record);
+	DetermineSimulationTicks(e, record, previous_record);
 
 	/* Determine player's velocity */
     record->velocity = DeterminePlayerVelocity(e, record, previous_record, animstate);
@@ -752,8 +789,8 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	/* Update collision bounds */
 	SetupCollision(e, record);
 
-	c_baseplayeranimationstate state;
-	memcpy(&state, animstate, sizeof(c_baseplayeranimationstate));
+	C_CSGOPlayerAnimationState state;
+	memcpy(&state, animstate, sizeof(C_CSGOPlayerAnimationState));
 
 	/* Simulate legit player */
 	if (record->m_nSimulationTicks <= 1 || !previous_record)
@@ -887,7 +924,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	/* Reset player's origin */
 	e->set_abs_origin(m_PlayerGlobals.m_vecAbsOrigin);
 
-	memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
+	memcpy(animstate, &state, sizeof(C_CSGOPlayerAnimationState));
 
 	if (!record->bot && /*g_ctx.local()->is_alive() &&*/ e->m_iTeamNum() != g_ctx.local()->m_iTeamNum() && !g_cfg.legitbot.enabled)
 	{
@@ -897,10 +934,10 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 
 		// --- main --- \\
 
-		animstate->m_flGoalFeetYaw = previous_goal_feet_yaw[e->EntIndex()];
+		animstate->m_flFootYaw = previous_goal_feet_yaw[e->EntIndex()];
 		UpdatePlayerAnimations(e, record, animstate);
-		previous_goal_feet_yaw[e->EntIndex()] = animstate->m_flGoalFeetYaw;
-		memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
+		previous_goal_feet_yaw[e->EntIndex()] = animstate->m_flFootYaw;
+		memcpy(animstate, &state, sizeof(C_CSGOPlayerAnimationState));
 
 
 		// Define the delta angles array
@@ -911,7 +948,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 			float deltaAngle = deltaAngles[i];
 
 			// Update animstate for the current delta angle
-			animstate->m_flGoalFeetYaw = math::normalize_yaw(EyeYaw + deltaAngle);
+			animstate->m_flFootYaw = math::normalize_yaw(EyeYaw + deltaAngle);
 			UpdatePlayerAnimations(e, record, animstate);
 
 			// copy layer data to use it in in the resolver
@@ -922,10 +959,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 
 			// restore data
 			memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
-			memcpy(animstate, &state, sizeof(c_baseplayeranimationstate));
-
-			/* Restore Globals */
-			m_Globals.AdjustData();
+			memcpy(animstate, &state, sizeof(C_CSGOPlayerAnimationState));
 		}
 
 		player_resolver[e->EntIndex()].initialize(e, record, previous_goal_feet_yaw[e->EntIndex()], e->m_angEyeAngles().x, previous_record);

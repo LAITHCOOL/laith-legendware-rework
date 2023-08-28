@@ -1139,6 +1139,8 @@ void misc::ForceStop()
 	Vector negated_direction = forward * -_velocity.length(true);
 	g_ctx.get_command()->m_forwardmove = negated_direction.x;
 	g_ctx.get_command()->m_sidemove = negated_direction.y;
+
+	g_EnginePrediction->RePredict();
 }
 
 void misc::AutoPeek(CUserCmd* cmd)

@@ -159,6 +159,8 @@ public:
 			int32_t m_LastShift = 0;
 			bool m_bIsPeeking = false;
 			player_t* m_Player = NULL;
+			int m_ResetTicks = 0;
+			bool m_UpdateLc = false;
 		} m_Peek;
 
 		struct

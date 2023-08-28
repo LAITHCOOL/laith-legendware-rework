@@ -157,6 +157,7 @@
     <ClCompile Include="cheats\legitbot\legitbot.cpp" />
     <ClCompile Include="cheats\menu_alpha.cpp" />
     <ClCompile Include="cheats\misc\airstrafe.cpp" />
+    <ClCompile Include="cheats\misc\AutoPeek.cpp" />
     <ClCompile Include="cheats\misc\bunnyhop.cpp" />
     <ClCompile Include="cheats\misc\fakelag.cpp" />
     <ClCompile Include="cheats\misc\key_binds.cpp" />
@@ -315,6 +316,7 @@
     <ClInclude Include="cheats\legitbot\legitbot.h" />
     <ClInclude Include="cheats\menu_alpha.h" />
     <ClInclude Include="cheats\misc\airstrafe.h" />
+    <ClInclude Include="cheats\misc\AutoPeek.h" />
     <ClInclude Include="cheats\misc\bunnyhop.h" />
     <ClInclude Include="cheats\misc\fakelag.h" />
     <ClInclude Include="cheats\misc\key_binds.h" />

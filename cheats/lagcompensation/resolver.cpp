@@ -24,10 +24,10 @@ void CResolver::initialize_yaw(player_t* e, adjust_data* record, adjust_data* pr
 	player_record = record;
 	//prev_record = previous_record;
 
-	player_record->left = b_yaw(player, player->get_animation_state()->m_flEyeYaw, 1);
-	player_record->right = b_yaw(player, player->get_animation_state()->m_flEyeYaw, 2);
-	player_record->Eye = b_yaw(player, player->get_animation_state()->m_flEyeYaw, 3);
-	player_record->Middle = b_yaw(player, player->get_animation_state()->m_flEyeYaw, 5);
+	player_record->left = b_yaw(player, player->get_animation_state1()->m_flEyeYaw, 1);
+	player_record->right = b_yaw(player, player->get_animation_state1()->m_flEyeYaw, 2);
+	player_record->Eye = b_yaw(player, player->get_animation_state1()->m_flEyeYaw, 3);
+	player_record->Middle = b_yaw(player, player->get_animation_state1()->m_flEyeYaw, 5);
 
 }
 
@@ -143,7 +143,7 @@ float ApproachAngle(float target, float value, float speed)
 float CResolver::b_yaw(player_t* player, float angle, int n)
 {
 
-	auto animState = player->get_animation_state();
+	auto animState = player->get_animation_state1();
 	float m_flFakeGoalFeetYaw = 0.0f;
 	// Rebuild setup velocity to receive flMinBodyYaw and flMaxBodyYaw
 	Vector velocity = player->m_vecVelocity();
@@ -153,9 +153,9 @@ float CResolver::b_yaw(player_t* player, float angle, int n)
 		velocity = velocity_normalized * (1.2f * 260.0f);
 	}
 
-	float m_flChokedTime = animState->m_flLastClientSideAnimationUpdateTime;
-	float v25 = math::clamp(player->m_flDuckAmount() + animState->m_fLandingDuckAdditiveSomething, 0.0f, 1.0f);
-	float v26 = animState->m_fDuckAmount;
+	float m_flChokedTime = animState->m_flLastUpdateTime;
+	float v25 = math::clamp(player->m_flDuckAmount() + animState->m_flDuckAdditional, 0.0f, 1.0f);
+	float v26 = animState->m_flAnimDuckAmount;
 	float v27 = m_flChokedTime * 6.0f;
 	float v28;
 
@@ -187,16 +187,14 @@ float CResolver::b_yaw(player_t* player, float angle, int n)
 
 	flRunningSpeed = math::clamp(flRunningSpeed, 0.0f, 1.0f);
 
-	float flYawModifier = (((animState->m_flStopToFullRunningFraction * -0.3f) - 0.2f) * flRunningSpeed) + 1.0f;
+	float flYawModifier = (((animState->m_flWalkToRunTransition * -0.3f) - 0.2f) * flRunningSpeed) + 1.0f;
 	if (flDuckAmount > 0.0f) {
 		float flDuckingSpeed = math::clamp(flDuckingSpeed, 0.0f, 1.0f);
 		flYawModifier += (flDuckAmount * flDuckingSpeed) * (0.5f - flYawModifier);
 	}
 
-	auto test = animState->yaw_desync_adjustment();
-
-	float flMinBodyYaw = -58.0f * flYawModifier;
-	float flMaxBodyYaw = 58.0f * flYawModifier;
+	float flMinBodyYaw = animState->m_flAimYawMin * flYawModifier;
+	float flMaxBodyYaw = animState->m_flAimYawMax * flYawModifier;
 
 	float flEyeYaw = angle;
 	float flEyeDiff = std::remainderf(flEyeYaw - m_flFakeGoalFeetYaw, 360.f);
@@ -215,7 +213,7 @@ float CResolver::b_yaw(player_t* player, float angle, int n)
 		m_flFakeGoalFeetYaw = ApproachAngle(
 			flEyeYaw,
 			m_flFakeGoalFeetYaw,
-			((animState->m_flStopToFullRunningFraction * 20.0f) + 30.0f)
+			((animState->m_flWalkToRunTransition * 20.0f) + 30.0f)
 			* m_flChokedTime);
 	}
 	else {
@@ -750,7 +748,7 @@ void CResolver::setmode()
 	auto cur_layer = player_record->layers;
 	auto prev_layer = player_record->previous_layers;
 
-	bool on_ground = e->m_fFlags() & FL_ONGROUND && !e->get_animation_state()->m_bInHitGroundAnimation;
+	bool on_ground = e->m_fFlags() & FL_ONGROUND && !e->get_animation_state1()->m_bLanding;
 
 	bool slow_walking1 = is_slow_walking();
 	bool slow_walking2 = update_walk_data();
@@ -759,7 +757,7 @@ void CResolver::setmode()
 	bool breaking_lby = is_breaking_lby(cur_layer[3], prev_layer[3]);
 
 
-	bool ducking = player->get_animation_state()->m_fDuckAmount && e->m_fFlags() & FL_ONGROUND && !player->get_animation_state()->m_bInHitGroundAnimation;
+	bool ducking = player->get_animation_state1()->m_flAnimDuckAmount && e->m_fFlags() & FL_ONGROUND && !player->get_animation_state1()->m_bLanding;
 
 
 
@@ -772,13 +770,9 @@ void CResolver::setmode()
 	if ((player_record->layers[6].m_flWeight * 1000.f) == (previous_layers[6].m_flWeight * 1000.f))
 		move_anim = true;
 
-	auto animstate = player->get_animation_state();
+	auto animstate = player->get_animation_state1();
 	if (!animstate)
 		return;
-
-	auto valid_move = true;
-	if (animstate->m_velocity > 0.1f || fabs(animstate->flUpVelocity) > 100.f)
-		valid_move = animstate->m_flTimeSinceStartedMoving < 0.22f;
 
 	if (!on_ground)
 		player_record->curMode = AIR;
@@ -997,7 +991,7 @@ void CResolver::resolve_desync()
 	g_ctx.globals.mlog1[e->EntIndex()] = player_record->desync_amount;
 
 	// set player's gfy to guessed desync value :3
-	player->get_animation_state()->m_flGoalFeetYaw = eye_yaw + player_record->desync_amount;
+	player->get_animation_state1()->m_flFootYaw = eye_yaw + player_record->desync_amount;
 
 
 }

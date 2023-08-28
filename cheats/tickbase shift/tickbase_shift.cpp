@@ -69,9 +69,13 @@ void tickbase::shift_silent(CUserCmd* current_cmd, CUserCmd* first_cmd, int amou
 
 void tickbase::double_tap_deffensive(CUserCmd* cmd)
 {
+
+	if (!g_cfg.ragebot.defensive_doubletap)
+		return;
+
 	// predpos
 	Vector predicted_eye_pos = g_ctx.globals.eye_pos + (g_EnginePrediction->GetUnpredictedData()->m_vecVelocity * m_globals()->m_intervalpertick);
-
+	int shift_amount = math::clamp(math::random_int(1, 4), 0, 15);
 	for (auto i = 1; i <= m_globals()->m_maxclients; i++)
 	{
 		auto e = static_cast<player_t*>(m_entitylist()->GetClientEntity(i));
@@ -90,11 +94,11 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 		record->adjust_player();
 
 		// look all ticks for get first hitable
-		for (int next_chock = 1; next_chock <= 14; ++next_chock)
+		for (int next_chock = 1; next_chock <= 8; ++next_chock)
 		{
 			predicted_eye_pos *= next_chock;
 
-			auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, e->hitbox_position_matrix(HITBOX_PELVIS, record->m_Matricies[MiddleMatrix].data()), e);
+			auto fire_data = autowall::get().wall_penetration(predicted_eye_pos, e->hitbox_position_matrix(HITBOX_PELVIS, record->m_Matricies[MiddleMatrix].data()), e);
 
 			if (!fire_data.valid)
 				continue;
@@ -103,25 +107,57 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 				continue;
 
 			g_ctx.globals.m_Peek.m_bIsPeeking = true;
+			g_ctx.globals.m_Peek.m_ResetTicks = 0;
 		}
 	}
 
-	if (g_ctx.globals.m_Peek.m_bIsPeeking && !g_ctx.globals.isshifting && g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.block_charge) /*we dont want to shift while we're recharching because it will cause our dt and tickbase to break*/
+	if (g_ctx.globals.m_Peek.m_bIsPeeking)
 	{
-
-		int shift_amount = math::clamp(math::random_int(1, 4), 0, 15); /*we dont want to shift more than 14 and it goes as folows*/
-		/* (16 ticks in total we can send without byte patching) 1 tick is for simulating our other 15 commands , 1 tick is for desync, 13 for dt, and 1 is enough to break lc*/
-
-
-
-		g_ctx.globals.tickbase_shift = shift_amount;
-		g_ctx.globals.m_Peek.m_bIsPeeking = false;
-		g_ctx.globals.m_shifted_command = cmd->m_command_number;
-
-		auto next_command_number = cmd->m_command_number + 1;
-		auto user_cmd = m_input()->GetUserCmd(next_command_number);
-		shift_silent(cmd, user_cmd, shift_amount);
+		if (g_ctx.globals.m_Peek.m_UpdateLc)
+		{
+			g_ctx.globals.m_Peek.m_UpdateLc = false;
+			g_ctx.globals.should_send_packet = true;
+			g_ctx.globals.tickbase_shift = 0;
+		}
+		else
+		{
+			if (g_ctx.send_packet)
+			{
+				g_ctx.globals.tickbase_shift = g_ctx.globals.tocharge;
+			}
+		}
 	}
+	else
+	{
+		g_ctx.globals.m_Peek.m_ResetTicks = 0;
+		g_ctx.globals.m_Peek.m_UpdateLc = true;
+
+		if (g_ctx.send_packet)
+		{
+			g_ctx.globals.tickbase_shift = g_ctx.globals.tocharge;
+		}
+		else if (g_ctx.local()->m_flOldSimulationTime() >= g_ctx.local()->m_flSimulationTime())
+		{
+			g_ctx.globals.tickbase_shift = g_ctx.local()->m_flOldSimulationTime() - g_ctx.local()->m_flSimulationTime() + 1;
+		}
+	}
+
+	//if (g_ctx.globals.m_Peek.m_bIsPeeking && !g_ctx.globals.isshifting && g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.block_charge) /*we dont want to shift while we're recharching because it will cause our dt and tickbase to break*/
+	//{
+
+	//	int shift_amount = math::clamp(math::random_int(1, 4), 0, 15); /*we dont want to shift more than 14 and it goes as folows*/
+	//	/* (16 ticks in total we can send without byte patching) 1 tick is for simulating our other 15 commands , 1 tick is for desync, 13 for dt, and 1 is enough to break lc*/
+
+
+
+	//	g_ctx.globals.tickbase_shift = shift_amount;
+	//	g_ctx.globals.m_Peek.m_bIsPeeking = false;
+	//	g_ctx.globals.m_shifted_command = cmd->m_command_number;
+
+	//	auto next_command_number = cmd->m_command_number + 1;
+	//	auto user_cmd = m_input()->GetUserCmd(next_command_number);
+	//	shift_silent(cmd, user_cmd, shift_amount);
+	//}
 }
 
 void tickbase::DoubleTap(CUserCmd* m_pcmd)
@@ -146,11 +182,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		g_ctx.globals.dt_shots = 0;
 	}
 
-	/* determine simulation ticks */
-	auto m_nSimulationTicks = max(min((m_clientstate()->iChokedCommands + 1), 17), 1);
-
-	/* Get command */
-	const int m_CmdNum = m_clientstate()->nLastOutgoingCommand + m_nSimulationTicks;
+	
 
 	//Recharge
 	if (!g_Ragebot->m_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
@@ -181,12 +213,15 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		}
 		g_ctx.globals.shift_ticks = shiftAmount;
 
+		/* determine simulation ticks */
+		auto m_nSimulationTicks = max(min((m_clientstate()->iChokedCommands + 1), 17), 1);
+		/* Get command */
+		const int m_CmdNum = m_clientstate()->nLastOutgoingCommand + m_nSimulationTicks;
 		/* calc perspective shift this tick */
 		auto m_nPerspectiveShift = g_ctx.globals.ticks_allowed - m_nSimulationTicks - 1;
-
 		//g_EnginePrediction->SetTickbase(m_CmdNum, g_EnginePrediction->AdjustPlayerTimeBase(-m_nPerspectiveShift));
+
 		g_ctx.globals.block_charge = true;
-		//g_ctx.globals.m_shifted_command = m_pcmd->m_command_number;
 		g_ctx.globals.shifting_command_number = m_pcmd->m_command_number; // used for tickbase fix 
 
 		lastdoubletaptime = m_pcmd->m_command_number;

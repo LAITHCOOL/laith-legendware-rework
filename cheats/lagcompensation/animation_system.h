@@ -505,7 +505,7 @@ public:
 
 		return lerp;
 	}
-	bool valid(float range = .2f, float max_unlag = .2f) {
+	/*bool valid(float range = .2f, float max_unlag = .2f) {
 
 		auto netchannel = m_engine()->GetNetChannelInfo();
 		if (!netchannel || invalid || m_bHasBrokenLC)
@@ -516,65 +516,65 @@ public:
 		float curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 
 		return std::fabsf(correct - (curtime - simulation_time)) <= range;
+	}*/
+
+	bool valid(bool extra_checks = true)
+	{
+		if (!this)
+			return false;
+
+		if (i > 0)
+			player = (player_t*)m_entitylist()->GetClientEntity(i);
+
+		if (!player)
+			return false;
+
+		if (player->m_lifeState() != LIFE_ALIVE)
+			return false;
+
+		if (immune)
+			return false;
+
+		if (dormant)
+			return false;
+
+		if (!extra_checks)
+			return true;
+
+		if (invalid || m_bHasBrokenLC)
+			return false;
+
+		auto net_channel_info = m_engine()->GetNetChannelInfo();
+
+		if (!net_channel_info)
+			return false;
+
+		static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
+
+		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
+		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
+
+		auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
+
+		auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
+		auto delta_time = correct - (curtime - simulation_time);
+
+		if (fabs(delta_time) > 0.2f)
+			return false;
+
+		auto extra_choke = 0;
+
+		if (g_ctx.globals.fakeducking)
+			extra_choke = 14 - m_clientstate()->iChokedCommands;
+
+		auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
+		auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
+
+		if (simulation_time < (float)dead_time)
+			return false;
+
+		return true;
 	}
-
-	//bool valid(bool extra_checks = true)
-	//{
-	//	if (!this)
-	//		return false;
-
-	//	if (i > 0)
-	//		player = (player_t*)m_entitylist()->GetClientEntity(i);
-
-	//	if (!player)
-	//		return false;
-
-	//	if (player->m_lifeState() != LIFE_ALIVE)
-	//		return false;
-
-	//	if (immune)
-	//		return false;
-
-	//	if (dormant)
-	//		return false;
-
-	//	if (!extra_checks)
-	//		return true;
-
-	//	if (invalid || m_bHasBrokenLC)
-	//		return false;
-
-	//	auto net_channel_info = m_engine()->GetNetChannelInfo();
-
-	//	if (!net_channel_info)
-	//		return false;
-
-	//	static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
-
-	//	auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-	//	auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-
-	//	auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
-
-	//	auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
-	//	auto delta_time = correct - (curtime - simulation_time);
-
-	//	if (fabs(delta_time) > 0.2f)
-	//		return false;
-
-	//	auto extra_choke = 0;
-
-	//	if (g_ctx.globals.fakeducking)
-	//		extra_choke = 14 - m_clientstate()->iChokedCommands;
-
-	//	auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
-	//	auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
-
-	//	if (simulation_time < (float)dead_time)
-	//		return false;
-
-	//	return true;
-	//}
 };
 
 class optimized_adjust_data
@@ -632,7 +632,7 @@ public:
 
 	int GetRecordPriority(adjust_data* m_Record);
 	adjust_data* FindBestRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords, int& nPriority, const float& flSimTime);
-	void ProccessShitingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record);
+	void ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record);
 	void fsn(ClientFrameStage_t stage);
 	bool valid(int i, player_t* e);
 	adjust_data* FindFirstRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords);
@@ -646,7 +646,7 @@ public:
 	};
 
 	AnimationData_t m_animation_data[65];
-	void UpdatePlayerAnimations(player_t* pPlayer, adjust_data* m_LagRecord, c_baseplayeranimationstate* m_AnimationState);
+	void UpdatePlayerAnimations(player_t* pPlayer, adjust_data* m_LagRecord, C_CSGOPlayerAnimationState* m_AnimationState);
 	float BuildFootYaw(player_t* pPlayer, adjust_data* m_LagRecord);
 	void SetupData(player_t* pPlayer, adjust_data* m_Record, adjust_data* m_PrevRecord);
 	int DetermineAnimationCycle(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord);
@@ -661,8 +661,8 @@ public:
 	bool land_in_cycle = false;
 	bool is_landed = false;
 	bool on_ground = false;
-	Vector DeterminePlayerVelocity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord, c_baseplayeranimationstate* m_AnimationState);
-	void HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Record, c_baseplayeranimationstate* m_AnimationState);
+	Vector DeterminePlayerVelocity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord, C_CSGOPlayerAnimationState* m_AnimationState);
+	void HandleDormancyLeaving(player_t* pPlayer, adjust_data* m_Record, C_CSGOPlayerAnimationState* m_AnimationState);
 	CResolver player_resolver[65];
 	DesyncCorrection c_DesyncCorrection[65];
 	bool is_dormant[65];

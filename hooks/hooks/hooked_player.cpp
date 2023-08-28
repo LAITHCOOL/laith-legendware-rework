@@ -187,11 +187,11 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
         return;
     }
 
-   /* if (cmd_ctx->command_number == g_ctx.globals.shot_command)
-        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
-    else if (cmd_ctx->command_number == g_ctx.globals.shot_command + 1)
+   /* if (cmd_ctx->cmd.m_command_number == g_ctx.globals.shifting_command_number)
+        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);*/
+   /* else if (cmd_ctx->cmd.m_command_number == g_ctx.globals.shifting_command_number + 1)
         player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
-   
+
     g_Ragebot->AdjustRevolverData(cmd_ctx->command_number, cmd_ctx->cmd.m_buttons);
 
     ((PhysicsSimulateFn)original_physicssimulate)(player);

@@ -114,7 +114,8 @@ void C_ConfigManager::setup()
 	setup_item(&g_cfg.ragebot.double_tap_key, key_bind(TOGGLE), crypt_str("Ragebot.double_tap_key"));
 	setup_item(&g_cfg.ragebot.use_cs_shift_amount, false, crypt_str("Ragebot.use_cs_shift_amount"));
 	setup_item(&g_cfg.ragebot.recharge_time, 0.75f, crypt_str("Ragebot.recharge_time"));
-	setup_item(&g_cfg.ragebot.shift_amount, 14, crypt_str("Ragebot.shift_amount"));
+	setup_item(&g_cfg.ragebot.shift_amount, 13, crypt_str("Ragebot.shift_amount"));
+	setup_item(&g_cfg.ragebot.fakelag_exploits, 2, crypt_str("Ragebot.fakelag_exploits"));
 
 
 

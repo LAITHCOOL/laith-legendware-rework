@@ -58,7 +58,7 @@ void C_LocalAnimations::OnCreateMove()
 	for (int nSimulationTick = 1; nSimulationTick <= m_LocalData.m_nSimulationTicks; nSimulationTick++)
 	{
 		/* determine the tickbase and set globals to it */
-		int nTickBase = g_ctx.local()->m_nTickBase() - m_LocalData.m_nSimulationTicks + nSimulationTick;
+		int nTickBase = g_ctx.globals.fixed_tickbase - m_LocalData.m_nSimulationTicks + nSimulationTick;
 		m_globals()->m_curtime = TICKS_TO_TIME(nTickBase);
 		m_globals()->m_realtime = TICKS_TO_TIME(nTickBase);
 		m_globals()->m_frametime = m_globals()->m_intervalpertick;
@@ -217,7 +217,7 @@ void C_LocalAnimations::UpdateDesyncAnimations()
 	for (int nSimulationTick = 1; nSimulationTick <= m_LocalData.m_nSimulationTicks; nSimulationTick++)
 	{
 		/* determine the tickbase and set globals to it */
-		int nTickBase = g_ctx.local()->m_nTickBase() - m_LocalData.m_nSimulationTicks + nSimulationTick;
+		int nTickBase = g_ctx.globals.fixed_tickbase - m_LocalData.m_nSimulationTicks + nSimulationTick;
 		m_globals()->m_curtime = TICKS_TO_TIME(nTickBase);
 		m_globals()->m_realtime = TICKS_TO_TIME(nTickBase);
 		m_globals()->m_frametime = m_globals()->m_intervalpertick;
@@ -485,8 +485,8 @@ void C_LocalAnimations::SetupShootPosition()
 		}
 
 		/* modify eye pos on duck */
-		if (g_ctx.local()->m_flDuckAmount() != 0.0f)
-			bModifyEyePosition = true;
+		/*if (g_ctx.local()->m_flDuckAmount() != 0.0f)
+			bModifyEyePosition = true;*/
 
 		/* modify eye pos on FD */
 		if (g_ctx.globals.fakeducking)

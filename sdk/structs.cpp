@@ -912,7 +912,7 @@ bool weapon_t::can_fire(bool check_revolver)
 	if (owner->m_bIsDefusing())
 		return false;
 
-	auto server_time = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+	auto server_time = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
 
 	if (server_time < m_flNextPrimaryAttack())
 		return false;
@@ -1584,27 +1584,7 @@ void player_t::update_clientside_animation()
 	if (!this || !get_animation_state() || m_clientstate()->iDeltaTick == -1) //check
 		return;// Repeat
 
-	//if (get_animation_state()->m_iLastClientSideAnimationUpdateFramecount == m_globals()->m_framecount)  // check source cs
-	//    get_animation_state()->m_iLastClientSideAnimationUpdateFramecount = m_globals()->m_framecount - 1; // check source cs
-
-	if (this == g_ctx.local()) {
-		m_flThirdpersonRecoil() = m_aimPunchAngleScaled().x;
-	}
-	else {
-		m_iEFlags() &= ~(EFL_DIRTY_ABSVELOCITY | EFL_DIRTY_ABSTRANSFORM); // set the flag
-	}
-
-	if (get_animation_state()->m_flLastClientSideAnimationUpdateTime == m_globals()->m_curtime) // enable brain
-		get_animation_state()->m_flLastClientSideAnimationUpdateTime = m_globals()->m_curtime + TICKS_TO_TIME(1); // enable brain
-
 	g_ctx.globals.updating_animation = true; // include update player animation
-	this->m_bClientSideAnimation() = true;   // include update client side animation
-
-	auto previous_weapon = get_animation_state() ? get_animation_state()->m_pLastBoneSetupWeapon : nullptr;
-
-	if (previous_weapon)
-		get_animation_state()->m_pLastBoneSetupWeapon = get_animation_state()->m_pActiveWeapon;
-
 	using Fn = void(__thiscall*)(void*);
 	call_virtual<Fn>(this, g_ctx.indexes.at(13))(this); // call to index
 

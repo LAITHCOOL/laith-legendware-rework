@@ -87,6 +87,8 @@ void aimbot::AutoStop(CUserCmd* m_pcmd)
 		m_pcmd->m_forwardmove = negative_forward_direction.x;
 		m_pcmd->m_sidemove = negative_side_direction.y;
 	}
+
+	g_EnginePrediction->RePredict();
 }
 
 void aimbot::AutoRevolver(CUserCmd* m_pcmd)
@@ -139,7 +141,7 @@ void aimbot::AdjustRevolverData(int commandnumber, int buttons)
 		static bool in_attack[MULTIPLAYER_BACKUP];
 		static bool can_shoot[MULTIPLAYER_BACKUP];
 
-		tickbase_records[commandnumber % MULTIPLAYER_BACKUP] = g_ctx.local()->m_nTickBase();
+		tickbase_records[commandnumber % MULTIPLAYER_BACKUP] = g_ctx.globals.fixed_tickbase;
 		in_attack[commandnumber % MULTIPLAYER_BACKUP] = buttons & IN_ATTACK || buttons & IN_ATTACK2;
 		can_shoot[commandnumber % MULTIPLAYER_BACKUP] = weapon->can_fire(false);
 
@@ -192,11 +194,11 @@ void AimPlayer::OnNetUpdate(player_t* player) {
 	}
 
 	// update player_t ptr.
-	m_player = player;
+	//m_player = player;
 }
 
 void AimPlayer::OnRoundStart(player_t* player) {
-	m_player = player;
+	//m_player = player;
 	m_shots = 0;
 	m_missed_shots = 0;
 	m_type = 0;
@@ -575,7 +577,6 @@ void aimbot::think(CUserCmd* m_pcmd) {
 	// auto-stop if we about to peek this guy.
 	if (!this->m_stop && this->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true)) {
 		this->m_stop = true;
-		g_EnginePrediction->RePredict();
 	}
 
 
@@ -620,7 +621,7 @@ void aimbot::find(CUserCmd* m_pcmd) {
 
 		auto ideal = get_record(records);
 
-		if (!ideal || !ideal->valid() || ideal->invalid)
+		if (!ideal->valid())
 			continue;
 
 		t->SetupHitboxes(ideal, false);
@@ -651,7 +652,7 @@ void aimbot::find(CUserCmd* m_pcmd) {
 
 		auto last = get_record_history(records);
 
-		if (!last || !last->valid() || last->invalid)
+		if (!last->valid())
 			continue;
 
 		t->SetupHitboxes(last, true);
@@ -705,7 +706,7 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			else if (g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_HITCHANCE_FAIL] && flCalculatedHitchance < nHitChance)
 				this->m_stop = true;
 
-			g_EnginePrediction->RePredict();
+			
 		}
 
 		this->AutoStop(m_pcmd);
@@ -1154,8 +1155,6 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 								 g_Ragebot->m_stop = true;
 							else if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
 								 g_Ragebot->m_stop = true;
-
-							g_EnginePrediction->RePredict();
 						}
 
 						// save new best data.
@@ -1177,8 +1176,6 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 						 g_Ragebot->m_stop = true;
 					if (! g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
 						 g_Ragebot->m_stop = true;
-
-					g_EnginePrediction->RePredict();
 
 					// save new best data.
 					scan.m_damage = out.m_damage;

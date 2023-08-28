@@ -1113,11 +1113,16 @@ void c_menu::draw(bool is_open)
 								if (g_cfg.ragebot.use_cs_shift_amount)
 								{
 									ImGui::Checkbox(crypt_str("Defensive"), &g_cfg.ragebot.defensive_doubletap);
+									if (g_cfg.ragebot.defensive_doubletap)
+										ImGui::SliderInt(crypt_str("FakeLag With Exploits"), &g_cfg.ragebot.fakelag_exploits, 1, 17);
+
 									ImGui::SliderInt(crypt_str("Ticks To Shift"), &g_cfg.ragebot.shift_amount, 1, 17);
 									ImGui::SliderFloat(crypt_str("Recharge Time"), &g_cfg.ragebot.recharge_time, 0.00f, 3.00f, crypt_str("%.2f"));
 								}
 							}
 						}
+
+					
 					}
 					tab_end();
 				}

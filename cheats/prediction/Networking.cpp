@@ -42,10 +42,11 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 
 	g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
 
-	if (g_ctx.globals.tickbase_shift)
+	/*if (g_ctx.globals.tickbase_shift)
 		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.tickbase_shift;
-	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
+	else*/
+		
+	g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
 
 	if (hooks::menu_open)
 	{
@@ -208,6 +209,12 @@ void networking::packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket)
 
 	if (g_ctx.globals.isshifting)
 		m_pcmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
+
+	if (g_ctx.globals.tickbase_shift)
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift;
+	else
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
+
 }
 
 void networking::process_packets(CUserCmd* m_pcmd)

@@ -26,7 +26,7 @@
 #include "../../cheats/prediction/EnginePrediction.h"
 #include "../../cheats/prediction/Networking.h"
 #include "../../cheats/tickbase shift/TickbaseManipulation.h"
-
+#include "../../cheats/misc/AutoPeek.h"
 using CreateMove_t = void(__thiscall*)(IBaseClientDLL*, int, float, bool);
 
 void __stdcall CreateMove(int sequence_number, float input_sample_frametime, bool active, bool& bSendPacket)
@@ -130,7 +130,8 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 			g_Networking->packet_cycle(m_pcmd, g_ctx.send_packet);
 
 			//g_Misc->automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
-			g_Misc->AutoPeek(m_pcmd);
+			//g_Misc->AutoPeek(m_pcmd);
+			g_AutoPeek->Run(m_pcmd);
 			g_Networking->process_dt_aimcheck(m_pcmd);
 
 		}

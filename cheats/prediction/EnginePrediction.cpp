@@ -77,7 +77,7 @@ int C_EnginePrediction::CalculateCorrectionTicks()  {
 int C_EnginePrediction::AdjustPlayerTimeBase(int nSimulationTicks)
 {
 	// get tickbase
-	int nTickBase = g_ctx.local()->m_nTickBase();
+	int nTickBase = g_ctx.local()->m_nTickBase() + 1;
 
 	// define const
 	const int nCorrectionTicks = CalculateCorrectionTicks();
@@ -305,7 +305,7 @@ void C_EnginePrediction::RunPrediction()
 	g_EnginePrediction->UpdateButtonState();
 
 	// push globals data
-	m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
+	m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 	m_globals()->m_frametime = m_globals()->m_intervalpertick;
 
 	// setup velocity

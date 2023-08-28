@@ -385,6 +385,7 @@ struct Config
 		bool use_cs_shift_amount;
 		float recharge_time;
 		int shift_amount;
+		int fakelag_exploits;
 		bool optimizer;
 		key_bind onshot;
 		bool pitch_correction;

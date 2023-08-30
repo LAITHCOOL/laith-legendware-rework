@@ -70,7 +70,8 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 		if (update)
 		{
 			lagcompensation::get().ProccessShiftingPlayers(e, record, previous_record);
-			lagcompensation::get().SimulatePlayerAnimations(e, record, previous_record);
+			if (!player_records[i].empty())
+			    lagcompensation::get().SimulatePlayerAnimations(e, record, previous_record);
 		}
 
 		while (player_records[i].size() > g_Networking->tickrate())
@@ -83,12 +84,12 @@ void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, 
 {
 	if (previous_record && record)
 	{
-		if (!e || e->is_alive())
+		if (!e || !e->is_alive())
 			return;
 
 		/* Check tickbase exploits */
 		if (previous_record->simulation_time > record->simulation_time)
-			HandleTickbaseShift(e, record);
+			return HandleTickbaseShift(e, record);
 
 		/* Invalidate records for defensive and break lc */
 		if (record->simulation_time <= record->m_flExploitTime)
@@ -104,7 +105,7 @@ void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, 
 			if ((record->origin - previous_record->origin).Length2DSqr() > 4096.0f)
 			{
 				record->m_bHasBrokenLC = true;
-				CleanPlayer(e, record);
+				return CleanPlayer(e, record);
 			}
 		}
 
@@ -533,8 +534,8 @@ void lagcompensation::SetupData(player_t* pPlayer, adjust_data* m_Record , adjus
 	}
 	m_Record->m_nSimulationTicks = DetermineAnimationCycle(pPlayer, m_Record, m_PrevRecord);
 
-	if (TIME_TO_TICKS(m_Record->simulation_time - m_PrevRecord->simulation_time) > 17)
-		m_Record->m_nSimulationTicks = 1;
+	//if (TIME_TO_TICKS(m_Record->simulation_time - m_PrevRecord->simulation_time) > 17)
+		//m_Record->m_nSimulationTicks = 1;
 
 
 	/*if (!m_PrevRecord)
@@ -733,7 +734,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 		animstate->m_flStrafeChangeCycle = record->layers[7].m_flCycle;
 		animstate->m_flAccelerationWeight = record->layers[12].m_flWeight;
 
-		e->m_flPoseParameter().at(6) = 0.f;
+		e->m_flPoseParameter()[6] = 0.f;
 		memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 
 		auto walk_run_transition = record->velocity.Length2D() <= 135.f ? 0.f : 1.f;
@@ -767,11 +768,11 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	m_Globals.CaptureData();
 	m_PlayerGlobals.CaptureData(e);
 
-	//SetupData(e, record, previous_record);
-	DetermineSimulationTicks(e, record, previous_record);
+	SetupData(e, record, previous_record);
+	//DetermineSimulationTicks(e, record, previous_record);
 
 	/* Determine player's velocity */
-    record->velocity = DeterminePlayerVelocity(e, record, previous_record, animstate);
+        record->velocity = DeterminePlayerVelocity(e, record, previous_record, animstate);
 
 	/*Handle dormancy*/
 	if (is_dormant[e->EntIndex()])
@@ -914,7 +915,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 			UpdatePlayerAnimations(e, record, animstate);
 
 			/* Restore Globals */
-			m_Globals.AdjustData();
+			//m_Globals.AdjustData();
 		}
 	}
 

@@ -215,7 +215,7 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 		break;
 	}
 
-	if (weapon_is_aim(weapon))
+	if (weapon_is_aim(weapon) && current_shot->record && current_shot && entity)
 	{
 		otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
 		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());

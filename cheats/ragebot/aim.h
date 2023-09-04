@@ -217,7 +217,9 @@ public:
 	float      m_damage;
 	adjust_data* m_record;
 	bool	   m_safe;
-
+	std::vector <HitscanPoint_t> m_debug_points;
+	bool m_working;
+	bool m_firing;
 	int m_hitbox;
 	bool m_stop;
 	bool m_override_damage;
@@ -272,6 +274,8 @@ public:
 	bool bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, adjust_data* pRecord);
 	adjust_data* get_record(std::deque <adjust_data>* records);
 	adjust_data* get_record_history(std::deque <adjust_data>* records);
+	adjust_data* get_oldest_record(std::deque<adjust_data>* records);
+	adjust_data* get_first_record(std::deque<adjust_data>* records);
 	// knifebot.
 	void knife(CUserCmd* m_pcmd);
 	bool CanKnife(adjust_data* record, Vector angle, bool& stab);
@@ -279,5 +283,45 @@ public:
 	bool KnifeTrace(Vector dir, bool stab, CGameTrace* trace);
 	bool KnifeIsBehind(adjust_data* record);
 };
+
+
+class hit_chance {
+public:
+	struct hit_chance_data_t {
+		float random[2];
+		float inaccuracy[2];
+		float spread[2];
+	};
+
+	struct hitbox_data_t {
+		hitbox_data_t(const Vector& min, const Vector& max, float radius, mstudiobbox_t* hitbox, int bone, const Vector& rotation) {
+			m_min = min;
+			m_max = max;
+			m_radius = radius;
+			m_hitbox = hitbox;
+			m_bone = bone;
+			m_rotation = rotation;
+		}
+
+		Vector m_min{ };
+		Vector m_max{ };
+		float m_radius{ };
+		mstudiobbox_t* m_hitbox{ };
+		int m_bone{ };
+		Vector m_rotation{ };
+	};
+
+	void build_seed_table();
+	Vector get_spread_direction(weapon_t* weapon, Vector angles, int seed);
+	bool can_intersect_hitbox(const Vector start, const Vector end, Vector spread_dir, adjust_data* log, int hitbox);
+	std::vector<hitbox_data_t> get_hitbox_data(adjust_data* log, int hitbox);
+	bool intersects_bb_hitbox(Vector start, Vector delta, Vector min, Vector max);
+	bool __vectorcall intersects_hitbox(Vector eye_pos, Vector end_pos, Vector min, Vector max, float radius);
+	bool can_hit(adjust_data* log, weapon_t* weapon, Vector angles, int hitbox);
+private:
+	std::array<hit_chance_data_t, 256> hit_chance_records = {};
+};
+
+inline hit_chance* g_hit_chance = new hit_chance();
 
 inline aimbot* g_Ragebot = new aimbot();

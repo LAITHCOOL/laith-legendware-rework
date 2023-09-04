@@ -186,7 +186,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 
 	//Recharge
 	if (!g_Ragebot->m_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
-		&& (!util::is_button_down(MOUSE_LEFT) || g_ctx.globals.aimbot_shooting) && g_ctx.globals.tocharge < shiftAmount && (m_pcmd->m_command_number - lastdoubletaptime) > recharge_time)
+		&& (!util::is_button_down(MOUSE_LEFT) || !g_Ragebot->m_working) && g_ctx.globals.tocharge < shiftAmount && (m_pcmd->m_command_number - lastdoubletaptime) > recharge_time)
 	{
 		lastdoubletaptime = 0;
 		g_ctx.globals.startcharge = true;

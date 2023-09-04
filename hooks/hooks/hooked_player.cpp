@@ -6,6 +6,7 @@
 #include "..\..\cheats\misc\prediction_system.h"
 #include "../../cheats/prediction/EnginePrediction.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
+#include "../../cheats/lagcompensation/animation_system.h"
 //_declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
 //{
 //    auto player = reinterpret_cast<player_t*>(uintptr_t(ecx) - 0x4);
@@ -15,18 +16,20 @@
 //
 //    if (g_ctx.globals.setuping_bones)
 //        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//
+//    if (!g_cfg.ragebot.enable )
+//        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//
 //    else if (bone_world_out)
 //    {
 //        if (player->EntIndex() == g_ctx.local()->EntIndex())
 //            g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
-//        //local_animations::get().get_cached_matrix(player, bone_world_out);
 //        else
-//            return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//            g_Lagcompensation->CopyCachedMatrix(player, bone_world_out);
 //    }
 //
 //    return true;
 //}
-
 _declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
 {
     auto result = true;
@@ -139,6 +142,29 @@ void __fastcall hooks::hooked_doextrabonesprocessing(player_t* player, void* edx
 
 _declspec(noinline)void hooks::updateclientsideanimation_detour(player_t* player)
 {
+
+    //if (!player->valid(false))
+    //    return  ((UpdateClientSideAnimationFn)original_updateclientsideanimation)(player);
+
+    //if (!g_cfg.ragebot.enable && !g_cfg.legitbot.enabled)
+    //    return ((UpdateClientSideAnimationFn)original_updateclientsideanimation)(player);
+
+    //if (g_ctx.globals.updating_skins)
+    //    return;
+
+    //// handling clientsided animations on localplayer.
+    //if (!g_ctx.globals.updating_animation)
+    //{
+    //    if (player->EntIndex() == g_ctx.local()->EntIndex())
+    //        return ((UpdateClientSideAnimationFn)original_updateclientsideanimation)(player);
+    //    else
+    //        g_Lagcompensation->OnUpdateClientSideAnimations(player);
+
+    //    return;
+    //}
+
+    //return ((UpdateClientSideAnimationFn)original_updateclientsideanimation)(player);
+
     if (g_ctx.globals.updating_skins)
         return;
 
@@ -187,9 +213,9 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
         return;
     }
 
-   /* if (cmd_ctx->cmd.m_command_number == g_ctx.globals.shifting_command_number)
-        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);*/
-   /* else if (cmd_ctx->cmd.m_command_number == g_ctx.globals.shifting_command_number + 1)
+   /* if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number)
+        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
+    else if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number + 1)
         player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
 
     g_Ragebot->AdjustRevolverData(cmd_ctx->command_number, cmd_ctx->cmd.m_buttons);

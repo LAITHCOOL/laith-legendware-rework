@@ -80,7 +80,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			//g_ctx.globals.missed_shots[i] = 0;
 			g_ctx.globals.missed_shots_spread[i] = 0;
 			player_records[i].clear();
-			lagcompensation::get().is_dormant[i] = false;
+			g_Lagcompensation->is_dormant[i] = false;
 			playeresp::get().esp_alpha_fade[i] = 0.0f;
 			playeresp::get().health[i] = 100;
 			c_dormant_esp::get().m_cSoundPlayers[i].reset();

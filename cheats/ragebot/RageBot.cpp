@@ -194,11 +194,11 @@ void AimPlayer::OnNetUpdate(player_t* player) {
 	}
 
 	// update player_t ptr.
-	//m_player = player;
+	m_player = player;
 }
 
 void AimPlayer::OnRoundStart(player_t* player) {
-	//m_player = player;
+	m_player = player;
 	m_shots = 0;
 	m_missed_shots = 0;
 	m_type = 0;
@@ -358,6 +358,10 @@ void aimbot::init() {
 
 	m_target = nullptr;
 	m_point = HitscanPoint_t{};
+	//this->m_working = false;
+	if (!m_debug_points.empty())
+		m_debug_points.clear();
+
 	m_angle = ZERO;
 	m_damage = 0.f;
 	m_record = nullptr;
@@ -372,7 +376,7 @@ void aimbot::init() {
 	m_best_lag = FLT_MAX;
 	m_best_height = FLT_MAX;
 
-	this->m_current_matrix = nullptr;
+	//this->m_current_matrix = nullptr;
 }
 
 static bool compare_records(const optimized_adjust_data& first, const optimized_adjust_data& second)
@@ -405,19 +409,90 @@ adjust_data* aimbot::get_record(std::deque <adjust_data>* records)
 
 adjust_data* aimbot::get_record_history(std::deque <adjust_data>* records)
 {
+	//if (records->size() < 2)
+	//	return nullptr;
+
+	//if (records->empty())
+	//	return nullptr;
+
+	//adjust_data* lastRecord = &records->back();
+
+	//if (lastRecord->valid())
+	//	return lastRecord;
+	//else
+	//	return nullptr;
+
+
+	std::deque <optimized_adjust_data> optimized_records; //-V826
+
+	for (int i = 1; i < records->size(); ++i) // red
+	{
+		auto record = &records->at(i);
+		optimized_adjust_data optimized_record;
+
+		optimized_record.i = i;
+		optimized_record.player = record->player;
+		optimized_record.simulation_time = record->simulation_time;
+		optimized_record.duck_amount = record->duck_amount;
+		optimized_record.angles = record->angles;
+		optimized_record.origin = record->origin;
+		optimized_record.shot = record->shot;
+
+		optimized_records.emplace_back(optimized_record);
+	}
+
+	if (optimized_records.size() < 2)
+		return nullptr;
+
+	std::sort(optimized_records.begin(), optimized_records.end(), compare_records);
+
+	for (auto& optimized_record : optimized_records)
+	{
+		auto record = &records->at(optimized_record.i);
+
+		if (!record->valid())
+			continue;
+
+		return record;
+	}
+	return nullptr;
+}
+
+adjust_data* aimbot::get_oldest_record(std::deque <adjust_data>* records)
+{
 	if (records->size() < 2)
 		return nullptr;
 
 	if (records->empty())
 		return nullptr;
 
-	adjust_data* lastRecord = &records->back();
+	for (auto record = records->rbegin(); record != records->rend(); ++record)
+	{
+		if (!record->valid())
+			continue;
 
-	if (lastRecord->valid())
-		return lastRecord;
-	else
-		return nullptr;
+		return &(*record);
+	}
+
+	return nullptr;
 }
+
+adjust_data* aimbot::get_first_record(std::deque<adjust_data>* records)
+{
+	if (records->empty())
+		return nullptr;
+
+	for (auto record = records->begin(); record != records->end(); ++record)
+	{
+		if (!record->valid())
+			continue;
+
+		return &(*record);
+	}
+
+	return nullptr;
+}
+
 
 bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 {
@@ -455,16 +530,6 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 
 		if (!first_record || !first_record->valid() || first_record->invalid)
 			continue;
-			
-		// lagcompensation, note - shyxun; this is temporary, we also need to check the oldest record like what legendware did.
-		//const auto ideal = lagcompensation::get().GetLatestRecord(t->m_player);
-
-		//// sanity check to the lagcompensation.
-		//if (!ideal.has_value() || ideal.value()->m_bDormant || (ideal.value()->m_pEntity && ideal.value()->m_pEntity->m_bGunGameImmunity()))
-		//	continue;
-
-		//// this is our record.
-		//const auto first_record = ideal.value();
 
 		// data to be used later.
 		const auto backup_origin = first_record->player->m_vecOrigin();
@@ -491,7 +556,7 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 		in.m_can_pen = true;
 		in.m_target = first_record->player;
 		in.m_from = g_ctx.local();
-		in.m_pos = first_record->player->hitbox_position_matrix(HITBOX_HEAD, first_record->m_Matricies[MiddleMatrix].data());
+		in.m_pos = first_record->player->hitbox_position_matrix(HITBOX_STOMACH, first_record->m_Matricies[MiddleMatrix].data());
 		in.m_custom_shoot_pos = predicted_eye_pos;
 
 		penetration::PenetrationOutput_t out;
@@ -588,7 +653,7 @@ void aimbot::think(CUserCmd* m_pcmd) {
 }
 
 void aimbot::find(CUserCmd* m_pcmd) {
-	struct BestTarget_t { player_t* player; AimPlayer* target; HitscanPoint_t point; float damage; float min_damage; adjust_data* record; int hitbox; bool safe; };
+	struct BestTarget_t { player_t* player; AimPlayer* target; HitscanPoint_t point; float damage; float min_damage; adjust_data* record; int hitbox; bool safe; float damage_compare; };
 
 	HitscanPoint_t       tmp_point;
 	float        tmp_damage;
@@ -601,6 +666,9 @@ void aimbot::find(CUserCmd* m_pcmd) {
 	best.record = nullptr;
 	best.hitbox = -1;
 	best.safe = false;
+	best.damage_compare = -1;
+
+	adjust_data* best_record = nullptr;
 
 	if (this->m_targets.empty())
 		return;
@@ -610,70 +678,71 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		if (!t->m_player)
 			continue;
 
-		/*const auto ideal = lagcompensation::get().GetLatestRecord(t->m_player);
-		if (!ideal.has_value() || ideal.value()->m_bDormant || (ideal.value()->m_pEntity && ideal.value()->m_pEntity->m_bGunGameImmunity()))
-			continue;*/
 
-		
 		auto records = &player_records[t->m_player->EntIndex()]; //-V826
 		if (records->empty())
 			continue;
 
-		auto ideal = get_record(records);
+		//auto ideal = get_record(records);
+		auto ideal = get_first_record(records);
 
-		if (!ideal->valid())
-			continue;
+		if (ideal->valid())
+		{
+			t->SetupHitboxes(ideal, false);
+			if (!t->m_hitboxes.empty())
+			{
+				// try to select best record as target.
+				if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, ideal, tmp_min_damage)) {
+					if (SelectTarget(ideal, tmp_point, tmp_damage)) {
+						if (tmp_damage >= best.damage_compare) {
+							best.damage_compare = tmp_damage;
+							// if we made it so far, set shit. 
+							best.player = t->m_player;
+							best.point = tmp_point;
+							best.damage = tmp_damage;
+							best.record = ideal;
+							best.min_damage = tmp_min_damage;
+							best.target = t;
+						}
 
-		t->SetupHitboxes(ideal, false);
-		if (t->m_hitboxes.empty())
-			continue;
-
-		// try to select best record as target.
-		if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, ideal, tmp_min_damage)) {
-			if (SelectTarget(ideal, tmp_point, tmp_damage)) {
-				// if we made it so far, set shit. 
-				best.player = t->m_player;
-				best.point = tmp_point;
-				best.damage = tmp_damage;
-				best.record = ideal;
-				best.min_damage = tmp_min_damage;
-				best.target = t;
+					}
+				}
 			}
+
 		}
 
-		/*	const auto last = lagcompensation::get().GetOldestRecord(t->m_player);
-			if (!last.has_value() || last.value() == ideal.value() || last.value()->m_bDormant || (last.value()->m_pEntity && last.value()->m_pEntity->m_bGunGameImmunity()))
-				continue;*/
+		//auto last = get_record_history(records);
+		//auto last = get_oldest_record(records);
 
-	
+		//if (last->valid())
+		//{
+		//	t->SetupHitboxes(last, true);
+		//	if (!t->m_hitboxes.empty())
+		//	{
+		//		// rip something went wrong..
+		//		if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, last, tmp_min_damage)) {
+		//			if (SelectTarget(last, tmp_point, tmp_damage))
+		//			{
+		//				if (tmp_damage > best.damage_compare) {
+		//					best.damage_compare = tmp_damage;
+		//					// if we made it so far, set shit.
+		//					best.player = t->m_player;
+		//					best.point = tmp_point;
+		//					best.damage = tmp_damage;
+		//					best.record = last;
+		//					best.min_damage = tmp_min_damage;
+		//					best.target = t;
+		//				}
 
-		if (!records->empty())
-			continue;
-
-		auto last = get_record_history(records);
-
-		if (!last->valid())
-			continue;
-
-		t->SetupHitboxes(last, true);
-		if (t->m_hitboxes.empty())
-			continue;
-		// rip something went wrong..
-		if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, last, tmp_min_damage)) {
-			if (SelectTarget(last, tmp_point, tmp_damage)) {
-				// if we made it so far, set shit.
-				best.player = t->m_player;
-				best.point = tmp_point;
-				best.damage = tmp_damage;
-				best.record = last;
-				best.min_damage = tmp_min_damage;
-				best.target = t;
-			}
-		}
+		//			}
+		//		}
+		//	}
+		//}
 
 		// we found a target we can shoot at and deal damage? fuck yeah. (THIS IS TEMPORARY TILL WE REPLACE THE TARGET SELECTION)
-		if (best.damage > 0.f && best.player && best.record)
+		if (best.damage > 0.f && best.player && best.record && best.target) {
 			break;
+		}
 	}
 
 	// verify our target and set needed data.
@@ -694,8 +763,12 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		if (!m_target || m_target->IsDormant() || m_record->dormant || !m_current_matrix || !m_damage || !(m_damage >= best.min_damage || (m_damage <= best.min_damage && m_damage >= m_target->m_iHealth())))
 			return;
 
+
+
 		int nHitChance = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER ? 50 : g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
-		float flCalculatedHitchance = this->CheckHitchance(m_target, m_angle, m_record, best.hitbox);
+		//float flCalculatedHitchance = this->CheckHitchance(m_target, m_angle, m_record, best.hitbox);
+
+		bool flHitchanceValid = g_hit_chance->can_hit(m_record, g_ctx.globals.weapon, m_angle, best.hitbox);
 
 		// autostop between shot (default).
 		if (!this->m_stop)
@@ -703,10 +776,10 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			if (g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER || g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_BETWEEN_SHOT])
 				this->m_stop = true;
 			// autostop hitchance fail.
-			else if (g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_HITCHANCE_FAIL] && flCalculatedHitchance < nHitChance)
+			else if (g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_HITCHANCE_FAIL] && !flHitchanceValid)
 				this->m_stop = true;
 
-			
+
 		}
 
 		this->AutoStop(m_pcmd);
@@ -716,7 +789,7 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		if (can_scope)
 		{
 			// hitchance fail.
-			if (flCalculatedHitchance < nHitChance)
+			if (!flHitchanceValid)
 			{
 				m_pcmd->m_buttons |= IN_ATTACK2;
 				g_EnginePrediction->RePredict();
@@ -724,10 +797,13 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			}
 		}
 
-		if (flCalculatedHitchance > nHitChance)
+		if (flHitchanceValid)
 		{
-			if (g_cfg.ragebot.autoshoot) {
+
+			if (g_cfg.ragebot.autoshoot)
+			{
 				m_pcmd->m_buttons |= IN_ATTACK;
+				g_Ragebot->m_firing = true;
 
 			}
 		}
@@ -1031,7 +1107,7 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 	// get player hp.
 	int hp = min(100, record->player->m_iHealth());
-	auto force_safe_points = key_binds::get().get_key_bind_state(3) || this->m_missed_shots && this->m_missed_shots >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount;
+	auto force_safe_points = key_binds::get().get_key_bind_state(3) || g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses && this->m_missed_shots >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount;
 
 	m_matrix = record->m_Matricies[MiddleMatrix].data();
 
@@ -1089,8 +1165,14 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 		if (!SetupHitboxPoints(record, m_matrix, it.m_index, points))
 			continue;
 
+
+
 		// iterate points on hitbox.
 		for (const auto& point : points) {
+
+			if (g_cfg.player.show_multi_points)
+				g_Ragebot->m_debug_points.emplace_back(point);
+
 			penetration::PenetrationInput_t in;
 
 			in.m_damage = dmg;
@@ -1103,8 +1185,8 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 			penetration::PenetrationOutput_t out;
 
 			//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
-			if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
-				continue;
+			/*if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
+				continue;*/
 
 			// code for safepoint matrix, the point should (!) be a safe point.
 			bool safe =  g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, it.m_index);
@@ -1127,13 +1209,13 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 				// restore trace data
 				restore();
-
+				
 				// nope we did not hit head..
 				if (it.m_index == HITBOX_HEAD && out.m_hitgroup != HITGROUP_HEAD)
 					continue;
 
 				// prefered hitbox, just stop now.
-				if (it.m_mode == HitscanMode::PREFER && !it.m_safepoint)
+				if (it.m_mode == HitscanMode::PREFER)
 					done = true;
 
 				// this hitbox requires lethality to get selected, if that is the case.
@@ -1172,10 +1254,10 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 				// we found a preferred / lethal hitbox.
 				if (done) {
-					if (! g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
-						 g_Ragebot->m_stop = true;
-					if (! g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
-						 g_Ragebot->m_stop = true;
+					if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
+						g_Ragebot->m_stop = true;
+					if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
+						g_Ragebot->m_stop = true;
 
 					// save new best data.
 					scan.m_damage = out.m_damage;
@@ -1184,8 +1266,15 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 					scan.m_safepoint = it.m_mode == HitscanMode::PREFER && it.m_safepoint;
 					scan.m_mode = it.m_mode;
 
+
+
+
+					g_Ragebot->m_working = true;
+
 					break;
 				}
+				else
+					g_Ragebot->m_working = false;
 			}
 			else
 			{
@@ -1203,15 +1292,12 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 	// set out vars.
 	if (scan.m_damage > 0.f)
 	{
-
-
 		point = scan.m_point;
 		damage = scan.m_damage;
 		hitbox = scan.m_hitbox;
 		safe = scan.m_safepoint;
-
-		 g_Ragebot->m_current_matrix = m_matrix;
-
+		g_Ragebot->m_current_matrix = m_matrix;
+		
 		return true;
 	}
 
@@ -1406,6 +1492,273 @@ bool aimbot::CanHit(Vector start, Vector end, adjust_data* record, int box, bool
 
 		// check if we hit a valid player_t / hitgroup on the player_t and increment total hits.
 		if (tr.hit_entity == record->player && util::is_valid_hitgroup(tr.hitgroup))
+			return true;
+	}
+
+	return false;
+}
+
+
+
+
+
+
+void hit_chance::build_seed_table() {
+	constexpr float pi_2 = 2.0f * (float)M_PI;
+	for (size_t i = 0; i < 256; ++i) {
+		math::random_seed(i);
+
+		const float rand_a = math::random_float(0.0f, 1.0f);
+		const float rand_pi_a = math::random_float(0.0f, pi_2);
+		const float rand_b = math::random_float(0.0f, 1.0f);
+		const float rand_pi_b = math::random_float(0.0f, pi_2);
+
+		hit_chance_records[i] = {
+			{  rand_a, rand_b                                 },
+			{  std::cos(rand_pi_a), std::sin(rand_pi_a)     },
+			{  std::cos(rand_pi_b), std::sin(rand_pi_b)     }
+		};
+	}
+}
+
+bool hit_chance::intersects_bb_hitbox(Vector start, Vector delta, Vector min, Vector max) {
+	float d1, d2, f;
+	auto start_solid = true;
+	auto t1 = -1.0, t2 = 1.0;
+
+	const float _start[3] = { start.x, start.y, start.z };
+	const float _delta[3] = { delta.x, delta.y, delta.z };
+	const float mins[3] = { min.x, min.y, min.z };
+	const float maxs[3] = { max.x, max.y, max.z };
+
+	for (auto i = 0; i < 6; ++i) {
+		if (i >= 3) {
+			const auto j = (i - 3);
+
+			d1 = _start[j] - maxs[j];
+			d2 = d1 + _delta[j];
+		}
+		else {
+			d1 = -_start[i] + mins[i];
+			d2 = d1 - _delta[i];
+		}
+
+		if (d1 > 0 && d2 > 0) {
+			start_solid = false;
+			return false;
+		}
+
+		if (d1 <= 0 && d2 <= 0)
+			continue;
+
+		if (d1 > 0)
+			start_solid = false;
+
+		if (d1 > d2) {
+			f = d1;
+			if (f < 0)
+				f = 0;
+
+			f /= d1 - d2;
+			if (f > t1)
+				t1 = f;
+		}
+		else {
+			f = d1 / (d1 - d2);
+			if (f < t2)
+				t2 = f;
+		}
+	}
+
+	return start_solid || (t1 < t2&& t1 >= 0.0f);
+}
+
+bool __vectorcall hit_chance::intersects_hitbox(Vector eye_pos, Vector end_pos, Vector min, Vector max, float radius) {
+	auto dist = math::segment_to_segment(eye_pos, end_pos, min, max);
+
+	return (dist < radius);
+}
+
+std::vector<hit_chance::hitbox_data_t> hit_chance::get_hitbox_data(adjust_data* log, int hitbox) {
+	std::vector<hitbox_data_t> hitbox_data;
+	auto target = static_cast<player_t*>(m_entitylist()->GetClientEntity(log->player->EntIndex()));
+
+	const auto model = target->GetClientRenderable()->GetModel();
+
+	if (!model)
+		return {};
+
+
+	auto hdr = m_modelinfo()->GetStudioModel(model);
+
+	if (!hdr)
+		return {};
+
+	auto set = hdr->pHitboxSet(log->player->m_nHitboxSet());
+
+	if (!set)
+		return {};
+
+	//we use 128 bones that not proper use aim matrix there
+	auto bone_matrix = log->m_Matricies[MatrixBoneSide::MiddleMatrix].data();
+
+	Vector min, max;
+
+	if (hitbox == -1) {
+		for (int i = 0; i < set->numhitboxes; ++i) {
+			const auto box = set->pHitbox(i);
+
+			if (!box)
+				continue;
+
+			float radius = box->radius;
+			const auto is_capsule = radius != -1.f;
+
+			if (is_capsule) {
+				math::vector_transform(box->bbmin, bone_matrix[box->bone], min);
+				math::vector_transform(box->bbmax, bone_matrix[box->bone], max);
+			}
+			else {
+				math::vector_transform(math::vector_rotate(box->bbmin, box->rotation), bone_matrix[box->bone], min);
+				math::vector_transform(math::vector_rotate(box->bbmax, box->rotation), bone_matrix[box->bone], max);
+				radius = min.DistTo(max);
+			}
+
+			hitbox_data.emplace_back(hitbox_data_t{ min, max, radius, box, box->bone, box->rotation });
+		}
+	}
+	else {
+		const auto box = set->pHitbox(hitbox);
+
+		if (!box)
+			return {};
+
+		float radius = box->radius;
+		const auto is_capsule = radius != -1.f;
+
+		if (is_capsule) {
+			math::vector_transform(box->bbmin, bone_matrix[box->bone], min);
+			math::vector_transform(box->bbmax, bone_matrix[box->bone], max);
+		}
+		else {
+			math::vector_transform(math::vector_rotate(box->bbmin, box->rotation), bone_matrix[box->bone], min);
+			math::vector_transform(math::vector_rotate(box->bbmax, box->rotation), bone_matrix[box->bone], max);
+			radius = min.DistTo(max);
+		}
+
+		hitbox_data.emplace_back(hitbox_data_t{ min, max, radius, box, box->bone, box->rotation });
+	}
+
+	return hitbox_data;
+}
+
+Vector hit_chance::get_spread_direction(weapon_t* weapon, Vector angles, int seed) {
+	if (!weapon)
+		return Vector();
+
+	const int   rnsd = (seed & 0xFF);
+	const auto* data = &hit_chance_records[rnsd];
+
+	if (!data)
+		return Vector();
+
+	float rand_a = data->random[0];
+	float rand_b = data->random[1];
+
+	if (weapon->m_iItemDefinitionIndex() == WEAPON_NEGEV) {
+		auto weapon_info = weapon ? g_ctx.globals.weapon->get_csweapon_info() : nullptr;
+
+		if (weapon_info && weapon_info->iRecoilSeed < 3) {
+			rand_a = 1.0f - std::pow(rand_a, static_cast<float>(3 - weapon_info->iRecoilSeed + 1));
+			rand_b = 1.0f - std::pow(rand_b, static_cast<float>(3 - weapon_info->iRecoilSeed + 1));
+		}
+	}
+
+	//must write from predition
+	const float rand_inaccuracy = rand_a * g_ctx.globals.inaccuracy;
+	const float rand_spread = rand_b * g_ctx.globals.spread;
+
+	const float spread_x = data->inaccuracy[0] * rand_inaccuracy + data->spread[0] * rand_spread;
+	const float spread_y = data->inaccuracy[1] * rand_inaccuracy + data->spread[1] * rand_spread;
+
+	Vector forward, right, up;
+	math::angle_vectors(angles, &forward, &right, &up);
+
+	return forward + right * spread_x + up * spread_y;
+}
+
+bool hit_chance::can_intersect_hitbox(const Vector start, const Vector end, Vector spread_dir, adjust_data* log, int hitbox)
+{
+	const auto hitbox_data = get_hitbox_data(log, hitbox);
+
+	if (hitbox_data.empty())
+		return false;
+
+	auto intersected = false;
+	Vector delta;
+	Vector start_scaled;
+
+	for (const auto& it : hitbox_data) {
+		const auto is_capsule = it.m_radius != -1.f;
+		if (!is_capsule) {
+			math::vector_i_transform(start, log->m_Matricies[MatrixBoneSide::MiddleMatrix].data()[it.m_bone], start_scaled);
+			math::vector_i_rotate(spread_dir * 8192.f, log->m_Matricies[MatrixBoneSide::MiddleMatrix].data()[it.m_bone], delta);
+			if (intersects_bb_hitbox(start_scaled, delta, it.m_min, it.m_max)) {
+				intersected = true;
+				break; //note - AkatsukiSun: cannot hit more than one hitbox.
+			}
+		}
+		else if (intersects_hitbox(start, end, it.m_min, it.m_max, it.m_radius)) {
+			intersected = true;
+			break;//note - AkatsukiSun: cannot hit more than one hitbox.
+		}
+		else {
+			intersected = false;
+			break;
+		}
+	}
+
+	return intersected;
+}
+
+bool hit_chance::can_hit(adjust_data* log, weapon_t* weapon, Vector angles, int hitbox) {
+
+	auto target = static_cast<player_t*>(m_entitylist()->GetClientEntity(log->player->EntIndex()));
+
+	if (!target || !weapon)
+		return false;
+
+	auto weapon_info = weapon ? g_ctx.globals.weapon->get_csweapon_info() : nullptr;
+
+	if (!weapon_info)
+		return false;
+
+	if (g_ctx.globals.isshifting)
+		return true;
+
+	build_seed_table();
+
+	if ((weapon->m_iItemDefinitionIndex() == WEAPON_SSG08 || weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER) && !(g_ctx.local()->m_fFlags() & FL_ONGROUND)) {
+		if ((g_ctx.globals.inaccuracy < 0.009f)) {
+			return true;
+		}
+	}
+
+	const Vector eye_pos = g_ctx.local()->GetEyePosition();
+	Vector start_scaled = { };
+	const auto hitchance_cfg = g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
+	const int hits_needed = (hitchance_cfg * 256) / 100;
+	int hits = 0;
+
+	for (int i = 0; i < 256; ++i) {
+
+		Vector spread_dir = get_spread_direction(weapon, angles, i);
+		Vector end_pos = eye_pos + (spread_dir * 8192.f);
+
+		if (can_intersect_hitbox(eye_pos, end_pos, spread_dir, log, hitbox))
+			hits++;
+
+		if (hits >= hits_needed)
 			return true;
 	}
 

@@ -355,6 +355,7 @@ public:
     float                       m_fMinVal;
     bool                        m_bHasMax;
     float                       m_fMaxVal;
+    unsigned char               pad[0x10];
 
     // Call this function when ConVar changes
     CUtlVector<FnChangeCallback_t> m_fnChangeCallbacks;

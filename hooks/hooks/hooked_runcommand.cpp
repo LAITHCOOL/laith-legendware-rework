@@ -131,14 +131,14 @@ bool __stdcall hooks::hooked_inprediction()
 	return original_fn(m_prediction());
 }
 
-
+#include "../../cheats/tickbase shift/TickbaseManipulation.h"
 typedef void(__cdecl* clMove_fn)(float, bool);
 
 void __cdecl hooks::Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTick)
 {
 	g_Networking->start_network();
 
-	if (g_ctx.globals.startcharge&& g_ctx.globals.tocharge < g_ctx.globals.tochargeamount)
+	if (g_ctx.globals.startcharge && g_ctx.globals.tocharge < g_ctx.globals.tochargeamount)
 	{
 		g_ctx.globals.tocharge++;
 		g_ctx.globals.ticks_allowed = g_ctx.globals.tocharge;
@@ -159,6 +159,39 @@ void __cdecl hooks::Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTi
 	}
 	g_ctx.globals.isshifting = false;
 	g_ctx.globals.block_charge = false;
+
+	/*if (g_ctx.local()->is_alive() && g_Exploits->recharging(g_ctx.get_command())) {
+		g_EnginePrediction->UpdatePrediction();
+		return;
+	}*/
+
+	//(clMove_fn(hooks::original_clmove)(flAccumulatedExtraSamples, bFinalTick));
+
+	//if (!g_ctx.local()->is_alive())
+	//	return;
+
+	//if (!g_Exploits->cl_move.shift)
+	//	return;
+
+	//if (m_clientstate()->iChokedCommands == 0) {
+	//	g_ctx.send_packet = false;
+	//	return;
+	//}
+
+	//while (g_Exploits->cl_move.amount >= 0) {
+	//	if (g_Exploits->cl_move.amount >= g_Exploits->amounts.dt_shift)
+	//		g_ctx.send_packet = false;
+
+	//	g_EnginePrediction->UpdatePrediction();
+
+	//	g_Exploits->cl_move.shifting = true;
+	//	(clMove_fn(hooks::original_clmove)(0.f, g_Exploits->cl_move.amount <= 0));
+
+	//	g_Exploits->cl_move.amount--;
+	//}
+
+	//g_Exploits->cl_move.shift = false;
+	//g_Exploits->cl_move.shifting = false;
 }
 
 
@@ -246,9 +279,28 @@ bool __fastcall hooks::handle_break_lc(void* ecx, void* edx, const int slot, bf_
 	}
 }
 
+class CLC_Move {
+private:
+	char __PAD0[0x8]; // 0x0 two vtables
+public:
+	int backup_commands;
+	int new_commands;
+	std::string* data;
+	bf_write* data_out;
+	bf_read* data_in;
+};                       // size: 0x50
+
+template < typename T >
+class CNetMessagePB : public INetMessage, public T {};
+using CCLCMsg_Move_t = CNetMessagePB< CLC_Move >;
+
 bool __fastcall hooks::hooked_writeusercmddeltatobuffer(void* ecx, void* edx, int slot, bf_write* buf, int from, int to, bool is_new_command)
 {
 	static auto original_fn = client_hook->get_func_address <WriteUsercmdDeltaToBuffer_t>(24);
+
+
+	if (!g_ctx.local() || !g_ctx.local()->is_alive())
+		return original_fn(ecx, slot, buf, from, to, is_new_command);
 
 	if (!g_ctx.globals.tickbase_shift)
 		return original_fn(ecx, slot, buf, from, to, is_new_command);
@@ -263,30 +315,37 @@ bool __fastcall hooks::hooked_writeusercmddeltatobuffer(void* ecx, void* edx, in
 
 	uintptr_t frame_ptr;
 	__asm mov frame_ptr, ebp;
+	
+	CCLCMsg_Move_t* msg = reinterpret_cast<CCLCMsg_Move_t*>(frame_ptr + 0xFCC);
 
 	auto backup_commands = reinterpret_cast <int*> (frame_ptr + 0xFD8);
 	auto new_commands = reinterpret_cast <int*> (frame_ptr + 0xFDC);
 
+	return should_shift_cmd(new_commands, backup_commands, ecx, slot, buf, from, to);
+}
+
+bool  hooks::should_shift_cmd(int* new_commands, int* backup_commands, void* ecx, int slot, void* buf, int from, int to) {
+	static auto original = client_hook->get_func_address <WriteUsercmdDeltaToBuffer_t>(24);
+
 	auto newcmds = *new_commands;
-	auto shift = g_ctx.globals.tickbase_shift;
+	auto shift_amount = std::clamp(g_ctx.globals.tickbase_shift, 1, 14);
 
 	g_ctx.globals.tickbase_shift = 0;
 	*backup_commands = 0;
 
-	auto choked_modifier = newcmds + shift;
+	auto choked_modifier = newcmds + shift_amount;
 
 	if (choked_modifier > 62)
 		choked_modifier = 62;
 
 	*new_commands = choked_modifier;
 
+	auto final_from = -1;
 	auto next_cmdnr = m_clientstate()->iChokedCommands + m_clientstate()->nLastOutgoingCommand + 1;
 	auto final_to = next_cmdnr - newcmds + 1;
 
-	if (final_to <= next_cmdnr)
-	{
-		while (original_fn(ecx, slot, buf, final_from, final_to, true))
-		{
+	if (final_to <= next_cmdnr) {
+		while (original(ecx, slot, buf, final_from, final_to, true)) {
 			final_from = final_to++;
 
 			if (final_to > next_cmdnr)
@@ -314,8 +373,7 @@ next_cmd:
 	if (newcmds > choked_modifier)
 		return true;
 
-	for (auto i = choked_modifier - newcmds + 1; i > 0; --i)
-	{
+	for (auto i = choked_modifier - newcmds + 1; i > 0; --i) {
 		WriteUserCmd(buf, &to_cmd, &from_cmd);
 
 		from_cmd = to_cmd;
@@ -323,10 +381,9 @@ next_cmd:
 		to_cmd.m_tickcount++;
 	}
 
+	g_Tickbase->simulation_amt = choked_modifier - newcmds + 1;
 	return true;
 }
-
-
 
 
 bool __fastcall hooks::hooked_sendnetmsg(INetChannel* pNetChan, void* edx, INetMessage& msg, bool bForceReliable, bool bVoice)
@@ -352,7 +409,7 @@ void __fastcall hooks::Hooked_SetupMove(void* ecx, void* edx, player_t* player, 
 	
 	SetupMove(ecx, player, ucmd, moveHelper, pMoveData);
 
-	if (!player || !m_engine()->IsConnected() || !m_engine()->IsInGame() || !player->is_alive())
+	if (!player || !m_engine()->IsConnected() || !m_engine()->IsInGame() || !player->is_alive() || !g_ctx.local())
 		return;
 
 	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && !(g_ctx.get_command()->m_buttons & IN_JUMP))
@@ -380,7 +437,7 @@ bool __fastcall hooks::Hooked_IsPaused(void* ecx, void* edx)
 	if (_ReturnAddress() == (void*)return_to_extrapolation)
 		return true;
 
-	if (_ReturnAddress() == (uint32_t*)return_to_interpolate)
+	if (_ReturnAddress() == (void*)return_to_interpolate)
 		return true;
 
 	return IsPaused(ecx, edx);

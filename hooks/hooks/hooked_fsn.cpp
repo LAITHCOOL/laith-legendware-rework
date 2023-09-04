@@ -433,7 +433,7 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 	
 
 
-	lagcompensation::get().fsn(stage);
+	g_Lagcompensation->fsn(stage);
 	//C_LagComp::get().RunLagComp(stage);
 
 	g_Networking->process_interpolation(stage, false);

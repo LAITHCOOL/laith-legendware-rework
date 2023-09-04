@@ -160,6 +160,8 @@ namespace hooks
 	//void __cdecl hooked_clmove(float accumulated_extra_samples, bool bFinalTick);
 	bool __fastcall hooked_writeusercmddeltatobuffer(void* ecx, void* edx, int slot, bf_write* buf, int from, int to, bool is_new_command);
 
+	bool should_shift_cmd(int* new_commands, int* backup_commands, void* ecx, int slot, void* buf, int from, int to);
+
 	bool __fastcall hooked_sendnetmsg(INetChannel* pNetChan, void* edx, INetMessage& msg, bool bForceReliable, bool bVoice);
 
 	void __fastcall Hooked_SetupMove(void* ecx, void* edx, player_t* player, CUserCmd* ucmd, IMoveHelper* moveHelper, void* pMoveData);

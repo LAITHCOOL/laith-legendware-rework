@@ -66,13 +66,64 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 
 		if (update)
 		{
-			//g_Lagcompensation->ProccessShiftingPlayers(e, record, previous_record);
+			g_Lagcompensation->ProccessShiftingPlayers(e, record, previous_record);
 			if (!player_records[i].empty())
 				g_Lagcompensation->SimulatePlayerAnimations(e, record, previous_record);
 		}
 
-		while (player_records[i].size() > 32)
+		while (player_records[i].size() > g_Networking->tickrate())
 			player_records[i].pop_back();
+	}
+}
+
+void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
+{
+	if (previous_record && record)
+	{
+		if (!e || !e->is_alive())
+			return;
+
+		/* Check tickbase exploits */
+		if (previous_record->simulation_time > record->simulation_time)
+			HandleTickbaseShift(e, record);
+
+		/* Invalidate records for defensive and break lc */
+		if (record->simulation_time <= record->m_flExploitTime)
+		{
+			/* Don't care at all about this cases if we have anti-exploit */
+			record->invalid = true;
+			record->m_bHasBrokenLC = true;
+		}
+
+		/* handle break lagcompensation by high speed and fakelags */
+		if (previous_record->m_bRestoreData)
+		{
+			if ((record->origin - previous_record->origin).Length2DSqr() > 4096.0f)
+			{
+				record->m_bHasBrokenLC = true;
+				return CleanPlayer(e, record);
+			}
+		}
+
+		/* Determine simulation ticks */
+		/* Another code for tickbase shift */
+		if (record->simulation_time < previous_record->simulation_time)
+		{
+			record->invalid = true;
+			record->m_bHasBrokenLC = true;
+
+			if (previous_record->m_bRestoreData)
+				record->m_nSimulationTicks = TIME_TO_TICKS(record->old_simtime - previous_record->old_simtime);
+			else
+				record->m_nSimulationTicks = previous_record->m_nSimulationTicks;
+		}
+		else
+		{
+			if (previous_record->m_bRestoreData)
+				record->m_nSimulationTicks = TIME_TO_TICKS(record->simulation_time - previous_record->simulation_time);
+			else
+				record->m_nSimulationTicks = TIME_TO_TICKS(record->simulation_time - record->old_simtime);
+		}
 	}
 }
 
@@ -102,90 +153,6 @@ void lagcompensation::fsn(ClientFrameStage_t stage)
 	Threading::FinishQueue();
 }
 
-//void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
-//{
-//	if (record)
-//	{
-//		if (!e || !e->is_alive())
-//			return;
-//
-//		/* Check tickbase exploits */
-//		if (e->m_flSimulationTime() < e->m_flOldSimulationTime())
-//		{
-//			record->invalid = true;
-//			record->m_bHasBrokenLC = true;
-//		}
-//
-//		if ((e->m_vecOrigin() - record->origin).LengthSqr() > 4096.0f)
-//		{
-//			for (auto& record : player_records[e->EntIndex()])
-//				record.invalid = true;
-//		}
-//	}
-//}
-
-void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
-{
-	if (previous_record && record)
-	{
-		if (!e || !e->is_alive())
-			return;
-
-		/* Invalidate records for defensive and break lc */
-		if (previous_record->simulation_time >= record->simulation_time)
-		{
-			/* Don't care at all about this cases if we have anti-exploit */
-			record->invalid = true;
-			record->m_bHasBrokenLC = true;
-		}
-
-		/* Check tickbase exploits */
-		//if (previous_record->simulation_time > record->simulation_time)
-		//	HandleTickbaseShift(e, record);
-
-		///* Invalidate records for defensive and break lc */
-		//if (record->simulation_time <= record->m_flExploitTime)
-		//{
-		//	/* Don't care at all about this cases if we have anti-exploit */
-		//	record->invalid = true;
-		//	record->m_bHasBrokenLC = true;
-		//}
-
-		/* handle break lagcompensation by high speed and fakelags */
-		/*if (previous_record->m_bRestoreData)
-		{
-			if ((record->origin - previous_record->origin).LengthSqr() > 4096.0f)
-			{
-				record->m_bHasBrokenLC = true;
-				return CleanPlayer(e, record);
-			}
-		}*/
-		if ((record->origin - previous_record->origin).LengthSqr() > 4096.0f)
-		{
-			record->m_bHasBrokenLC = true;
-			return CleanPlayer(e, record);
-		}
-		/* Determine simulation ticks */
-		/* Another code for tickbase shift */
-		if (record->simulation_time < previous_record->simulation_time)
-		{
-			record->invalid = true;
-			record->m_bHasBrokenLC = true;
-
-			if (previous_record->m_bRestoreData)
-				record->m_nSimulationTicks = TIME_TO_TICKS(record->old_simtime - previous_record->old_simtime);
-			else
-				record->m_nSimulationTicks = previous_record->m_nSimulationTicks;
-		}
-		else
-		{
-			if (previous_record->m_bRestoreData)
-				record->m_nSimulationTicks = TIME_TO_TICKS(record->simulation_time - previous_record->simulation_time);
-			else
-				record->m_nSimulationTicks = TIME_TO_TICKS(record->simulation_time - record->old_simtime);
-		}
-	}
-}
 
 void lagcompensation::HandleTickbaseShift(player_t* pPlayer, adjust_data* record)
 {
@@ -1081,26 +1048,6 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 			/* Activity simulation */
 			if (flSimulationTime < record->simulation_time)
 			{
-
-				auto PreviousLby = previous_record->lby;
-				auto CurrentLby = record->lby;
-
-				if (PreviousLby != CurrentLby)
-				{
-					auto TicksLeft = record->m_nSimulationTicks - iSimulationTick;
-					bool UseNewLby = true;
-
-					if (record->lby_diff < 1.f)
-						UseNewLby = TicksLeft == 0;
-					else
-						UseNewLby = TicksLeft < 2;
-
-					if (!UseNewLby)
-						CurrentLby = PreviousLby;
-
-					e->m_flLowerBodyYawTarget() = CurrentLby;
-				}
-
 				/* Simulate shoot */
 				if (record->shot)
 				{
@@ -1108,6 +1055,25 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 						e->m_flThirdpersonRecoil() = previous_record->m_flThirdPersonRecoil;
 					else
 					{
+						auto prev_lby = previous_record->lby;
+						auto cur_lby = record->lby;
+
+						if (prev_lby != cur_lby)
+						{
+							auto v40 = record->m_nSimulationTicks - iSimulationTick;
+							bool use_new_lby = true;
+
+							if (record->lby_diff < 1.f)
+								use_new_lby = v40 == 0;
+							else
+								use_new_lby = v40 < 2;
+
+							if (!use_new_lby)
+								cur_lby = prev_lby;
+
+							e->m_flLowerBodyYawTarget() = cur_lby;
+						}
+
 						e->m_angEyeAngles() = record->angles;
 						e->m_flThirdpersonRecoil() = record->m_flThirdPersonRecoil;
 					}
@@ -1202,10 +1168,9 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 
 	UpdatePlayerAnimations(e, record, animstate);
 
-	e->setup_bones_latest(record->m_Matricies[MiddleMatrix].data(), false);
-	memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[MiddleMatrix].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-
-	//SetBones(record->m_Matricies[MiddleMatrix].data(), e);
+	//e->setup_bones_latest(record->m_Matricies[MiddleMatrix].data(), false);
+	SetBones(record->m_Matricies[MiddleMatrix].data(), e);
+	//memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[MiddleMatrix].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
 	if (previous_record)
 		memcpy(player_resolver[e->EntIndex()].previous_layers, previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));

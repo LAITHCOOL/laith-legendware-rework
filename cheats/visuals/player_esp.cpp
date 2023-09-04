@@ -5,7 +5,7 @@
 #include "..\misc\misc.h"
 #include "..\ragebot\aim.h"
 #include "dormant_esp.h"
-
+#include "../ragebot/aim.h"
 class RadarPlayer_t
 {
 public:
@@ -212,8 +212,8 @@ void playeresp::paint_traverse()
 					g_Misc->PovArrows(e, color);
 				}
 
-				/*if (!e->IsDormant())
-					draw_multi_points(e);*/
+				if (!e->IsDormant())
+					draw_multi_points(e);
 			}
 		}
 
@@ -655,14 +655,35 @@ void playeresp::draw_flags(player_t* e, const Box& box)
 	if (g_cfg.player.show_resolved)
 	{
 
-		char buffer[64];
+		auto records = &player_records[e->EntIndex()]; //-V826
 
-		snprintf(buffer, sizeof buffer, "%.1f", g_ctx.globals.mlog1[e->EntIndex()]);
+		if (records->empty())
+			return;
+
+		auto record = &records->front();
+
+		if (!record->valid())
+			return;
+
+		char Desyncbuffer[64];
+		snprintf(Desyncbuffer, sizeof Desyncbuffer, "%.1f", record->desync_amount);
+
+		char VelocityBuffery[64];
+		snprintf(VelocityBuffery, sizeof VelocityBuffery, "%.1f", record->velocity.y);
+
+		char VelocityBufferx[64];
+		snprintf(VelocityBufferx, sizeof VelocityBufferx, "%.1f", record->velocity.x);
 
 		auto color = e->IsDormant() ? Color(130, 130, 130, 130) : Color(163, 49, 93);
 		color.SetAlpha(255.0f * esp_alpha_fade[e->EntIndex()]);
 
-		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, buffer);
+		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, Desyncbuffer);
+		_y += 8;
+
+		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, VelocityBuffery);
+		_y += 8;
+
+		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, VelocityBufferx);
 		_y += 8;
 	}
 }
@@ -689,68 +710,61 @@ void playeresp::draw_lines(player_t* e)
 	render::get().line(width / 2, height, angle.x, angle.y, color);
 }
 
-//void playeresp::draw_multi_points(player_t* e)
-//{
-//	if (!g_cfg.ragebot.enable)
-//		return;
-//
-//	if (!g_cfg.player.show_multi_points)
-//		return;
-//
-//	if (!g_ctx.local()->is_alive()) //-V807
-//		return;
-//
-//	if (g_ctx.local()->get_move_type() == MOVETYPE_NOCLIP)
-//		return;
-//
-//	if (g_ctx.globals.current_weapon == -1)
-//		return;
-//
-//	auto weapon = g_ctx.local()->m_hActiveWeapon().Get();
-//
-//	if (weapon->is_non_aim())
-//		return;
-//
-//	auto records = &player_records[e->EntIndex()]; //-V826
-//
-//	if (records->empty())
-//		return;
-//
-//	auto record = &records->front();
-//
-//	if (!record->valid(false))
-//		return;
-//	auto force_safe_points = key_binds::get().get_key_bind_state(3) || g_cfg.player_list.force_safe_points[record->i];
-//	std::vector <scan_point> points; //-V826
-//	auto hitboxes = g_Ragebot->get_hitboxes(record);
-//	auto start = g_ctx.local()->get_shoot_position();
-//	for (auto& hitbox : hitboxes)
-//	{
-//		auto current_points = g_Ragebot->get_points(record, hitbox);
-//
-//		for (auto& point : current_points)
-//		{
-//			point.safe = g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, hitbox);
-//
-//			if (force_safe_points && !point.safe)
-//				continue;
-//
-//			points.emplace_back(point);
-//		}
-//
-//	}
-//
-//	if (points.empty())
-//		return;
-//
-//	for (auto& point : points)
-//	{
-//		Vector screen;
-//
-//		if (!math::world_to_screen(point.point, screen))
-//			continue;
-//
-//		render::get().rect_filled(screen.x - 1, screen.y - 1, 3, 3, g_cfg.player.show_multi_points_color);
-//		render::get().rect(screen.x - 2, screen.y - 2, 5, 5, Color::Black);
-//	}
-//}
+void playeresp::draw_multi_points(player_t* e)
+{
+	if (!g_cfg.ragebot.enable)
+		return;
+
+	if (!g_cfg.player.show_multi_points)
+		return;
+
+	if (!g_ctx.local()->is_alive()) //-V807
+		return;
+
+	if (g_ctx.local()->get_move_type() == MOVETYPE_NOCLIP)
+		return;
+
+	if (g_ctx.globals.current_weapon == -1)
+		return;
+
+	auto weapon = g_ctx.local()->m_hActiveWeapon().Get();
+
+	if (weapon->is_non_aim())
+		return;
+
+	//auto force_safe_points = key_binds::get().get_key_bind_state(3) || g_cfg.player_list.force_safe_points[record->i];
+	//std::vector <scan_point> points; //-V826
+	//auto hitboxes = g_Ragebot->get_hitboxes(record);
+	//auto start = g_ctx.local()->get_shoot_position();
+	//for (auto& hitbox : hitboxes)
+	//{
+	//	auto current_points = g_Ragebot->get_points(record, hitbox);
+
+	//	for (auto& point : current_points)
+	//	{
+	//		point.safe = g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, hitbox);
+
+	//		if (force_safe_points && !point.safe)
+	//			continue;
+
+	//		points.emplace_back(point);
+	//	}
+
+	//}
+
+	if (g_Ragebot->m_debug_points.empty())
+		return;
+
+	for (auto& point : g_Ragebot->m_debug_points)
+	{
+		Vector screen;
+
+
+
+		if (!math::world_to_screen(point.point, screen))
+			continue;
+
+		render::get().rect_filled(screen.x - 1, screen.y - 1, 3, 3, g_cfg.player.show_multi_points_color);
+		render::get().rect(screen.x - 2, screen.y - 2, 5, 5, Color::Black);
+	}
+}

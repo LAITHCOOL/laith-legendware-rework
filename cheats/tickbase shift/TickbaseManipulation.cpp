@@ -3,6 +3,9 @@
 #include "../prediction/EnginePrediction.h"
 #include "../ragebot/aim.h"
 #include "../../hooks/hooks.hpp"
+//bool hs_bind = g_cfg.antiaim.hide_shots_key.key <= KEY_NONE || g_cfg.antiaim.hide_shots_key.key >= KEY_MAX;
+bool hs_bind = g_cfg.antiaim.hide_shots && !g_cfg.ragebot.double_tap;
+bool dt_bind = g_cfg.ragebot.double_tap;
 void CTickBase::store(int tickbase, int cmd, int shift, bool restore, int cmd_diff)
 {
 	this->data.tickbase = tickbase;
@@ -145,357 +148,270 @@ void CTickBase::fix(int new_command_number, int& tickbase)
 //	g_Tickbase->simulation_amt = shift_commands - commands + 1;
 //}
 
-void TickbaseManipulation::ShiftCmd(CUserCmd* cmd, int amount, bool buffer)
-{
-	if (m_charge_ticks < amount)
+void TickbaseManipulation::force_shift(CUserCmd* cmd, int amount, bool buffer) {
+	if (charge_ticks < amount)
 		return;
 
-	if (!m_stop_movement)
-		m_stop_movement = true;
+	if (!stop_movement)
+		stop_movement = true;
 
-	if (!m_teleportshift)
-		m_teleportshift = true;
+	if (!teleportshift)
+		teleportshift = true;
 
-	if (buffer) {
-		m_shift_tick = g_ctx.get_command()->m_command_number;
-		m_shift = amount;
-		m_break_lc = false;
-		return;
-	}
+	shift_tick = g_ctx.get_command()->m_command_number;
 
-	int number = cmd->m_command_number;
-
-	int cmd_cnt = number - 150 * ((number + 1) / 150) + 1;
-	auto new_cmd = &m_input()->m_pCommands[cmd_cnt];
-
-	auto netchan = m_clientstate()->pNetChannel;
-
-	if (!new_cmd || !netchan)
-		return;
-
-	std::memcpy(new_cmd, cmd, sizeof(CUserCmd));
-
-	new_cmd->m_command_number = cmd->m_command_number + 1;
-	new_cmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
-
-	auto ExtendMovement = [&](CUserCmd* cmd) {
-		/*if ((g_cfg.rage.dt_options & 2) && !g_cfg.binds[ap_b].toggled)
-			cmd->forwardmove = cmd->sidemove = 0.f;
-		else*/
-		util::movement_fix_new(g_ctx.globals.original_viewangles, cmd);
-	};
-
-	ExtendMovement(new_cmd);
-
-	for (int i = 0; i < amount; ++i) {
-		int shift_cmd_number = new_cmd->m_command_number + i;
-
-		auto shift_cmd = m_input()->GetUserCmd(shift_cmd_number);
-		auto shift_verified_cmd = m_input()->GetVerifiedUserCmd(shift_cmd_number);
-
-		std::memcpy(shift_cmd, new_cmd, sizeof(CUserCmd));
-
-		shift_cmd->m_command_number = shift_cmd_number;
-		shift_cmd->m_predicted = shift_cmd->m_tickcount != INT_MAX;
-
-		std::memcpy(shift_verified_cmd, shift_cmd, sizeof(CUserCmd));
-		shift_verified_cmd->m_crc = shift_cmd->GetChecksum();
-
-		++m_clientstate()->iChokedCommands;
-		++netchan->m_nChokedPackets;
-		++netchan->m_nOutSequenceNr;
-	}
-
-	*(uint8_t*)((uintptr_t)m_prediction() + 0x24) = 1; // m_bPreviousAckHadErrors 
-	*(uint32_t*)((uintptr_t)m_prediction() + 0x1C) = 0; // m_nCommandsPredicted 
+	cl_move.shift = true;
+	cl_move.amount = amount;
 }
 
-bool TickbaseManipulation::IsRecharging(CUserCmd* cmd)
+bool TickbaseManipulation::recharging(CUserCmd* cmd) 
 {
-	static int choke = 0;
-	if (m_recharge) {
-		if (choke) {
-			g_ctx.send_packet = true;
-			choke = 0;
+
+	if (!cmd)
+		cmd = g_ctx.get_command();
+
+	if (cmd->m_weaponselect)
+		return false;
+
+	static int last_choke = 0;
+	if (recharge && !last_choke) {
+		if (++charge_ticks >= amounts.recharge) {
+			recharge = false;
+			recharge_finish = true;
+			stop_movement = true;
 		}
-		else {
-			if (cmd)
-				cmd->InvalidatePackets();
 
-			if (++m_charge_ticks >= recharge) {
-				m_recharge = false;
-				m_recharge_finish = true;
-				m_stop_movement = true;
-				if (cmd)
-					g_Tickbase->store(g_ctx.local()->m_nTickBase(), cmd->m_command_number, m_charge_ticks, this->HSActive());
-			}
+		shift = 0;
 
-			g_ctx.send_packet = m_charge_ticks >= recharge;
-
-			m_shift = 0;
-			m_toggle_lag = m_lag_shift = false;
-			m_teleportshift = false;
-		}
+		lag_shift = false;
+		toggle_lag = false;
+		teleportshift = false;
 		return true;
 	}
 	else
-		choke = m_clientstate()->iChokedCommands;
+		last_choke = m_clientstate()->iChokedCommands;
 
 	return false;
 }
 
-//void TickbaseManipulation::BypassFakelagLimit()
-//{
-//	auto address = Patterns::send_move_addr.add(1).as<uint8_t*>();
-//
-//	uint32_t choke_clamp = 17;
-//
-//	DWORD old_protect = 0;
-//	VirtualProtect((void*)address, sizeof(uint32_t), PAGE_EXECUTE_READWRITE, &old_protect);
-//	*(uint32_t*)address = choke_clamp;
-//	VirtualProtect((void*)address, sizeof(uint32_t), old_protect, &old_protect);
-//}
+void TickbaseManipulation::on_pre_predict() {
+	this->update_amounts();
 
-void TickbaseManipulation::OnPrePredict()
-{
 	static bool toggle_hs = false;
 	static bool toggle_dt = false;
 
-	if (hs_active) {
+	if (g_cfg.ragebot.enable && hs_bind) {
 		if (!toggle_hs) {
-			m_hs_active = true;
+			hs_active = true;
 			toggle_hs = true;
 		}
 	}
 	else
 		toggle_hs = false;
 
-	if (dt_active) {
+	if (g_cfg.ragebot.enable && dt_bind) {
 		if (!toggle_dt) {
-			m_dt_active = true;
+			dt_active = true;
 			toggle_dt = true;
 		}
 	}
 	else
 		toggle_dt = false;
 
-	bool active = m_dt_enabled && m_dt_active || m_hs_enabled && m_hs_active;
+	bool active = dt_toggled && dt_active || hs_toggled && hs_active;
 
-	if (m_charge_ticks < recharge && active) {
-		m_recharge = true;
-		m_recharge_finish = false;
+	if (charge_ticks < amounts.recharge && active) {
+		recharge = true;
+		recharge_finish = false;
 	}
 }
 
-void TickbaseManipulation::DoubleTap()
-{
-	static bool recharge = false;
+void TickbaseManipulation::double_tap() {
+	static bool toggle_charge = false;
 
-	if (recharge) {
-		recharge = false;
-		m_charge_dt = true;
-		this->ResetShift();
+	if (toggle_charge) {
+		toggle_charge = false;
+		charge_dt = true;
+		this->reset_shift();
 		return;
 	}
 
 	static int last_dt_tick = 0;
 
-	if (m_charge_dt) {
+	if (charge_dt) {
 		float shot_diff = std::abs(g_ctx.globals.weapon->m_fLastShotTime() - m_globals()->m_curtime);
-		bool shot_finish = shot_diff >= 0.45f;
-		if (shot_finish && !g_ctx.globals.aimbot_working) {
-			if (!dt_active)
-				m_teleport = false;
+		bool shot_finish = shot_diff >= 0.3f && !cl_move.shift;
+		if (shot_finish && !g_Ragebot->m_working && !m_clientstate()->iChokedCommands) {
+			if (!dt_bind)
+				teleport = false;
 			else
-				m_teleport = true;
+				teleport = true;
 
-			m_dt_bullet = 0;
-			m_charge_dt = false;
-			m_dt_active = true;
+			dt_bullet = 0;
+			charge_dt = false;
+			dt_active = true;
 		}
 		else if (g_ctx.get_command()->m_buttons & IN_ATTACK) {
-			m_dt_bullet++;
+			dt_bullet++;
 
 			last_dt_tick = m_globals()->m_tickcount;
 		}
 
-		m_shift_tick = 0;
+		shift_tick = 0;
 		return;
 	}
 
 	if (g_ctx.globals.fakeducking) {
-		m_dt_enabled = false;
+		dt_toggled = false;
 
-		if (!m_dt_off) {
-			m_stop_movement = true;
+		if (!dt_off) {
+			stop_movement = true;
 
-			if (m_teleport) {
-				//this->ShiftCmd(g_ctx.get_command(), dt_shift);
-				g_ctx.globals.shift_ticks = dt_shift;
-				m_teleport = false;
+			if (teleport) {
+				this->force_shift(g_ctx.get_command(), amounts.dt_shift - 1);
+				teleport = false;
 			}
 
-			m_dt_off = true;
+			dt_off = true;
 		}
 
-		this->ResetShift();
+		this->reset_shift();
 
 		return;
 	}
 
-	if (!dt_active)
-	{
-		m_dt_enabled = false;
+	if (!dt_bind) {
+		dt_toggled = false;
 
-		if (!hs_active && !m_dt_off)
-		{
-			m_stop_movement = true;
+		if (!hs_bind && !dt_off) {
+			stop_movement = true;
 
-			if (m_teleport) {
-				//this->ShiftCmd(g_ctx.get_command(), dt_shift);
-				g_ctx.globals.shift_ticks = dt_shift;
-				m_teleport = false;
+			if (teleport) {
+				this->force_shift(g_ctx.get_command(), amounts.dt_shift - 1);
+				teleport = false;
 			}
 
-			this->ResetShift();
+			this->reset_shift();
 
-			m_dt_off = true;
+			dt_off = true;
 		}
 		return;
 	}
 
-	m_dt_enabled = true;
-	m_dt_off = false;
+	dt_toggled = true;
+	dt_off = false;
 
-	if (!m_recharge_finish)
+	if (!recharge_finish)
 		return;
 
-	if (!m_teleport)
-		m_teleport = true;
+	if (!teleport)
+		teleport = true;
 
-	if (g_ctx.globals.weapon->is_non_aim()) {
-		m_lag_shift = false;
-		m_toggle_lag = false;
-		m_shift = dt_shift;
-		m_break_lc = true;
-		m_shift_timer = 0;
+	if (g_ctx.globals.weapon->is_non_aim() && !g_ctx.globals.weapon->is_knife()) {
+		lag_shift = false;
+		toggle_lag = false;
+		break_lc = true;
+		shift = amounts.dt_shift;
+		shift_timer = 0;
 		return;
 	}
 
 	if (!g_ctx.get_command()->m_weaponselect && g_Misc->IsFiring()) {
-		//this->ShiftCmd(g_ctx.get_command(), dt_shift, true);
-		g_ctx.globals.shift_ticks = dt_shift;
+		this->force_shift(g_ctx.get_command(), amounts.dt_shift - 1, true);
+
 		last_dt_tick = m_globals()->m_tickcount;
 
-		m_dt_bullet++;
-		m_dt_enabled = false;
-		m_dt_active = false;
-		m_lag_shift = false;
-		m_toggle_lag = false;
-		recharge = true;
-		g_ctx.send_packet = true;
+		dt_bullet++;
+
+		dt_toggled = false;
+		dt_active = false;
+		lag_shift = false;
+		toggle_lag = false;
+		toggle_charge = true;
 		return;
 	}
-	bool peeking = g_Ragebot->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true);
-	if (peeking && (g_cfg.ragebot.defensive_doubletap) && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER) {
-		if (!m_toggle_lag) {
-			if (!m_lag_shift) {
-				m_shift_timer = dt_shift;
-				m_lag_shift = true;
+
+	if (g_Ragebot->is_peeking_enemy(8) && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER && !g_ctx.globals.weapon->is_non_aim()) {
+		if (!toggle_lag) {
+			if (!lag_shift) {
+				shift_timer = 0;
+				lag_shift = true;
 			}
 
-			m_toggle_lag = true;
+			toggle_lag = true;
 		}
 	}
 	else {
-		m_lag_shift = false;
-		m_toggle_lag = false;
+		lag_shift = false;
+		toggle_lag = false;
 	}
 
-	if (m_lag_shift) {
-		if (m_shift_timer == dt_shift && g_ctx.send_packet) {
-			m_shift = 0;
+	if (lag_shift) {
+		shift = shift_timer > 0 ? amounts.dt_shift : 0;
 
-			if (m_break_lc)
-				g_Tickbase->store(g_ctx.local()->m_nTickBase(), g_ctx.get_command()->m_command_number, -dt_shift + 1, false);
-
-			m_break_lc = false;
-			--m_shift_timer;
+		if (++shift_timer >= amounts.dt_shift) {
+			shift_timer = 0;
+			lag_shift = false;
 		}
-		else {
-			if (m_shift_timer < dt_shift && m_shift_timer > 0) {
-				m_shift = dt_shift;
-
-				if (!m_break_lc && g_Tickbase->simulation_amt)
-					g_Tickbase->store(g_ctx.local()->m_nTickBase(), g_ctx.get_command()->m_command_number, g_Tickbase->simulation_amt, false);
-
-				m_break_lc = true;
-				--m_shift_timer;
-			}
-		}
-
-		if (m_shift_timer <= 0)
-			m_lag_shift = false;
 	}
 	else {
-		m_shift = dt_shift;
-		m_break_lc = true;
-		m_shift_timer = 0;
+		shift = amounts.dt_shift;
+		shift_timer = 0;
+		toggle_lag = false;
 	}
+
+	/*static vector3d origin{};
+	if (!shift)
+		interfaces::debug_overlay->add_text_overlay(g_ctx.local->origin(), 3.f,
+			"*");*/
 }
 
-void TickbaseManipulation::HideShots()
-{
+void TickbaseManipulation::hide_shots() {
 	if (g_ctx.globals.fakeducking) {
-		m_hs_enabled = false;
-		m_hs_works = false;
+		hs_toggled = false;
+		hs_works = false;
 
-		if (!m_hs_off) {
-			m_stop_movement = true;
-			//this->ShiftCmd(g_ctx.get_command(), dt_shift);
-			g_ctx.globals.shift_ticks = dt_shift;
-			m_hs_off = true;
+		if (!hs_off) {
+			stop_movement = true;
+			this->force_shift(g_ctx.get_command(), amounts.dt_shift - 1);
+			hs_off = true;
 		}
 
-		this->ResetShift();
+		this->reset_shift();
 		return;
 	}
 
-	if (!hs_active || dt_active)
-	{
-		m_hs_enabled = false;
-		m_hs_works = false;
+	if (!hs_bind || dt_bind) {
+		hs_toggled = false;
+		hs_works = false;
 
-		if (!dt_active && !m_hs_off)
-		{
-			m_stop_movement = true;
-			//this->ShiftCmd(g_ctx.get_command(), dt_shift);
-			g_ctx.globals.shift_ticks = dt_shift;
-			this->ResetShift();
+		if (!dt_bind && !hs_off) {
+			stop_movement = true;
+			this->force_shift(g_ctx.get_command(), amounts.dt_shift - 1);
+			this->reset_shift();
 
-			m_hs_off = true;
+			hs_off = true;
 		}
 		return;
 	}
 
-	m_hs_enabled = true;
-	m_hs_off = false;
-	m_hs_works = false;
+	hs_toggled = true;
+	hs_off = false;
+	hs_works = false;
 
-	if (!m_recharge_finish)
+	if (!recharge_finish)
 		return;
 
 	if (g_ctx.globals.weapon->is_non_aim() || g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER)
 		return;
 
-	int shift_cnt = hs_shift;
-	if ((g_ctx.globals.aimbot_shooting|| g_Misc->IsFiring())) {
+	int shift_cnt = amounts.hs_shift;
+	if ((g_Ragebot->m_firing || g_Misc->IsFiring())) {
 		if (g_ctx.send_packet) {
-			m_hs_works = true;
-			m_shift = shift_cnt;
-			m_break_lc = true;
+			hs_works = true;
+			shift = shift_cnt;
 
-			g_Tickbase->store(g_ctx.local()->m_nTickBase(), g_ctx.get_command()->m_command_number, shift_cnt + 1, true);
+			//g_tickbase->store(g_ctx.local->tickbase(), g_ctx.get_command()->m_command_number, shift_cnt + 1, true);
 		}
 		else
 			g_ctx.get_command()->m_buttons &= ~IN_ATTACK;
@@ -504,8 +420,13 @@ void TickbaseManipulation::HideShots()
 		g_ctx.get_command()->m_buttons &= ~IN_ATTACK;
 }
 
-void TickbaseManipulation::OnPredictStart()
-{
-	this->DoubleTap();
-	this->HideShots();
+void TickbaseManipulation::on_predict_start() {
+	if (cl_move.shift)
+		return;
+
+	this->double_tap();
+	this->hide_shots();
+
+	if (!key_binds::get().get_key_bind_state(18))
+		g_Ragebot->m_firing = false;
 }

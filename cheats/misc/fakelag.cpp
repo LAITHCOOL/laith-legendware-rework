@@ -180,9 +180,9 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 		}
 
 
-		else if (g_ctx.globals.exploits && g_cfg.ragebot.defensive_doubletap)
+		else if (g_ctx.globals.exploits && g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.isshifting)
 		{
-			if (g_ctx.globals.isshifting) 
+			/*if (g_ctx.globals.isshifting) 
 			{
 				started_peeking = false;
 
@@ -199,9 +199,17 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 					g_ctx.send_packet = false;
 				else
 					g_ctx.send_packet = true;
-			}
+			}*/
+
+
+			started_peeking = false;
+
+			if (choked <= g_cfg.ragebot.fakelag_exploits)
+				g_ctx.send_packet = false;
+			else
+				g_ctx.send_packet = true;
 		}
-		else if (g_ctx.globals.exploits)
+		else if (g_ctx.globals.exploits && !g_ctx.globals.isshifting)
 		{
 			
 			started_peeking = false;

@@ -301,8 +301,8 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 			g_ctx.globals.fired_shots[i] = 0;
 			//g_ctx.globals.missed_shots[i] = 0;
 			g_ctx.globals.missed_shots_spread[i] = 0;
-			lagcompensation::get().is_dormant[i] = false;
-			lagcompensation::get().player_resolver[i].reset();
+			g_Lagcompensation->is_dormant[i] = false;
+			g_Lagcompensation->player_resolver[i].reset();
 			playeresp::get().esp_alpha_fade[i] = 0.0f;
 			playeresp::get().health[i] = 100;
 			c_dormant_esp::get().m_cSoundPlayers[i].reset();

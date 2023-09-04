@@ -1,6 +1,6 @@
 #include <tuple>
 #include "LocalAnimFix.hpp"
-
+#include "../prediction/EnginePrediction.h"
 
 void C_LocalAnimations::OnCreateMove()
 {
@@ -449,7 +449,7 @@ void C_LocalAnimations::BeforePrediction()
 void C_LocalAnimations::SetupShootPosition()
 {
 	/* fix view offset */
-	Vector vecViewOffset = g_ctx.local()->m_vecViewOffset();
+	Vector vecViewOffset = g_EnginePrediction->GetUnpredictedData()->m_vecViewOffset;
 	if (vecViewOffset.z <= 46.05f)
 		vecViewOffset.z = 46.0f;
 	else if (vecViewOffset.z > 64.0f)
@@ -458,11 +458,12 @@ void C_LocalAnimations::SetupShootPosition()
 	/* calculate default shoot position */
 	m_LocalData.m_vecShootPosition = g_ctx.local()->m_vecOrigin() + vecViewOffset;
 
+	m_LocalData.m_vecShootPosition = g_EnginePrediction->GetUnpredictedData()->m_vecOrigin + vecViewOffset;
 	/* backup data */
 	std::tuple < Vector, Vector > m_Backup = std::make_tuple(g_ctx.local()->GetAbsOrigin(), g_ctx.local()->m_angEyeAngles());
 
 	/* force LocalPlayer data */
-	g_ctx.local()->set_abs_origin(g_ctx.local()->m_vecOrigin());
+	g_ctx.local()->set_abs_origin(g_EnginePrediction->GetUnpredictedData()->m_vecOrigin);
 	g_ctx.local()->m_angEyeAngles() = g_ctx.get_command()->m_viewangles;
 
 	/* normalize angles */
@@ -485,8 +486,8 @@ void C_LocalAnimations::SetupShootPosition()
 		}
 
 		/* modify eye pos on duck */
-		/*if (g_ctx.local()->m_flDuckAmount() != 0.0f)
-			bModifyEyePosition = true;*/
+		if (g_EnginePrediction->GetUnpredictedData()->m_flDuckAmount != 0.0f)
+			bModifyEyePosition = true;
 
 		/* modify eye pos on FD */
 		if (g_ctx.globals.fakeducking)
@@ -522,6 +523,7 @@ void C_LocalAnimations::SetupShootPosition()
 	g_ctx.globals.eye_pos = GetShootPosition();
 	//g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
 }
+
 bool C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
 {
 	// save globals

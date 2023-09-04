@@ -271,6 +271,7 @@ public:
 	float old_simtime;
 	float duck_amount;
 	float lby;
+	float lby_diff;
 	bool flipped_s = false;
 	bool low_delta_s = false;
 	float m_flThirdPersonRecoil;
@@ -321,7 +322,7 @@ public:
 		shot_tick = 0;
 		flags = 0;
 		bone_count = 0;
-
+		lby_diff = 0.0f;
 		simulation_time = 0.0f;
 		old_simtime = 0.0f;
 		duck_amount = 0.0f;
@@ -374,13 +375,13 @@ public:
 
 		flags = player->m_fFlags();
 		bone_count = player->m_CachedBoneData().Count();
-
 		simulation_time = player->m_flSimulationTime();
 		old_simtime = player->m_flOldSimulationTime();
 		duck_amount = player->m_flDuckAmount();
 		lby = player->m_flLowerBodyYawTarget();
 		m_flThirdPersonRecoil = player->m_flThirdpersonRecoil();
 		angles = player->m_angEyeAngles();
+		lby_diff = std::abs(math::AngleDiff(angles.y, lby));
 		abs_angles = player->get_abs_angles();
 		m_vecAbsOrigin = player->get_abs_origin();
 		velocity = player->m_vecVelocity();
@@ -395,7 +396,7 @@ public:
 
 	void adjust_player()
 	{
-		if (!valid(false) || !m_bRestoreData)
+		if (!valid() || !m_bRestoreData)
 			return;
 
 		memcpy(player->get_animlayers(), layers, player->animlayer_count() * sizeof(AnimationLayer));
@@ -437,7 +438,82 @@ public:
 		return true;
 	}
 
-	//bool valid(bool extra_checks = true)
+	float GetLerpTime() {
+		int cl_interpolate = m_cvar()->FindVar("cl_interpolate")->GetInt();
+
+		if (!cl_interpolate)
+			return 0.f;
+
+		const auto update_rate = m_cvar()->FindVar("cl_updaterate")->GetInt();
+		const auto cl_interp = m_cvar()->FindVar("cl_interp")->GetInt();
+
+		auto cl_interp_ratio = m_cvar()->FindVar("cl_interp_ratio");
+		if (cl_interp_ratio->GetFloat() == 0)
+			cl_interp_ratio->SetValue(1.0f);
+
+		auto interp_min = m_cvar()->FindVar("sv_client_min_interp_ratio");
+		auto interp_max = m_cvar()->FindVar("sv_client_max_interp_ratio");
+
+		if (interp_min->GetFloat() != -1)
+		{
+			float min_max_interp_ratio{ };
+
+			min_max_interp_ratio = std::clamp(min_max_interp_ratio, interp_min->GetFloat(), interp_max->GetFloat());
+
+			cl_interp_ratio->SetValue(min_max_interp_ratio);
+		}
+		else
+		{
+			if (cl_interp_ratio->GetFloat() == 0)
+				cl_interp_ratio->SetValue(1.0f);
+		}
+
+		return fmaxf(cl_interp, cl_interp_ratio->GetFloat() / update_rate);
+	}
+
+	bool valid() {
+		// no lagcomp = we always have valid tick
+		// but not for old one
+		/*if (!CVars::cl_lagcompensation->get_int())
+			return true;*/
+
+		if (!this)
+			return false;
+
+		if (i > 0)
+			player = (player_t*)m_entitylist()->GetClientEntity(i);
+
+		if (!player)
+			return false;
+
+		if (player->m_lifeState() != LIFE_ALIVE)
+			return false;
+
+		if (immune)
+			return false;
+
+		if (dormant)
+			return false;
+
+
+		float range = .2f;
+		float max_unlag = .2f;
+
+		auto netchannel = m_engine()->GetNetChannelInfo();
+		if (!netchannel || invalid || m_bHasBrokenLC)
+			return false;
+
+		const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING)
+			+ netchannel->GetLatency(FLOW_INCOMING)
+			+ GetLerpTime(), 0.f, max_unlag);
+
+		float curtime = g_ctx.local()->is_alive() ?
+			TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
+
+		return std::fabs(correct - (curtime - simulation_time)) < range;
+	}
+
+	//bool valid()
 	//{
 	//	if (!this)
 	//		return false;
@@ -457,124 +533,41 @@ public:
 	//	if (dormant)
 	//		return false;
 
-	//	if (!extra_checks)
-	//		return true;
-
 	//	if (invalid || m_bHasBrokenLC)
 	//		return false;
 
-
-	//	/* set networking data */
-	//	int m_nTickRate = (int)(1.0f / m_globals()->m_intervalpertick);
-	//	int m_nMaximumChoke = 14;
-	//	int m_bSkipDatagram = true;
-
-
 	//	auto net_channel_info = m_engine()->GetNetChannelInfo();
-	//	/* calc latency */
-	//	INetChannel* m_NetChannel = m_clientstate()->pNetChannel;
 
-	//	if (net_channel_info != nullptr && m_NetChannel != nullptr)
-	//	{
-	//		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-	//		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-	//		/* set latency */
-	//		latency = outgoing + incoming;
-	//		/* set sequence */
-	//		int m_nSequence = m_NetChannel->m_nOutSequenceNr;
-	//	}
+	//	if (!net_channel_info)
+	//		return false;
 
-	//	/* set servertick */
-	//	int m_nServerTick = m_globals()->m_tickcount + TIME_TO_TICKS(latency);
-	//	m_nCompensatedServerTick = m_nServerTick;
+	//	static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
 
-	//	return IsTimeValid(simulation_time, g_ctx.globals.fixed_tickbase);
+	//	auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
+	//	auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
+
+	//	auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
+
+	//	//auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.local()->m_nTickBase()) : m_globals()->m_curtime;
+	//	auto curtime = m_globals()->m_curtime;
+	//	auto delta_time = correct - (curtime - simulation_time);
+
+	//	if (fabs(delta_time) > 0.2f)
+	//		return false;
+
+	//	auto extra_choke = 0;
+
+	//	if (g_ctx.globals.fakeducking)
+	//		extra_choke = 14 - m_clientstate()->iChokedCommands;
+
+	//	auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
+	//	auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
+
+	//	if (simulation_time < (float)dead_time)
+	//		return false;
+
+	//	return true;
 	//}
-
-	float GetLerpTime() {
-		static auto cl_updaterate = m_cvar()->FindVar("cl_updaterate");
-		static auto cl_interp = m_cvar()->FindVar("cl_interp");
-
-		const auto update_rate = cl_updaterate->GetInt();
-		const auto interp_ratio = cl_interp->GetFloat();
-
-		auto lerp = interp_ratio / update_rate;
-
-		if (lerp <= interp_ratio)
-			lerp = interp_ratio;
-
-		return lerp;
-	}
-	/*bool valid(float range = .2f, float max_unlag = .2f) {
-
-		auto netchannel = m_engine()->GetNetChannelInfo();
-		if (!netchannel || invalid || m_bHasBrokenLC)
-			return false;
-
-		const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING)+ netchannel->GetLatency(FLOW_OUTGOING) + GetLerpTime(), 0.f, max_unlag);
-
-		float curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
-
-		return std::fabsf(correct - (curtime - simulation_time)) <= range;
-	}*/
-
-	bool valid(bool extra_checks = true)
-	{
-		if (!this)
-			return false;
-
-		if (i > 0)
-			player = (player_t*)m_entitylist()->GetClientEntity(i);
-
-		if (!player)
-			return false;
-
-		if (player->m_lifeState() != LIFE_ALIVE)
-			return false;
-
-		if (immune)
-			return false;
-
-		if (dormant)
-			return false;
-
-		if (!extra_checks)
-			return true;
-
-		if (invalid || m_bHasBrokenLC)
-			return false;
-
-		auto net_channel_info = m_engine()->GetNetChannelInfo();
-
-		if (!net_channel_info)
-			return false;
-
-		static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
-
-		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-
-		auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
-
-		auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
-		auto delta_time = correct - (curtime - simulation_time);
-
-		if (fabs(delta_time) > 0.2f)
-			return false;
-
-		auto extra_choke = 0;
-
-		if (g_ctx.globals.fakeducking)
-			extra_choke = 14 - m_clientstate()->iChokedCommands;
-
-		auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
-		auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
-
-		if (simulation_time < (float)dead_time)
-			return false;
-
-		return true;
-	}
 };
 
 class optimized_adjust_data
@@ -620,7 +613,7 @@ public:
 	void SetMode(adjust_data* Record, player_t* Player);
 	void GetSide(adjust_data* Record, player_t* Player);
 };
-class lagcompensation : public singleton <lagcompensation>
+class lagcompensation
 {
 public:
 	void apply_interpolation_flags(player_t* e);
@@ -634,6 +627,7 @@ public:
 	adjust_data* FindBestRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords, int& nPriority, const float& flSimTime);
 	void ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record);
 	void fsn(ClientFrameStage_t stage);
+	void RecalculateVelocity(player_t* pPlayer, adjust_data* LagRecord, adjust_data* PreviousRecord, C_CSGOPlayerAnimationState* animstate);
 	bool valid(int i, player_t* e);
 	adjust_data* FindFirstRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords);
 
@@ -650,8 +644,11 @@ public:
 	float BuildFootYaw(player_t* pPlayer, adjust_data* m_LagRecord);
 	void SetupData(player_t* pPlayer, adjust_data* m_Record, adjust_data* m_PrevRecord);
 	int DetermineAnimationCycle(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord);
-	void DetermineSimulationTicks(player_t* player, adjust_data* record, adjust_data* previous_record);
-	void setup_matrix(player_t* e, AnimationLayer* layers, const int& matrix, adjust_data* record);
+	int DetermineSimulationTicks(player_t* player, adjust_data* record, adjust_data* previous_record);
+	void SetBones(matrix3x4_t* matrix, player_t* m_pEntity);
+	void CopyCachedMatrix(player_t* player, matrix3x4_t* matrix);
+	void OnUpdateClientSideAnimations(player_t* player);
+	void setup_matrix(player_t* e, const int& matrix, adjust_data* record);
 	void SimulatePlayerActivity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord);
 	float ComputeActivityPlayback(player_t* pPlayer, adjust_data* m_Record);
 	void SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* previous_record);
@@ -667,8 +664,10 @@ public:
 	DesyncCorrection c_DesyncCorrection[65];
 	bool is_dormant[65];
 	float previous_goal_feet_yaw[65];
+
+	bool m_CachedMatrixRetr[65];
+	Vector m_BoneOrigins[65][MAXSTUDIOBONES];
+	matrix3x4_t m_CachedMatrix[65][MAXSTUDIOBONES];
 };
 
-
-
-inline adjust_data* g_adjust_data = new adjust_data();
+inline lagcompensation* g_Lagcompensation = new lagcompensation();

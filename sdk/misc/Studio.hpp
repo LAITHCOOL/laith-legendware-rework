@@ -32,7 +32,7 @@ typedef float RadianEuler[3];
 #define BONE_USED_BY_ANYTHING_AT_LOD(lod) ( ( BONE_USED_BY_ANYTHING & ~BONE_USED_BY_VERTEX_MASK ) | BONE_USED_BY_VERTEX_AT_LOD(lod) )
 
 #define MAX_NUM_LODS 8
-#define MAXSTUDIOBONES		128		// total bones actually used
+#define MAXSTUDIOBONES		256		// total bones actually used
 #define MAXSTUDIOPOSEPARAM			24
 
 #define BONE_TYPE_MASK                  0x00F00000

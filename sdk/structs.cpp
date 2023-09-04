@@ -1581,7 +1581,7 @@ Vector player_t::m_aimPunchAngleScaled()
 }
 void player_t::update_clientside_animation()
 {
-	if (!this || !get_animation_state() || m_clientstate()->iDeltaTick == -1) //check
+	if (!this || !get_animation_state1() || m_clientstate()->iDeltaTick == -1) //check
 		return;// Repeat
 
 	g_ctx.globals.updating_animation = true; // include update player animation

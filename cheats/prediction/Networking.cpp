@@ -29,7 +29,7 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 		m_pcmd->m_buttons &= ~IN_ATTACK2;
 
 
-	g_ctx.send_packet = true;
+	//g_ctx.send_packet = true;
 	g_ctx.globals.tickbase_shift = 0;
 	g_ctx.globals.double_tap_fire = false;
 	g_ctx.globals.force_send_packet = false;
@@ -314,10 +314,10 @@ void networking::finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, boo
 {
 	if (!shifting)
 	{
-		verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
-		verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
+		
 	}
-	
+	verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
+	verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
 	g_ctx.globals.in_createmove = false;
 	bSendPacket = g_ctx.send_packet;
 }
@@ -332,7 +332,7 @@ bool networking::setup_packet(int sequence_number, bool* pbSendPacket)
 	if (!g_ctx.local()->is_alive())
 		return false;
 
-	//g_ctx.send_packet = pbSendPacket;
+	g_ctx.send_packet = pbSendPacket;
 	return true;
 }
 

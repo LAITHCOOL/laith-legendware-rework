@@ -23,6 +23,6 @@ public:
 	void draw_weapon(player_t* m_entity, const Box& box, bool space);
 	void draw_flags(player_t* e, const Box& box);
 	void draw_lines(player_t* e);
-	//void draw_multi_points(player_t* e);
+	void draw_multi_points(player_t* e);
 	void infobar();
 };

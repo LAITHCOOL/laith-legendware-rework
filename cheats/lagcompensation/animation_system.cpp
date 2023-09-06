@@ -57,6 +57,8 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 
 				if (layer->m_flCycle == previous_layer->m_flCycle) //-V550
 				{
+					//e->m_flSimulationTime() = e->m_flOldSimulationTime();
+
 					e->m_flSimulationTime() = player_records[i].front().simulation_time;
 					e->m_flOldSimulationTime() = player_records[i].front().old_simtime;
 					update = false;
@@ -71,7 +73,7 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 				g_Lagcompensation->SimulatePlayerAnimations(e, record, previous_record);
 		}
 
-		while (player_records[i].size() > 32)
+		while (player_records[i].size() > g_Networking->tickrate())
 			player_records[i].pop_back();
 	}
 }
@@ -102,28 +104,6 @@ void lagcompensation::fsn(ClientFrameStage_t stage)
 	Threading::FinishQueue();
 }
 
-//void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
-//{
-//	if (record)
-//	{
-//		if (!e || !e->is_alive())
-//			return;
-//
-//		/* Check tickbase exploits */
-//		if (e->m_flSimulationTime() < e->m_flOldSimulationTime())
-//		{
-//			record->invalid = true;
-//			record->m_bHasBrokenLC = true;
-//		}
-//
-//		if ((e->m_vecOrigin() - record->origin).LengthSqr() > 4096.0f)
-//		{
-//			for (auto& record : player_records[e->EntIndex()])
-//				record.invalid = true;
-//		}
-//	}
-//}
-
 void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record)
 {
 	if (previous_record && record)
@@ -132,34 +112,34 @@ void lagcompensation::ProccessShiftingPlayers(player_t* e, adjust_data* record, 
 			return;
 
 		/* Invalidate records for defensive and break lc */
-		if (previous_record->simulation_time >= record->simulation_time)
-		{
-			/* Don't care at all about this cases if we have anti-exploit */
-			record->invalid = true;
-			record->m_bHasBrokenLC = true;
-		}
-
-		/* Check tickbase exploits */
-		//if (previous_record->simulation_time > record->simulation_time)
-		//	HandleTickbaseShift(e, record);
-
-		///* Invalidate records for defensive and break lc */
-		//if (record->simulation_time <= record->m_flExploitTime)
+		//if (previous_record->simulation_time >= record->simulation_time)
 		//{
 		//	/* Don't care at all about this cases if we have anti-exploit */
 		//	record->invalid = true;
 		//	record->m_bHasBrokenLC = true;
 		//}
 
+		/* Check tickbase exploits */
+		if (previous_record->simulation_time > record->simulation_time)
+			HandleTickbaseShift(e, record);
+
+		/* Invalidate records for defensive and break lc */
+		if (record->simulation_time <= record->m_flExploitTime)
+		{
+			/* Don't care at all about this cases if we have anti-exploit */
+			record->invalid = true;
+			record->m_bHasBrokenLC = true;
+		}
+
 		/* handle break lagcompensation by high speed and fakelags */
-		/*if (previous_record->m_bRestoreData)
+		if (previous_record->m_bRestoreData)
 		{
 			if ((record->origin - previous_record->origin).LengthSqr() > 4096.0f)
 			{
 				record->m_bHasBrokenLC = true;
 				return CleanPlayer(e, record);
 			}
-		}*/
+		}
 		if ((record->origin - previous_record->origin).LengthSqr() > 4096.0f)
 		{
 			record->m_bHasBrokenLC = true;
@@ -863,7 +843,8 @@ int lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* rec
 		return 1;
 	}
 
-	auto sim_ticks = TIME_TO_TICKS(record->simulation_time - previous_record->simulation_time);
+
+	int sim_ticks = record->m_nSimulationTicks;
 
 	if (sim_ticks - 1 > 31 || previous_record->simulation_time == 0.f) {
 		sim_ticks = 1;
@@ -929,6 +910,9 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 
 	if (!animstate || !record)
 		return;
+
+	C_CSGOPlayerAnimationState state;
+	memcpy(&state, animstate, sizeof(C_CSGOPlayerAnimationState));
 
 	if (previous_record) {
 		animstate->m_flPrimaryCycle = previous_record->layers[6].m_flCycle;
@@ -1013,8 +997,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	/* Update collision bounds */
 	SetupCollision(e, record);
 
-	C_CSGOPlayerAnimationState state;
-	memcpy(&state, animstate, sizeof(C_CSGOPlayerAnimationState));
+
 
 	/* Simulate legit player */
 	if (record->m_nSimulationTicks <= 1 || !previous_record)
@@ -1113,6 +1096,8 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 					}
 				}
 
+				e->m_angEyeAngles().z = 0.0f;
+
 				if (record->m_nActivityType != EPlayerActivityC::CNoActivity)
 				{
 					if (iCurrentSimulationTick == record->m_nActivityTick)
@@ -1149,6 +1134,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 				e->m_flDuckAmount() = record->duck_amount;
 				e->m_flLowerBodyYawTarget() = record->lby;
 				e->m_angEyeAngles() = record->angles;
+				e->m_angEyeAngles().z = 0.0f;
 			}
 
 			/* Set velocity */
@@ -1210,11 +1196,12 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e, adjust_data* record,
 	if (previous_record)
 		memcpy(player_resolver[e->EntIndex()].previous_layers, previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 
+	//memcpy(animstate, &state, sizeof(C_CSGOPlayerAnimationState));
+
 	e->m_flLowerBodyYawTarget() = m_PlayerGlobals.m_flLowerBodyYawTarget;
 	e->m_flDuckAmount() = m_PlayerGlobals.m_flDuckAmount;
 	e->m_iEFlags() = m_PlayerGlobals.m_iEFlags;
 	e->m_fFlags() = m_PlayerGlobals.m_fFlags;
-
 	//m_PlayerGlobals.AdjustData(e);
 	m_Globals.AdjustData();
 

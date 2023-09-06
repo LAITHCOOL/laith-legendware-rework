@@ -71,7 +71,13 @@ void shots::on_fsn()
 				g_ctx.globals.missed_shots[current_shot->target->EntIndex()]++;
 
 				if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
-					eventlogs::get().add(crypt_str("missed shot due to resolver"), true, Color(255, 100, 100));
+				{
+					if (current_shot->record->m_fDidBacktrack)
+						eventlogs::get().add(crypt_str("missed shot due to backtrack"), true, Color(100, 100, 255));
+					else
+						eventlogs::get().add(crypt_str("missed shot due to resolver"), true, Color(255, 100, 100));
+				}
+					
 			}
 			else if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
 			{
@@ -214,28 +220,31 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 		current_shot = &shot;
 		break;
 	}
-
-	if (weapon_is_aim(weapon) && current_shot->record && current_shot && entity)
+	if (current_shot)
 	{
-		otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
-		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());
-		Color result;
-
-		if (hitgroup == HITGROUP_HEAD)
-			result = Color::Red;
-		else if (hitgroup == HITGROUP_CHEST)
-			result = Color::Yellow;
-		else
-			result = Color::White;
-
-		otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
+		if (weapon_is_aim(weapon) && entity && current_shot->record)
 		{
-			entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base()),
-			m_globals()->m_curtime,
-			result,
-			damage,
-			hitgroup
-		};
+
+			otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
+			otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());
+			Color result;
+
+			if (hitgroup == HITGROUP_HEAD)
+				result = Color::Red;
+			else if (hitgroup == HITGROUP_CHEST)
+				result = Color::Yellow;
+			else
+				result = Color::White;
+
+			otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
+			{
+				entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base()),
+				m_globals()->m_curtime,
+				result,
+				damage,
+				hitgroup
+			};
+		}
 	}
 
 	if (!current_shot)

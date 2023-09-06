@@ -1113,7 +1113,7 @@ bool misc::IsFiring()
 	if (!weapon)
 		return false;
 
-	float cur_time = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+	float cur_time = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
 
 	bool attack = (g_ctx.get_command()->m_buttons & IN_ATTACK) || (g_ctx.get_command()->m_buttons & IN_ATTACK2);
 

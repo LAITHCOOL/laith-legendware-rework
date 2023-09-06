@@ -28,7 +28,7 @@ void C_EnginePrediction::OnRunCommand(int nCommand)
 {
 	NetvarData_t* m_Data = &m_NetVars[nCommand % MULTIPLAYER_BACKUP];
 
-	m_Data->m_nTickBase = g_ctx.globals.fixed_tickbase;
+	m_Data->m_nTickBase = g_ctx.local()->m_nTickBase();
 	m_Data->m_angAimPunchAngle = g_ctx.local()->m_aimPunchAngle();
 	m_Data->m_angViewPunchAngle = g_ctx.local()->m_viewPunchAngle();
 	m_Data->m_vecAimPunchAngleVel = g_ctx.local()->m_aimPunchAngleVel();
@@ -77,7 +77,7 @@ int C_EnginePrediction::CalculateCorrectionTicks()  {
 int C_EnginePrediction::AdjustPlayerTimeBase(int nSimulationTicks)
 {
 	// get tickbase
-	int nTickBase = g_ctx.local()->m_nTickBase() + 1;
+	int nTickBase = g_ctx.local()->m_nTickBase();
 
 	// define const
 	const int nCorrectionTicks = CalculateCorrectionTicks();
@@ -305,7 +305,7 @@ void C_EnginePrediction::RunPrediction()
 	g_EnginePrediction->UpdateButtonState();
 
 	// push globals data
-	m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+	m_globals()->m_curtime = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
 	m_globals()->m_frametime = m_globals()->m_intervalpertick;
 
 	// setup velocity
@@ -334,7 +334,7 @@ void C_EnginePrediction::RunPrediction()
 	g_ctx.get_command()->m_buttons = nButtons;
 
 	/*set predicted tickbase*/
-	g_ctx.local()->m_nTickBase() = g_ctx.globals.fixed_tickbase;
+	//g_ctx.local()->m_nTickBase() = g_ctx.globals.fixed_tickbase;
 
 	// reset host
 	m_movehelper()->set_host(nullptr);

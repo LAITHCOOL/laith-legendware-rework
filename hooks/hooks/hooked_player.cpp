@@ -218,6 +218,12 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
     else if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number + 1)
         player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
 
+   
+   /* else if (cmd_ctx->command_number == g_ctx.globals.shot_command)
+        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
+   /* else if ((cmd_ctx->command_number > g_ctx.globals.shifting_command_number) && g_ctx.globals.isshifting)
+        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
+
     g_Ragebot->AdjustRevolverData(cmd_ctx->command_number, cmd_ctx->cmd.m_buttons);
 
     ((PhysicsSimulateFn)original_physicssimulate)(player);
@@ -310,6 +316,8 @@ void hooks::hkInterpolateServerEntities(void* ecx)
     if (!g_ctx.local())
         return ((InterpolateServerEntities_t)original_o_InterpolateServerEntities)(ecx);
 
+    if (!g_ctx.available())
+        return ((InterpolateServerEntities_t)original_o_InterpolateServerEntities)(ecx);
 
     ((InterpolateServerEntities_t)original_o_InterpolateServerEntities)(ecx);
     return g_LocalAnimations->InterpolateMatricies();

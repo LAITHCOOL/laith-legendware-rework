@@ -460,7 +460,7 @@ namespace util
 			auto range = 0.2f;
 
 			if (g_ctx.local()->is_alive())
-				curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
+				curtime = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
 
 			auto next_record = record + 1;
 			auto end = next_record == records->rend();

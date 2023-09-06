@@ -912,7 +912,7 @@ bool weapon_t::can_fire(bool check_revolver)
 	if (owner->m_bIsDefusing())
 		return false;
 
-	auto server_time = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
+	auto server_time = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 
 	if (server_time < m_flNextPrimaryAttack())
 		return false;

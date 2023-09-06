@@ -141,7 +141,7 @@ void aimbot::AdjustRevolverData(int commandnumber, int buttons)
 		static bool in_attack[MULTIPLAYER_BACKUP];
 		static bool can_shoot[MULTIPLAYER_BACKUP];
 
-		tickbase_records[commandnumber % MULTIPLAYER_BACKUP] = g_ctx.globals.fixed_tickbase;
+		tickbase_records[commandnumber % MULTIPLAYER_BACKUP] = g_ctx.local()->m_nTickBase();
 		in_attack[commandnumber % MULTIPLAYER_BACKUP] = buttons & IN_ATTACK || buttons & IN_ATTACK2;
 		can_shoot[commandnumber % MULTIPLAYER_BACKUP] = weapon->can_fire(false);
 
@@ -194,11 +194,11 @@ void AimPlayer::OnNetUpdate(player_t* player) {
 	}
 
 	// update player_t ptr.
-	m_player = player;
+	//m_player = player;
 }
 
 void AimPlayer::OnRoundStart(player_t* player) {
-	m_player = player;
+	//m_player = player;
 	m_shots = 0;
 	m_missed_shots = 0;
 	m_type = 0;
@@ -526,7 +526,7 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 		auto records = &player_records[t->m_player->EntIndex()]; //-V826
 		if (records->empty())
 			continue;
-		auto first_record = get_record(records);
+		auto first_record = get_first_record(records);
 
 		if (!first_record || !first_record->valid() || first_record->invalid)
 			continue;
@@ -563,7 +563,7 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 
 		// set our enemy stuff to the current record.
 		first_record->player->m_vecOrigin() = first_record->origin;
-		first_record->player->set_abs_origin(first_record->m_vecAbsOrigin);
+		first_record->player->set_abs_origin(first_record->origin);
 		first_record->player->set_abs_angles(first_record->abs_angles);
 		first_record->player->UpdateCollisionBounds();
 		first_record->player->SetCollisionBounds(first_record->mins, first_record->maxs);
@@ -685,6 +685,7 @@ void aimbot::find(CUserCmd* m_pcmd) {
 
 		//auto ideal = get_record(records);
 		auto ideal = get_first_record(records);
+		//auto ideal = &records->front();
 
 		if (ideal->valid())
 		{
@@ -712,32 +713,39 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		}
 
 		//auto last = get_record_history(records);
-		//auto last = get_oldest_record(records);
+		auto last = get_oldest_record(records);
 
-		//if (last->valid())
-		//{
-		//	t->SetupHitboxes(last, true);
-		//	if (!t->m_hitboxes.empty())
-		//	{
-		//		// rip something went wrong..
-		//		if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, last, tmp_min_damage)) {
-		//			if (SelectTarget(last, tmp_point, tmp_damage))
-		//			{
-		//				if (tmp_damage > best.damage_compare) {
-		//					best.damage_compare = tmp_damage;
-		//					// if we made it so far, set shit.
-		//					best.player = t->m_player;
-		//					best.point = tmp_point;
-		//					best.damage = tmp_damage;
-		//					best.record = last;
-		//					best.min_damage = tmp_min_damage;
-		//					best.target = t;
-		//				}
+		if (last->valid())
+		{
+			t->SetupHitboxes(last, true);
+			if (!t->m_hitboxes.empty())
+			{
+				// rip something went wrong..
+				if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, last, tmp_min_damage)) {
+					if (SelectTarget(last, tmp_point, tmp_damage))
+					{
+						if (tmp_damage > best.damage_compare) {
+							best.damage_compare = tmp_damage;
+							// if we made it so far, set shit.
+							best.player = t->m_player;
+							best.point = tmp_point;
+							best.damage = tmp_damage;
+							best.record = last;
+							best.min_damage = tmp_min_damage;
+							best.target = t;
+						}
 
-		//			}
-		//		}
-		//	}
-		//}
+					}
+				}
+			}
+		}
+
+		if (best.record) {
+			if (best.record == last)
+				best.record->m_fDidBacktrack = true;
+			else if (best.record == ideal)
+				best.record->m_fDidBacktrack = false;
+		}
 
 		// we found a target we can shoot at and deal damage? fuck yeah. (THIS IS TEMPORARY TILL WE REPLACE THE TARGET SELECTION)
 		if (best.damage > 0.f && best.player && best.record && best.target) {
@@ -1197,7 +1205,7 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 			// setup trace data
 			record->player->m_vecOrigin() = record->origin;
-			record->player->set_abs_origin(record->m_vecAbsOrigin);
+			record->player->set_abs_origin(record->origin);
 			record->player->set_abs_angles(record->abs_angles);
 			record->player->UpdateCollisionBounds();
 			record->player->SetCollisionBounds(record->mins, record->maxs);
@@ -1224,7 +1232,7 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 					done = true;
 
 				// always prefer safe points if we want to.
-				else if (it.m_mode == HitscanMode::PREFER_SAFEPOINT && it.m_safepoint && safe)
+				else if (it.m_mode == HitscanMode::PREFER_SAFEPOINT && safe)
 					done = true;
 
 				// this hitbox has normal selection, it needs to have more damage.
@@ -1415,6 +1423,7 @@ void aimbot::apply(CUserCmd* m_pcmd) {
 
 	g_ctx.globals.revolver_working = false;
 	g_ctx.globals.last_aimbot_shot = m_globals()->m_tickcount;
+	g_ctx.globals.shot_command = m_pcmd->m_command_number;
 }
 
 
@@ -1474,7 +1483,7 @@ bool aimbot::CanHit(Vector start, Vector end, adjust_data* record, int box, bool
 
 		// setup trace data
 		record->player->m_vecOrigin() = record->origin;
-		record->player->set_abs_origin(record->m_vecAbsOrigin);
+		record->player->set_abs_origin(record->origin);
 		record->player->set_abs_angles(record->abs_angles);
 		record->player->UpdateCollisionBounds();
 		record->player->SetCollisionBounds(record->mins, record->maxs);

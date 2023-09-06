@@ -167,6 +167,8 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 		g_LocalAnimations->OnCreateMove();
 
 		g_Networking->finish_packet(m_pcmd, verified, bSendPacket, g_ctx.globals.isshifting);
+
+
 		C_LagComp::get().FinishLagCompensation();
 		return;
 	}

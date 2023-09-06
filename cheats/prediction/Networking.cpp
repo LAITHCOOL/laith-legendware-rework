@@ -46,7 +46,7 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.tickbase_shift;
 	else*/
 		
-	g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
+	
 
 	if (hooks::menu_open)
 	{
@@ -210,10 +210,15 @@ void networking::packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket)
 	if (g_ctx.globals.isshifting)
 		m_pcmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
 
-	if (g_ctx.globals.tickbase_shift)
+	if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
+		g_ctx.local()->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
+
+	g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
+
+	/*if (g_ctx.globals.tickbase_shift)
 		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift;
 	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;*/
 
 }
 
@@ -312,14 +317,19 @@ void networking::process_packets(CUserCmd* m_pcmd)
 
 void networking::finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket, bool shifting)
 {
-	if (!shifting)
+	if (shifting)
 	{
-		
+		bSendPacket = g_ctx.globals.tochargeamount == 1;
+		g_ctx.globals.in_createmove = false;
 	}
-	verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
-	verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
-	g_ctx.globals.in_createmove = false;
-	bSendPacket = g_ctx.send_packet;
+	else
+	{
+		verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
+		verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
+		g_ctx.globals.in_createmove = false;
+		bSendPacket = g_ctx.send_packet;
+	}
+		
 }
 
 bool networking::setup_packet(int sequence_number, bool* pbSendPacket)

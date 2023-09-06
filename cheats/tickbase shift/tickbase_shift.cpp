@@ -175,14 +175,14 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 	if (!CanDoubleTap(false))
 		return;
 
-	g_ctx.globals.tickbase_shift = shiftAmount;
+
 
 	//Fix for doubletap hitchance
 	if (g_ctx.globals.dt_shots == 1) {
 		g_ctx.globals.dt_shots = 0;
 	}
 
-	
+	//g_ctx.globals.tickbase_shift = shiftAmount;
 
 	//Recharge
 	if (!g_Ragebot->m_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
@@ -212,6 +212,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 			g_ctx.globals.double_tap_aim_check = true;
 		}
 		g_ctx.globals.shift_ticks = shiftAmount;
+
 
 		/* determine simulation ticks */
 		auto m_nSimulationTicks = max(min((m_clientstate()->iChokedCommands + 1), 17), 1);

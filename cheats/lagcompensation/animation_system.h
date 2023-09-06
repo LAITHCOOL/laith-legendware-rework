@@ -285,9 +285,8 @@ public:
 	float m_flAnimationVelocity;
 	Vector mins;
 	Vector maxs;
+	bool m_fDidBacktrack;
 	matrix3x4_t* m_pBoneCache;
-	matrix3x4_t leftmatrixes[128] = {};
-	matrix3x4_t rightmatrixes[128] = {};
 
 	std::array<float, 24> left_poses = {};
 	std::array<float, 24> right_poses = {};
@@ -471,12 +470,56 @@ public:
 		return fmaxf(cl_interp, cl_interp_ratio->GetFloat() / update_rate);
 	}
 
-	bool valid() {
-		// no lagcomp = we always have valid tick
-		// but not for old one
-		/*if (!CVars::cl_lagcompensation->get_int())
-			return true;*/
+	//bool valid() {
+	//	// no lagcomp = we always have valid tick
+	//	// but not for old one
+	//	/*if (!CVars::cl_lagcompensation->get_int())
+	//		return true;*/
 
+	///*	if (!this)
+	//		return false;
+
+	//	if (i > 0)
+	//		player = (player_t*)m_entitylist()->GetClientEntity(i);
+
+	//	if (!player)
+	//		return false;*/
+
+	//	if (!this)
+	//		return false;
+
+	//	if (!player)
+	//		return false; 
+
+	//	if (player->m_lifeState() != LIFE_ALIVE)
+	//		return false;
+
+	//	if (immune)
+	//		return false;
+
+	//	if (dormant)
+	//		return false;
+
+
+	//	float range = .2f;
+	//	float max_unlag = .2f;
+
+	//	auto netchannel = m_engine()->GetNetChannelInfo();
+	//	if (!netchannel || invalid || m_bHasBrokenLC)
+	//		return false;
+
+	//	const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING)
+	//		+ netchannel->GetLatency(FLOW_INCOMING)
+	//		+ GetLerpTime(), 0.f, max_unlag);
+
+	//	float curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
+	//	//float curtime = m_globals()->m_curtime;
+	//	auto result = std::fabs(correct - (curtime - simulation_time));
+	//	return  result < range;
+	//}
+
+	bool valid()
+	{
 		if (!this)
 			return false;
 
@@ -495,79 +538,41 @@ public:
 		if (dormant)
 			return false;
 
-
-		float range = .2f;
-		float max_unlag = .2f;
-
-		auto netchannel = m_engine()->GetNetChannelInfo();
-		if (!netchannel || invalid || m_bHasBrokenLC)
+		if (invalid || m_bHasBrokenLC)
 			return false;
 
-		const auto correct = std::clamp(netchannel->GetLatency(FLOW_INCOMING)
-			+ netchannel->GetLatency(FLOW_INCOMING)
-			+ GetLerpTime(), 0.f, max_unlag);
+		auto net_channel_info = m_engine()->GetNetChannelInfo();
 
-		float curtime = g_ctx.local()->is_alive() ?
-			TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
+		if (!net_channel_info)
+			return false;
 
-		return std::fabs(correct - (curtime - simulation_time)) < range;
+		static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
+
+		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
+		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
+
+		auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
+
+		auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
+		//auto curtime = m_globals()->m_curtime;
+		auto delta_time = correct - (curtime - simulation_time);
+
+		if (fabs(delta_time) > 0.2f)
+			return false;
+
+		auto extra_choke = 0;
+
+		if (g_ctx.globals.fakeducking)
+			extra_choke = 14 - m_clientstate()->iChokedCommands;
+
+		auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
+		auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
+
+		if (simulation_time < (float)dead_time)
+			return false;
+
+		return true;
 	}
-
-	//bool valid()
-	//{
-	//	if (!this)
-	//		return false;
-
-	//	if (i > 0)
-	//		player = (player_t*)m_entitylist()->GetClientEntity(i);
-
-	//	if (!player)
-	//		return false;
-
-	//	if (player->m_lifeState() != LIFE_ALIVE)
-	//		return false;
-
-	//	if (immune)
-	//		return false;
-
-	//	if (dormant)
-	//		return false;
-
-	//	if (invalid || m_bHasBrokenLC)
-	//		return false;
-
-	//	auto net_channel_info = m_engine()->GetNetChannelInfo();
-
-	//	if (!net_channel_info)
-	//		return false;
-
-	//	static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
-
-	//	auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-	//	auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-
-	//	auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
-
-	//	//auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.local()->m_nTickBase()) : m_globals()->m_curtime;
-	//	auto curtime = m_globals()->m_curtime;
-	//	auto delta_time = correct - (curtime - simulation_time);
-
-	//	if (fabs(delta_time) > 0.2f)
-	//		return false;
-
-	//	auto extra_choke = 0;
-
-	//	if (g_ctx.globals.fakeducking)
-	//		extra_choke = 14 - m_clientstate()->iChokedCommands;
-
-	//	auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
-	//	auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
-
-	//	if (simulation_time < (float)dead_time)
-	//		return false;
-
-	//	return true;
-	//}
 };
 
 class optimized_adjust_data

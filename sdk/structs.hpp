@@ -892,6 +892,7 @@ public:
     int get_move_type();
     int animlayer_count();
     int sequence_activity(int sequence);
+    int lookup_bone(const char* szName);
     float get_max_desync_delta();
     float GetDsyncDelta();
     void invalidate_physics_recursive(int change_flags);

@@ -390,7 +390,7 @@ bool autowall::fire_bullet(weapon_t* pWeapon, Vector& direction, bool& visible, 
 	return false;
 }
 
-autowall::returninfo_t autowall::wall_penetration(const Vector& eye_pos, Vector& point, IClientEntity* e)
+autowall::returninfo_t autowall::wall_penetration(const Vector& eye_pos, Vector point, IClientEntity* e)
 {
 	g_ctx.globals.autowalling = true;
 	auto tmp = point - eye_pos;

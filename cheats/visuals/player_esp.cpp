@@ -662,7 +662,7 @@ void playeresp::draw_flags(player_t* e, const Box& box)
 
 		auto record = &records->front();
 
-		if (!record->valid())
+		if (!record->valid() || record->player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
 			return;
 
 		char Desyncbuffer[64];

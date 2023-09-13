@@ -462,10 +462,12 @@ const char* fakelags[] =
 
 const char* lagstrigger[] =
 {
-	"Slow walk",
-	"Move",
-	"Air",
-	"Peek"
+	"In air",
+	"On land",
+	"On peek",
+	"On shot",
+	"On reload",
+	"On velocity change"
 };
 
 const char* sounds[] =

@@ -212,7 +212,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 			g_ctx.globals.double_tap_aim_check = true;
 		}
 		g_ctx.globals.shift_ticks = shiftAmount;
-
+		
 
 		/* determine simulation ticks */
 		auto m_nSimulationTicks = max(min((m_clientstate()->iChokedCommands + 1), 17), 1);

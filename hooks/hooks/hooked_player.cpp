@@ -229,22 +229,45 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
     ((PhysicsSimulateFn)original_physicssimulate)(player);
    
 }
+_declspec(noinline)void hooks::modifyeyeposition_detour123(C_CSGOPlayerAnimationState* state, Vector& position)
+{
+    // don't run the code if we are not in game.
+    if (!state->m_pBasePlayer->valid(false) || !g_ctx.globals.in_createmove)
+        return;
 
+    if (!state->m_bLanding && state->m_flAnimDuckAmount == 0.f)
+    {
+        state->m_bSmoothHeightValid = false;
+        state->m_flCameraSmoothHeight = INT_MAX;
+        return;
+    }
+
+    auto head_pos = state->m_pBasePlayer->m_CachedBoneData().Base()[state->m_pBasePlayer->lookup_bone(crypt_str("head_0"))].at(3);
+    head_pos.z += 1.7f;
+
+    if (position.z > head_pos.z)
+    {
+        const auto v21 = abs(position.z - head_pos.z);
+        const auto v22 = (v21 - 4.0) * 0.16666667;
+        float v23;
+
+        if (v22 >= 0.0)
+            v23 = fminf(v22, 1.0);
+        else
+            v23 = 0.0;
+
+        position.z = (head_pos.z - position.z) * (v23 * v23 * 3.0 - v23 * v23 * 2.0 * v23) + position.z;
+    }
+}
 
 void __fastcall hooks::hooked_physicssimulate(player_t* player)
 {
     return physicssimulate_detour(player);
 }
 
-_declspec(noinline)void hooks::modifyeyeposition_detour(c_baseplayeranimationstate* state, Vector& position)
+void __fastcall hooks::hooked_modifyeyeposition(C_CSGOPlayerAnimationState* state, void* edx, Vector& position)
 {
-    if (state && g_ctx.globals.in_createmove)
-        return ((ModifyEyePositionFn)original_modifyeyeposition)(state, position);
-}
-
-void __fastcall hooks::hooked_modifyeyeposition(c_baseplayeranimationstate* state, void* edx, Vector& position)
-{
-    return modifyeyeposition_detour(state, position);
+    return modifyeyeposition_detour123(state, position);
 }
 
 _declspec(noinline)void hooks::calcviewmodelbob_detour(player_t* player, Vector& position)

@@ -344,18 +344,21 @@ void CResolver::solve_animes()
 			if (resolving_delta = low_left_delta)
 			{
 				player_record->curSide = RIGHT;
+				player_record->types[LAYERS].LowDelta = true;
 				return;
 			}
 
 			if (resolving_delta = low_right_delta)
 			{
 				player_record->curSide = LEFT;
+				player_record->types[LAYERS].LowDelta = true;
 				return;
 			}
 		}
+		else
+			detect_side();
 	}
-
-	if (player_record->curSide == NO_SIDE)
+	else
 		detect_side();
 }
 
@@ -452,7 +455,7 @@ void CResolver::NemsisResolver()
 
 	if (best_delta == delta2)
 	{
-		
+
 		player_record->curSide = RIGHT;
 
 		return;
@@ -511,34 +514,10 @@ void CResolver::OtLayersResolver()
 		}
 
 		player_record->m_bAnimResolved = true;
-	}
-	
-	//bool bIsValidResolved = true;
-	//if (prev_record)
-	//{
-	//	if (fabs((player_record->velocity.Length2D() - prev_record->velocity.Length2D())) > 5.0f || prev_record->layers[7].m_flWeight < 1.0f)
-	//		bIsValidResolved = false;
-	//}
+	} 
 
-	if (player_record->curSide == NO_SIDE || !player_record->m_bAnimResolved)
+	if (player_record->curSide == NO_SIDE)
 		detect_side();
-
-
-	/*TODO: save original layers before any calculations*/
-	float delta = previous_layers[6].m_flPlaybackRate;
-
-	// round layer data to get correct values
-	float round_zero = std::roundf(flCenterDelta * 1000000.f) / 1000000.f;
-	float round_orig = std::roundf((flCenterDelta + delta) * 1000000.f) / 1000000.f;
-
-	// desync value goes from 100 (no desync) to 94 (full delta desync)
-	// we need to get value from 0 to 6
-	float dsy_percent = (round_zero * 100.f / round_orig) - 94.f;
-
-	// we got inversed desync range 
-	// to get real desync range we should substract 60 from our value
-	float angle = std::clamp(std::fabsf(60.f - (dsy_percent * 10.f)), 0.f, 60.f);
-	
 }
 
 float angle_diff_onetap(float a1, float a2)
@@ -603,7 +582,7 @@ void CResolver::get_side_standing()
 	//		detect_side();
 	//	return;
 	//}
-	
+
 }
 
 
@@ -776,18 +755,18 @@ void CResolver::setmode()
 
 	if (!on_ground)
 		player_record->curMode = AIR;
-	else if (speed < 0.01f)
+	else if (speed < 0.1f)
 		player_record->curMode = STANDING;
-	else if (speed >= 0.01f)
+	else if (speed >= 0.1f)
 	{
-		if ((speed >= 0.01f && speed < 134.f) && !ducking && (slow_walking1 || slow_walking2))
+		if ((speed >= 0.1f && speed < 134.f) && !ducking && (slow_walking1 || slow_walking2))
 			player_record->curMode = SLOW_WALKING;
 		else
 			player_record->curMode = MOVING;
 	}
 	else
 		player_record->curMode = FREESTANDING;
-	
+
 
 	//if (!on_ground)
 	//{
@@ -873,8 +852,8 @@ void CResolver::missed_shots_correction(adjust_data* record, int missed_shots)
 void CResolver::reset_resolver()
 {
 	g_ctx.globals.missed_shots[player->EntIndex()] = 0;
-	restype[player_record->type].missed_shots_corrected[player->EntIndex()] = 0;
-	g_cfg.player_list.types[player_record->type].should_flip[player->EntIndex()] = false;
+	//restype[player_record->type].missed_shots_corrected[player->EntIndex()] = 0;
+	player_record->types[player_record->type].ShouldFlip = false;
 	g_cfg.player_list.types[player_record->type].low_delta[player->EntIndex()] = false;
 }
 
@@ -889,35 +868,12 @@ void CResolver::resolve_desync()
 		return;
 	}
 	auto e = player;
-	//
-	//auto negative = player_record->left;
-	//auto positive = player_record->right;
-	//auto eye_yaw = player_record->Eye;
-
-	auto negative = - 60.f;
+	auto negative = -60.f;
 	auto positive = 60.f;
 	auto eye_yaw = player_record->angles.y;
 	//
-
-	bool mside;
-	auto pWeapon = player->m_hActiveWeapon();
-	auto simtime = player->m_flSimulationTime();
-	auto oldsimtime = player->m_flOldSimulationTime();
-	float m_flLastShotTime;
-	bool m_shot;
-	m_flLastShotTime = pWeapon ? pWeapon->m_fLastShotTime() : 0.f;
-	m_shot = m_flLastShotTime > oldsimtime && m_flLastShotTime <= simtime;
-
 	setmode();
 
-	/*if (m_flLastShotTime <= simtime && m_shot || MatchShot())
-	{
-		player_record->side = RESOLVER_ON_SHOT;
-		player_record->desync_amount = 0;
-		player_record->curSide = NO_SIDE;
-		player_record->shot = true;
-		return;
-	}*/
 	if (player_record->shot)
 	{
 		player_record->side = RESOLVER_ON_SHOT;
@@ -939,38 +895,38 @@ void CResolver::resolve_desync()
 
 	float LowDeltaFactor = 0.5f; //testing values :3
 
-	missed_shots_correction(player_record, g_ctx.globals.missed_shots[player->EntIndex()]); // we brute each type (layers,lby...etc) seperatly :3
+	//missed_shots_correction(player_record, g_ctx.globals.missed_shots[player->EntIndex()]); // we brute each type (layers,lby...etc) seperatly :3
 
 	// start bruting if we miss baby :3
-	switch (restype[player_record->type].missed_shots_corrected[player->EntIndex()])
+	switch (g_ctx.globals.missed_shots[player->EntIndex()])
 	{
 	case 0:// skip :3 we resolve bellow with logic
 		break;
 	case 1:// low delta
-		g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()] = false;
-		g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()] = true;
+		player_record->types[player_record->type].ShouldFlip = false;
+		player_record->types[player_record->type].LowDelta = true;
 		break;
 	case 2:// flipped full delta
-		g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()] = true;
-		g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()] = false;
+		player_record->types[player_record->type].ShouldFlip = true;
+		player_record->types[player_record->type].LowDelta = false;
 		break;
 	case 3:// flipped low delta
-		g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()] = true;
-		g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()] = true;
+		player_record->types[player_record->type].ShouldFlip = true;
+		player_record->types[player_record->type].LowDelta = true;
 		break;
 	}
 
-	if (restype[player_record->type].missed_shots_corrected[player->EntIndex()] > 3 || g_ctx.globals.missed_shots[player->EntIndex()] > 3)
+	if (g_ctx.globals.missed_shots[player->EntIndex()] > 3)
 		reset_resolver();//
 
 	if (player_record->curSide == LEFT)
 	{
 		player_record->desync_amount = negative;
 
-		if (g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()])
+		if (player_record->types[player_record->type].ShouldFlip)
 			player_record->desync_amount = positive;
 
-		if (g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()])
+		if (player_record->types[player_record->type].LowDelta)
 			player_record->desync_amount *= LowDeltaFactor;
 	}
 
@@ -978,22 +934,16 @@ void CResolver::resolve_desync()
 	{
 		player_record->desync_amount = positive;
 
-		if (g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()])
+		if (player_record->types[player_record->type].ShouldFlip)
 			player_record->desync_amount = negative;
 
-		if (g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()])
+		if (player_record->types[player_record->type].LowDelta)
 			player_record->desync_amount *= LowDeltaFactor;
 	}
-
-	// for logs xD
-	player_record->flipped_s = g_cfg.player_list.types[player_record->type].should_flip[e->EntIndex()];
-	player_record->low_delta_s = g_cfg.player_list.types[player_record->type].low_delta[e->EntIndex()];
-	g_ctx.globals.mlog1[e->EntIndex()] = player_record->desync_amount;
 
 	// set player's gfy to guessed desync value :3
 	player->get_animation_state1()->m_flFootYaw = eye_yaw + player_record->desync_amount;
 
 
 }
-
 

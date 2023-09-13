@@ -14,11 +14,11 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 		if (force_choke)
 		{
 			force_choke = false;
-			g_ctx.send_packet = false;
+			g_ctx.send_packet = true;
 			return;
 		}
 
-		if (g_ctx.local()->m_fFlags() & FL_ONGROUND && !(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
+		if (g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && !(g_ctx.local()->m_fFlags() & FL_ONGROUND))
 		{
 			force_choke = true;
 			g_ctx.send_packet = false;
@@ -30,62 +30,69 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 	static auto switch_ticks = false;
 	static auto random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 
-	auto choked = m_clientstate()->iChokedCommands;
-	auto flags = g_EnginePrediction->GetUnpredictedData()->m_nFlags;
-	auto velocity = g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length();
+	auto choked = m_clientstate()->iChokedCommands; //-V807
+	auto flags = g_EnginePrediction->GetUnpredictedData()->m_nFlags; //-V807
+	auto velocity = g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length(); //-V807
 	auto velocity2d = g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D();
 
-	auto max_speed = 260.0f;
-	auto weapon_info = g_ctx.globals.weapon->get_csweapon_info();
+	auto max_speed = g_ctx.local()->GetMaxPlayerSpeed();
 
-	if (weapon_info)
-		max_speed = g_ctx.globals.scoped ? weapon_info->flMaxPlayerSpeedAlt : weapon_info->flMaxPlayerSpeed;
+	auto reloading = false;
+
+	if (g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_RELOAD])
+	{
+		auto animlayer = g_ctx.local()->get_animlayers()[ANIMATION_LAYER_WEAPON_ACTION];
+
+		if (animlayer.m_nSequence)
+		{
+			auto activity = g_ctx.local()->sequence_activity(animlayer.m_nSequence);
+			reloading = activity == ACT_CSGO_RELOAD && animlayer.m_flWeight;
+		}
+	}
 
 	switch (g_cfg.antiaim.fakelag_type)
 	{
 	case 0:
-		max_choke = g_cfg.antiaim.triggers_fakelag_amount;
+		this->max_choke = g_cfg.antiaim.triggers_fakelag_amount;
 		break;
 	case 1:
-		max_choke = random_factor;
+		this->max_choke = random_factor;
 		break;
 	case 2:
 		if (velocity2d >= 5.0f)
 		{
 			auto dynamic_factor = std::ceilf(64.0f / (velocity2d * m_globals()->m_intervalpertick));
 
-			if (dynamic_factor > 14)
+			if (dynamic_factor > 16)
 				dynamic_factor = g_cfg.antiaim.triggers_fakelag_amount;
 
-			max_choke = dynamic_factor;
+			this->max_choke = dynamic_factor;
 		}
 		else
-			max_choke = g_cfg.antiaim.triggers_fakelag_amount;
+			this->max_choke = g_cfg.antiaim.triggers_fakelag_amount;
 		break;
 	case 3:
-		max_choke = fluctuate_ticks;
+		this->max_choke = fluctuate_ticks;
 		break;
 	}
 
-	if (m_gamerules()->m_bIsValveDS())
-		max_choke = m_engine()->IsVoiceRecording() ? 1 : min(max_choke, 6);
+	if (m_gamerules()->m_bIsValveDS()) //-V807
+		this->max_choke = m_engine()->IsVoiceRecording() ? 1 : min(this->max_choke, 6);
 
-
-
-	if (g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && !m_gamerules()->m_bIsValveDS() && key_binds::get().get_key_bind_state(20))
+	if (g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND && !m_gamerules()->m_bIsValveDS() && key_binds::get().get_key_bind_state(20)) //-V807
 	{
-		max_choke = 14;
+		this->max_choke = 14;
 
-		if (choked < max_choke)
+		if (choked < this->max_choke)
 			g_ctx.send_packet = false;
 		else
 			g_ctx.send_packet = true;
 	}
 	else
 	{
-		if (g_cfg.ragebot.enable && g_ctx.globals.current_weapon != -1 && !g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_PEEK] && g_cfg.antiaim.triggers_fakelag_amount > 6 && !started_peeking && velocity >= 5.0f)
+		if (g_cfg.ragebot.enable && g_ctx.globals.current_weapon != -1 && !g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_PEEK] && g_cfg.antiaim.triggers_fakelag_amount > 6 && !this->started_peeking && velocity >= 5.0f)
 		{
-			if ( g_Ragebot->is_peeking_enemy((float)g_cfg.antiaim.triggers_fakelag_amount * 0.5f))
+			if (g_Ragebot->is_peeking_enemy((float)g_cfg.antiaim.triggers_fakelag_amount * 0.5f))
 			{
 				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 				switch_ticks = !switch_ticks;
@@ -98,60 +105,90 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 			}
 		}
 
-		if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_PEEK] && started_peeking)
+		if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && !(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND) && g_cfg.antiaim.fakelag_enablers[FAKELAG_IN_AIR])
 		{
-			if (choked < max_choke)
+			if (choked < this->max_choke)
 				g_ctx.send_packet = false;
 			else
 			{
-				started_peeking = false;
+				this->started_peeking = false;
 
-				random_factor = min(rand() % 14 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 				switch_ticks = !switch_ticks;
 				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
 
 				g_ctx.send_packet = true;
 			}
 		}
-		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && velocity >= 5.0f && g_ctx.globals.slowwalking && g_cfg.antiaim.fakelag_enablers[FAKELAG_SLOW_WALK])
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && (g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND) && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_LAND])
 		{
-			if (choked < max_choke)
+			if (choked < this->max_choke)
 				g_ctx.send_packet = false;
 			else
 			{
-				started_peeking = false;
+				this->started_peeking = false;
 
-				random_factor = min(rand() % 14 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 				switch_ticks = !switch_ticks;
 				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
 
 				g_ctx.send_packet = true;
 			}
 		}
-		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && velocity >= 5.0f && !g_ctx.globals.slowwalking && g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_cfg.antiaim.fakelag_enablers[FAKELAG_MOVE])
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_PEEK] && this->started_peeking)
 		{
-			if (choked < max_choke)
+			if (choked < this->max_choke)
 				g_ctx.send_packet = false;
 			else
 			{
-				started_peeking = false;
+				this->started_peeking = false;
 
-				random_factor = min(rand() % 14 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 				switch_ticks = !switch_ticks;
 				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
 
 				g_ctx.send_packet = true;
 			}
 		}
-		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && !g_ctx.globals.slowwalking && !(g_ctx.local()->m_fFlags() & FL_ONGROUND && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND) && g_cfg.antiaim.fakelag_enablers[FAKELAG_AIR])
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_SHOT] && (m_pcmd->m_buttons & IN_ATTACK) && g_ctx.globals.weapon->can_fire(true))
 		{
-			if (choked < max_choke)
+			if (choked < this->max_choke)
 				g_ctx.send_packet = false;
 			else
 			{
-				started_peeking = false;
+				this->started_peeking = false;
 
-				random_factor = min(rand() % 14 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				switch_ticks = !switch_ticks;
+				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
+
+				g_ctx.send_packet = true;
+			}
+		}
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_RELOAD] && reloading)
+		{
+			if (choked < this->max_choke)
+				g_ctx.send_packet = false;
+			else
+			{
+				this->started_peeking = false;
+
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
+				switch_ticks = !switch_ticks;
+				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
+
+				g_ctx.send_packet = true;
+			}
+		}
+		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_VELOCITY_CHANGE] && abs(velocity - g_ctx.local()->m_vecVelocity().Length()) > 5.0f)
+		{
+			if (choked < this->max_choke)
+				g_ctx.send_packet = false;
+			else
+			{
+				this->started_peeking = false;
+
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 				switch_ticks = !switch_ticks;
 				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.triggers_fakelag_amount : max(g_cfg.antiaim.triggers_fakelag_amount - 2, 1);
 
@@ -160,69 +197,56 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 		}
 		else if (!g_ctx.globals.exploits && g_cfg.antiaim.fakelag)
 		{
-			max_choke = g_cfg.antiaim.fakelag_amount;
+			this->max_choke = g_cfg.antiaim.fakelag_amount;
 
 			if (m_gamerules()->m_bIsValveDS())
-				max_choke = min(max_choke, 6);
+				this->max_choke = min(this->max_choke, 6);
 
-			if (choked < max_choke)
+			if (choked < this->max_choke)
 				g_ctx.send_packet = false;
 			else
 			{
-				started_peeking = false;
+				this->started_peeking = false;
 
-				random_factor = min(rand() % 14 + 1, g_cfg.antiaim.fakelag_amount);
+				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.fakelag_amount);
 				switch_ticks = !switch_ticks;
 				fluctuate_ticks = switch_ticks ? g_cfg.antiaim.fakelag_amount : max(g_cfg.antiaim.fakelag_amount - 2, 1);
 
 				g_ctx.send_packet = true;
 			}
 		}
-
-
-		else if (g_ctx.globals.exploits && g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.isshifting)
+		else if (g_ctx.globals.exploits || !g_AntiAim->condition(m_pcmd, false) && (g_AntiAim->type == ANTIAIM_LEGIT || g_cfg.antiaim.type[g_AntiAim->type].desync)) //-V648
 		{
-			/*if (g_ctx.globals.isshifting) 
-			{
-				started_peeking = false;
+			this->condition = true;
+			this->started_peeking = false;
+			int target_choke = 1;
 
-				if (choked < max_choke)
-					g_ctx.send_packet = false;
-				else
-					g_ctx.send_packet = true;
-			}
-			else
-			{
-				started_peeking = false;
+			if (g_cfg.ragebot.fakelag_exploits > target_choke)
+				target_choke = g_cfg.ragebot.fakelag_exploits;
+				
 
-				if (choked < g_cfg.ragebot.fakelag_exploits)
-					g_ctx.send_packet = false;
-				else
-					g_ctx.send_packet = true;
-			}*/
-
-
-			started_peeking = false;
-
-			if (choked <= g_cfg.ragebot.fakelag_exploits)
+			if (choked <= target_choke)
 				g_ctx.send_packet = false;
 			else
 				g_ctx.send_packet = true;
-		}
-		else if (g_ctx.globals.exploits && !g_ctx.globals.isshifting)
-		{
-			
-			started_peeking = false;
-
-			if (choked < 2)
-				g_ctx.send_packet = false;
-			else
-				g_ctx.send_packet = true;
-			
 		}
 		else
-			condition = true;
+			this->condition = true;
 	}
+
+	if (this->force_ticks_allowed)
+		return;
+
+	return this->ForceTicksAllowedForProcessing();
+}
+
+void fakelag::ForceTicksAllowedForProcessing()
+{
+	g_ctx.send_packet = false;
+	if (m_clientstate()->iChokedCommands < 14)
+		return;
+
+	this->force_ticks_allowed = true;
 }
 
 void fakelag::Createmove()
@@ -252,13 +276,13 @@ void fakelag::SetMoveChokeClampLimit()
 }
 bool fakelag::FakelagCondition(CUserCmd* m_pcmd)
 {
-	condition = false;
+	this->condition = false;
 
 	if (g_ctx.local()->m_bGunGameImmunity() || g_ctx.local()->m_fFlags() & FL_FROZEN)
-		condition = true;
+		this->condition = true;
 
-	if (g_AntiAim->freeze_check && !tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled)
-		condition = true;
+	if (g_AntiAim->freeze_check)
+		this->condition = true;
 
-	return condition;
+	return this->condition;
 }

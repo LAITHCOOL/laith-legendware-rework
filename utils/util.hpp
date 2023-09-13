@@ -242,6 +242,7 @@ namespace util
 	bool is_breakable_entity(IClientEntity* e);
 	int get_hitbox_by_hitgroup(int index);
 	void movement_fix_new(Vector& wish_angle, CUserCmd* m_pcmd);
+	void MovementFix(Vector& wish_angle, CUserCmd* m_pcmd);
 	void movement_fix(Vector& wish_angle, CUserCmd* m_pcmd);
 	unsigned int find_in_datamap(datamap_t* map, const char* name);
 	void color_modulate(float color[3], IMaterial* material);

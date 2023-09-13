@@ -180,6 +180,44 @@ namespace util
 		m_pcmd->m_upmove = correct_movement.z;
 	}
 
+	void MovementFix(Vector& wish_angle, CUserCmd* m_pcmd)
+	{
+		Vector PureForward, PureRight, PureUp, CurrForward, CurrRight, CurrUp;
+		math::angle_vectors(wish_angle, &PureForward, &PureRight, &PureUp);
+		math::angle_vectors(m_pcmd->m_viewangles, &CurrForward, &CurrRight, &CurrUp);
+
+		PureForward[2] = PureRight[2] = CurrForward[2] = CurrRight[2] = 0.f;
+
+		auto VectorNormalize = [](Vector& vec)->float {
+			float radius = sqrtf(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+			float iradius = 1.f / (radius + FLT_EPSILON);
+
+			vec.x *= iradius;
+			vec.y *= iradius;
+			vec.z *= iradius;
+
+			return radius;
+		};
+		VectorNormalize(PureForward);
+		VectorNormalize(PureRight);
+		VectorNormalize(CurrForward);
+		VectorNormalize(CurrRight);
+		Vector PureWishDir;
+		for (auto i = 0u; i < 2; i++)
+			PureWishDir[i] = PureForward[i] * m_pcmd->m_forwardmove + PureRight[i] * m_pcmd->m_sidemove;
+		PureWishDir[2] = 0.f;
+
+		Vector CurrWishDir;
+		for (auto i = 0u; i < 2; i++)
+			CurrWishDir[i] = CurrForward[i] * m_pcmd->m_forwardmove + CurrRight[i] * m_pcmd->m_sidemove;
+		CurrWishDir[2] = 0.f;
+
+		if (PureWishDir != CurrWishDir) {
+			m_pcmd->m_forwardmove = (PureWishDir.x * CurrRight.y - CurrRight.x * PureWishDir.y) / (CurrRight.y * CurrForward.x - CurrRight.x * CurrForward.y);
+			m_pcmd->m_sidemove = (PureWishDir.y * CurrForward.x - CurrForward.y * PureWishDir.x) / (CurrRight.y * CurrForward.x - CurrRight.x * CurrForward.y);
+		}
+	}
+
 	void movement_fix(Vector& wish_angle, CUserCmd* m_pcmd)
 	{
 		Vector view_fwd, view_right, view_up, cmd_fwd, cmd_right, cmd_up;

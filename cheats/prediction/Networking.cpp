@@ -28,6 +28,8 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 	if (m_pcmd->m_buttons & IN_ATTACK2 && g_cfg.ragebot.enable && g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER)
 		m_pcmd->m_buttons &= ~IN_ATTACK2;
 
+	if (g_ctx.globals.ticks_allowed < 16 && (tickbase::get().double_tap_enabled && tickbase::get().double_tap_key || tickbase::get().hide_shots_enabled && tickbase::get().hide_shots_key))
+		g_ctx.globals.should_recharge = true;
 
 	//g_ctx.send_packet = true;
 	g_ctx.globals.tickbase_shift = 0;
@@ -46,7 +48,10 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.tickbase_shift;
 	else*/
 		
-	
+	if (g_ctx.globals.next_tickbase_shift)
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.next_tickbase_shift;
+	else
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
 
 	if (hooks::menu_open)
 	{
@@ -210,16 +215,10 @@ void networking::packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket)
 	if (g_ctx.globals.isshifting)
 		m_pcmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
 
-	if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
-		g_ctx.local()->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
+	/*if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
+		g_ctx.local()->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);*/
 
-	g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
-
-	/*if (g_ctx.globals.tickbase_shift)
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift;
-	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;*/
-
+	//g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
 }
 
 void networking::process_packets(CUserCmd* m_pcmd)

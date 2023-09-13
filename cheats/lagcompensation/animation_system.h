@@ -239,7 +239,13 @@ public:
 	EFixedVelocity m_nVelocityMode = EFixedVelocity::Unresolved;
 	resolver_type type;
 	resolver_side side;
-	float desync_amount;
+	float desync_amount = 0.0f;
+	struct
+	{
+		bool LowDelta = false;
+		bool ShouldFlip = false;
+	}types[7];
+
 	bool break_lagcomp;
 	get_side_move curSide;
 	modes curMode;
@@ -277,7 +283,8 @@ public:
 	float m_flThirdPersonRecoil;
 	Vector angles;
 	bool m_bRestoreData;
-	int m_flExploitTime;
+	float m_flExploitTime;
+	float m_flLastSimTime;
 	Vector abs_angles;
 	Vector m_vecAbsOrigin;
 	Vector velocity;
@@ -288,15 +295,7 @@ public:
 	bool m_fDidBacktrack;
 	matrix3x4_t* m_pBoneCache;
 
-	std::array<float, 24> left_poses = {};
-	std::array<float, 24> right_poses = {};
-
-
-	float latency = 0;
-	int m_nCompensatedServerTick = 0;
-
-
-
+	float m_fSpawnTime;
 	adjust_data()
 	{
 		reset();
@@ -307,20 +306,23 @@ public:
 		player = nullptr;
 		i = -1;
 
-		type = ORIGINAL;
+		/*type = ORIGINAL;
 		side = RESOLVER_ORIGINAL;
 		curSide = NO_SIDE;
-		curMode = NO_MODE;
+		curMode = NO_MODE;*/
 		bot = false;
 		invalid = false;
 		m_bHasBrokenLC = false;
 		immune = false;
 		dormant = false;
 		m_flAnimationVelocity = 0;
+		m_flExploitTime = 0.0f;
+		m_flLastSimTime = 0.0f;
 		shot = false;
 		shot_tick = 0;
 		flags = 0;
 		bone_count = 0;
+		m_fSpawnTime = 0.0f;
 		lby_diff = 0.0f;
 		simulation_time = 0.0f;
 		old_simtime = 0.0f;
@@ -336,18 +338,24 @@ public:
 		m_vecAbsOrigin.Zero();
 		maxs.Zero();
 		m_bRestoreData = false;
-		m_nSimulationTicks = 0;
 	}
 
 	adjust_data(player_t* e, bool store = true)
 	{
-		type = ORIGINAL;
+		/*type = ORIGINAL;
 		side = RESOLVER_ORIGINAL;
 		curSide = NO_SIDE;
 		curMode = NO_MODE;
-
+		m_flExploitTime = 0.0f;
+		m_flLastSimTime = 0.0f;
 		invalid = false;
 		m_bHasBrokenLC = false;
+		immune = false;
+		dormant = false;
+		shot = false;
+		shot_tick = 0;
+		m_bRestoreData = false;*/
+		reset();
 		store_data(e, store);
 	}
 
@@ -372,6 +380,17 @@ public:
 		m_engine()->GetPlayerInfo(i, &player_info);
 		bot = player_info.fakeplayer;
 
+		/*Handle shots*/
+		weapon_t* pWeapon = e->m_hActiveWeapon();
+		if (pWeapon)
+		{
+			if (pWeapon->m_fLastShotTime() <= e->m_flSimulationTime() && pWeapon->m_fLastShotTime() > e->m_flOldSimulationTime())
+			{
+				shot = true;
+				shot_tick = TIME_TO_TICKS(pWeapon->m_fLastShotTime());
+			}
+		}
+
 		flags = player->m_fFlags();
 		bone_count = player->m_CachedBoneData().Count();
 		simulation_time = player->m_flSimulationTime();
@@ -388,8 +407,7 @@ public:
 		player->UpdateCollisionBounds();
 		mins = player->GetCollideable()->OBBMins();
 		maxs = player->GetCollideable()->OBBMaxs();
-		///player->UpdateCollisionBounds();
-		//player->SetCollisionBounds(mins, maxs);
+		m_fSpawnTime = player->m_flSpawnTime();
 		m_bRestoreData = true;
 	}
 
@@ -417,8 +435,6 @@ public:
 		player->UpdateCollisionBounds();
 		player->SetCollisionBounds(mins, maxs);
 
-		//player->GetCollideable()->OBBMins() = mins;
-		//player->GetCollideable()->OBBMaxs() = maxs;
 		m_bRestoreData = false;
 	}
 
@@ -426,11 +442,11 @@ public:
 	{
 		const float flLerpTime = util::get_interpolation();
 
-		float flDeltaTime = fmin(latency + flLerpTime, 0.2f) - TICKS_TO_TIME(nTickBase - TIME_TO_TICKS(flSimulationTime));
+		float flDeltaTime = fmin(g_Networking->latency + flLerpTime, 0.2f) - TICKS_TO_TIME(nTickBase - TIME_TO_TICKS(flSimulationTime));
 		if (fabs(flDeltaTime) > 0.2f)
 			return false;
 
-		int nDeadTime = (int)((float)(TICKS_TO_TIME(m_nCompensatedServerTick)) - 0.2f);
+		int nDeadTime = (int)((float)(TICKS_TO_TIME(g_Networking->server_tick())) - 0.2f);
 		if (TIME_TO_TICKS(flSimulationTime + flLerpTime) < nDeadTime)
 			return false;
 
@@ -540,6 +556,7 @@ public:
 
 		if (invalid || m_bHasBrokenLC)
 			return false;
+		
 
 		auto net_channel_info = m_engine()->GetNetChannelInfo();
 
@@ -630,8 +647,10 @@ public:
 
 	int GetRecordPriority(adjust_data* m_Record);
 	adjust_data* FindBestRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords, int& nPriority, const float& flSimTime);
+	void extrapolate(player_t* player, Vector& origin, Vector& velocity, int& flags, bool wasonground);
 	void ProccessShiftingPlayers(player_t* e, adjust_data* record, adjust_data* previous_record);
 	void fsn(ClientFrameStage_t stage);
+	void ExtraPolate(adjust_data* record);
 	void RecalculateVelocity(player_t* pPlayer, adjust_data* LagRecord, adjust_data* PreviousRecord, C_CSGOPlayerAnimationState* animstate);
 	bool valid(int i, player_t* e);
 	adjust_data* FindFirstRecord(player_t* pPlayer, std::deque<adjust_data>* m_LagRecords);
@@ -656,7 +675,7 @@ public:
 	void setup_matrix(player_t* e, const int& matrix, adjust_data* record);
 	void SimulatePlayerActivity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord);
 	float ComputeActivityPlayback(player_t* pPlayer, adjust_data* m_Record);
-	void SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* previous_record);
+	void SimulatePlayerAnimations(player_t* e);
 	void FixPvs(player_t* e);
 	void SetupCollision(player_t* pPlayer, adjust_data* m_LagRecord);
 	float land_time = 0.0f;

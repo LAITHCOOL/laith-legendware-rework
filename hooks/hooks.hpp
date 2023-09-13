@@ -134,7 +134,8 @@ namespace hooks
 	_declspec(noinline)void updateclientsideanimation_detour(player_t* player);
 	void __fastcall hooked_physicssimulate(player_t* player);
 	_declspec(noinline)void physicssimulate_detour(player_t* player);
-	void __fastcall hooked_modifyeyeposition(c_baseplayeranimationstate* state, void* edx, Vector& position);
+	void modifyeyeposition_detour123(C_CSGOPlayerAnimationState* state, Vector& position);
+	void __fastcall hooked_modifyeyeposition(C_CSGOPlayerAnimationState* state, void* edx, Vector& position);
 	_declspec(noinline)void modifyeyeposition_detour(c_baseplayeranimationstate* state, Vector& position);
 	void __fastcall hooked_calcviewmodelbob(player_t* player, void* edx, Vector& position);
 	_declspec(noinline)void calcviewmodelbob_detour(player_t* player, Vector& position);

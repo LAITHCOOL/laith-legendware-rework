@@ -142,6 +142,7 @@ void __cdecl hooks::Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTi
 	{
 		g_ctx.globals.tocharge++;
 		g_ctx.globals.ticks_allowed = g_ctx.globals.tocharge;
+		g_ctx.globals.should_recharge = false;
 		return;
 	}
 

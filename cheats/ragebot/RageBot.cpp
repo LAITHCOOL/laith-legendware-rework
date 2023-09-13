@@ -194,11 +194,11 @@ void AimPlayer::OnNetUpdate(player_t* player) {
 	}
 
 	// update player_t ptr.
-	//m_player = player;
+	m_player = player;
 }
 
 void AimPlayer::OnRoundStart(player_t* player) {
-	//m_player = player;
+	m_player = player;
 	m_shots = 0;
 	m_missed_shots = 0;
 	m_type = 0;
@@ -232,7 +232,7 @@ void AimPlayer::SetupHitboxes(adjust_data* record, bool history) {
 	}
 
 	auto only = false;
-	AimPlayer* data = & g_Ragebot->m_players[record->i];
+	AimPlayer* data = &g_Ragebot->m_players[record->i];
 
 	// only, always.
 	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].always_body_aim.at(ALWAYS_BAIM_ALWAYS) || key_binds::get().get_key_bind_state(22) || (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses && data->m_missed_shots >= g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].max_misses_amount)) {
@@ -376,7 +376,7 @@ void aimbot::init() {
 	m_best_lag = FLT_MAX;
 	m_best_height = FLT_MAX;
 
-	//this->m_current_matrix = nullptr;
+	this->m_current_matrix = nullptr;
 }
 
 static bool compare_records(const optimized_adjust_data& first, const optimized_adjust_data& second)
@@ -562,12 +562,15 @@ bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
 		penetration::PenetrationOutput_t out;
 
 		// set our enemy stuff to the current record.
-		first_record->player->m_vecOrigin() = first_record->origin;
+		/*first_record->player->m_vecOrigin() = first_record->origin;
 		first_record->player->set_abs_origin(first_record->origin);
 		first_record->player->set_abs_angles(first_record->abs_angles);
 		first_record->player->UpdateCollisionBounds();
 		first_record->player->SetCollisionBounds(first_record->mins, first_record->maxs);
-		std::memcpy(first_record->player->m_CachedBoneData().Base(), first_record->m_Matricies[MiddleMatrix].data(), sizeof(first_record->m_Matricies[MiddleMatrix].data()));
+		std::memcpy(first_record->player->m_CachedBoneData().Base(), first_record->m_Matricies[MiddleMatrix].data(), sizeof(first_record->m_Matricies[MiddleMatrix].data()));*/
+		first_record->adjust_player();
+
+
 
 		// run our p100 penetration code.
 		if (penetration::get().run(&in, &out, true)) {
@@ -623,6 +626,7 @@ void aimbot::think(CUserCmd* m_pcmd) {
 		AimPlayer* data = &this->m_players[i];
 
 		data->m_player = player;
+		data->m_spawn = player->m_flSpawnTime();
 
 		if (!data)
 			continue;
@@ -684,8 +688,8 @@ void aimbot::find(CUserCmd* m_pcmd) {
 			continue;
 
 		//auto ideal = get_record(records);
-		auto ideal = get_first_record(records);
-		//auto ideal = &records->front();
+		//auto ideal = get_first_record(records);
+		auto ideal = &records->front();
 
 		if (ideal->valid())
 		{
@@ -1192,24 +1196,28 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 			penetration::PenetrationOutput_t out;
 
+			// setup trace data
+			/*record->player->m_vecOrigin() = record->origin;
+			record->player->set_abs_origin(record->origin);
+			record->player->set_abs_angles(record->abs_angles);
+			record->player->UpdateCollisionBounds();
+			record->player->SetCollisionBounds(record->mins, record->maxs);
+			m_matrix = record->m_Matricies[MiddleMatrix].data();
+			std::memcpy(record->player->m_CachedBoneData().Base(), m_matrix, sizeof(m_matrix));*/
+			record->adjust_player();
+
 			//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
-			/*if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
-				continue;*/
+			if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
+				continue;
 
 			// code for safepoint matrix, the point should (!) be a safe point.
-			bool safe =  g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, it.m_index);
+			bool safe = g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, it.m_index);
 
 			// don't run the code if our user want to force the safepoint and the target is not safe to hit.
 			if (force_safe_points && !safe)
 				continue;
 
-			// setup trace data
-			record->player->m_vecOrigin() = record->origin;
-			record->player->set_abs_origin(record->origin);
-			record->player->set_abs_angles(record->abs_angles);
-			record->player->UpdateCollisionBounds();
-			record->player->SetCollisionBounds(record->mins, record->maxs);
-			std::memcpy(record->player->m_CachedBoneData().Base(), m_matrix, sizeof(m_matrix));
+			//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, in.m_pos, record->player);
 
 			// we can hit p!
 			if (penetration::get().run(&in, &out)) {
@@ -1217,7 +1225,7 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 
 				// restore trace data
 				restore();
-				
+
 				// nope we did not hit head..
 				if (it.m_index == HITBOX_HEAD && out.m_hitgroup != HITGROUP_HEAD)
 					continue;
@@ -1239,20 +1247,19 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 				else if (it.m_mode == HitscanMode::NORMAL) {
 					// we did more damage.
 					if (out.m_damage > scan.m_damage) {
-						if (! g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER)
+						if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER)
 						{
 							if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
-								 g_Ragebot->m_stop = true;
+								g_Ragebot->m_stop = true;
 							else if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
-								 g_Ragebot->m_stop = true;
+								g_Ragebot->m_stop = true;
 						}
 
 						// save new best data.
 						scan.m_damage = out.m_damage;
 						scan.m_point = point;
 						scan.m_hitbox = it.m_index;
-						scan.m_safepoint = it.m_safepoint;
-
+						scan.m_safepoint = safe;
 						// if the first point is lethal
 						// screw the other ones.
 						if (point.point == points.front().point && out.m_damage >= record->player->m_iHealth())
@@ -1271,18 +1278,12 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 					scan.m_damage = out.m_damage;
 					scan.m_point = point;
 					scan.m_hitbox = it.m_index;
-					scan.m_safepoint = it.m_mode == HitscanMode::PREFER && it.m_safepoint;
+					scan.m_safepoint = safe;
 					scan.m_mode = it.m_mode;
-
-
-
-
-					g_Ragebot->m_working = true;
 
 					break;
 				}
-				else
-					g_Ragebot->m_working = false;
+
 			}
 			else
 			{
@@ -1305,7 +1306,7 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 		hitbox = scan.m_hitbox;
 		safe = scan.m_safepoint;
 		g_Ragebot->m_current_matrix = m_matrix;
-		
+		g_Ragebot->m_working = true;
 		return true;
 	}
 
@@ -1403,10 +1404,10 @@ void aimbot::apply(CUserCmd* m_pcmd) {
 	if (!(m_pcmd->m_buttons & IN_ATTACK))
 		return;
 
-	if (this->m_target)
+	if (this->m_target && this->m_record)
 	{
-		if (this->m_record)
-			m_pcmd->m_tickcount = TIME_TO_TICKS(m_record->simulation_time + util::get_interpolation());
+
+		m_pcmd->m_tickcount = TIME_TO_TICKS(m_record->simulation_time + util::get_interpolation());
 
 		m_pcmd->m_viewangles = this->m_angle;
 

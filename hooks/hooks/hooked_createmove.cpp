@@ -71,6 +71,60 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 	/*CreateMove branch without aimbot*/
 	if (g_ctx.globals.isshifting)
 	{
+
+		auto BoostMovement = [&]()
+		{
+			/* get cmd move data */
+			float& flForwardMove = m_pcmd->m_forwardmove;
+			float& flSideMove = m_pcmd->m_sidemove;
+			int& nButtons = m_pcmd->m_buttons;
+
+			/* Force .y movement */
+			if (flForwardMove > 5.0f)
+			{
+				/* force buttons */
+				nButtons |= IN_FORWARD;
+				nButtons &= ~IN_BACK;
+
+				/* force movement */
+				flForwardMove = 450.0f;
+			}
+			else if (flForwardMove < -5.0f)
+			{
+				/* force buttons */
+				nButtons |= IN_BACK;
+				nButtons &= ~IN_FORWARD;
+
+				/* force movement */
+				flForwardMove = -450.0f;
+			}
+
+			/* Force .x movement */
+			if (flSideMove > 5.0f)
+			{
+				/* force buttons */
+				nButtons |= IN_MOVERIGHT;
+				nButtons &= ~IN_MOVELEFT;
+
+				/* force movement */
+				flSideMove = 450.0f;
+			}
+			else if (flSideMove < -5.0f)
+			{
+				/* force buttons */
+				nButtons |= IN_MOVELEFT;
+				nButtons &= ~IN_MOVERIGHT;
+
+				/* force movement */
+				flSideMove = -450.0f;
+			}
+
+			/* do not slowdown */
+			nButtons &= ~IN_SPEED;
+		};
+
+			BoostMovement();
+
 		g_Networking->start_move(m_pcmd, g_ctx.send_packet);
 
 		g_ctx.globals.wish_angle = m_pcmd->m_viewangles;
@@ -111,16 +165,13 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 			if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->is_non_aim() && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND)
 				g_Slowwalk->create_move(m_pcmd, 0.95f + 0.003125f * (16 - m_clientstate()->iChokedCommands));
 
-
-			g_Fakelag->Createmove();
-
 			g_ctx.globals.aimbot_working = false;
 			g_ctx.globals.revolver_working = false;
 
 
-			g_Ragebot->think(m_pcmd);
+			//g_Ragebot->think(m_pcmd);
 
-			g_LegitBot->createmove(m_pcmd);
+			//g_LegitBot->createmove(m_pcmd);
 
 			g_Misc->ax();
 
@@ -149,7 +200,7 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 		if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && m_pcmd->m_viewangles.z != 0.f)
 			m_pcmd->m_viewangles.z = 0.f;
 
-		util::movement_fix_new(wish_angle, m_pcmd);
+		util::MovementFix(wish_angle, m_pcmd);
 
 		g_Networking->process_packets(m_pcmd);
 
@@ -215,7 +266,7 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 		if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->is_non_aim() && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND)
 			g_Slowwalk->create_move(m_pcmd, 0.95f + 0.003125f * (16 - m_clientstate()->iChokedCommands));
 
-		
+		//if (!g_ctx.globals.should_recharge)
 		g_Fakelag->Createmove();
 
 		g_ctx.globals.aimbot_working = false;
@@ -253,7 +304,7 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && m_pcmd->m_viewangles.z != 0.f)
 		m_pcmd->m_viewangles.z = 0.f;
 
-	util::movement_fix_new(wish_angle, m_pcmd);
+	util::MovementFix(wish_angle, m_pcmd);
 
 	g_Networking->process_packets(m_pcmd);
 

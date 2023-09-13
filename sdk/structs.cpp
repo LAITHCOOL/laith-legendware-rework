@@ -1733,7 +1733,14 @@ int player_t::sequence_activity(int sequence)
 	static auto sequence_activity = reinterpret_cast<int(__fastcall*)(void*, studiohdr_t*, int)>(util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 53 8B 5D 08 56 8B F1 83")));
 	return sequence_activity(this, hdr, sequence);
 }
-
+int player_t::lookup_bone(const char* szName)
+{
+	if (!this)
+		return -1;
+	static auto lookup_bone = util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 53 56 8B F1 57 83 ? ? ? ? ? ? 75")); // LookupBone()
+	static auto fn = reinterpret_cast <int(__thiscall*)(void*, const char*)> (lookup_bone);
+	return fn(this, szName);
+}
 c_baseplayeranimationstate* player_t::get_animation_state()
 {
 	return *reinterpret_cast<c_baseplayeranimationstate**>(reinterpret_cast<void*>(uintptr_t(this) + 0x9960));

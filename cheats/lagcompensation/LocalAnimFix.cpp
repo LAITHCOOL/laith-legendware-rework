@@ -520,8 +520,8 @@ void C_LocalAnimations::SetupShootPosition()
 	g_ctx.local()->set_abs_origin(std::get < 0 >(m_Backup));
 	g_ctx.local()->m_angEyeAngles() = std::get < 1 >(m_Backup);
 
-	g_ctx.globals.eye_pos = GetShootPosition();
-	//g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
+	//g_ctx.globals.eye_pos = GetShootPosition();
+	g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
 }
 
 bool C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)

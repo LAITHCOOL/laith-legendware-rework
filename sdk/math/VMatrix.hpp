@@ -250,6 +250,8 @@ struct matrix3x4_t
     float* Base() { return &m_flMatVal[0][0]; }
     const float* Base() const { return &m_flMatVal[0][0]; }
 
+    Vector at(int i) const { return Vector{ m_flMatVal[0][i], m_flMatVal[1][i], m_flMatVal[2][i] }; }
+
     float m_flMatVal[3][4];
 };
 

@@ -390,6 +390,7 @@ struct Config
 		key_bind onshot;
 		bool pitch_correction;
 		bool nem_resolver;
+		bool enable_resolver;
 		bool remove_recoil;
 		int fire_delay_time = 0;//
 		bool autostop_fixer = false;//

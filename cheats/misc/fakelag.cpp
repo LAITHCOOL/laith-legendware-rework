@@ -225,7 +225,7 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 				target_choke = g_cfg.ragebot.fakelag_exploits;
 				
 
-			if (choked <= target_choke)
+			if (choked < target_choke)
 				g_ctx.send_packet = false;
 			else
 				g_ctx.send_packet = true;

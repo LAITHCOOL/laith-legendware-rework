@@ -1,6 +1,7 @@
 #pragma once
 #include "..\..\includes.hpp"
 #include "..\lagcompensation\animation_system.h"
+#include "../lagcompensation/AnimSync/LagComp.hpp"
 enum
 {
 	PREFER_BAIM_ALWAYS,
@@ -152,15 +153,15 @@ public:
 
 	void OnNetUpdate(player_t* player);
 	void OnRoundStart(player_t* player);
-	void SetupHitboxes(adjust_data* record, bool history);
-	bool SetupHitboxPoints(adjust_data* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points);
-	bool GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, adjust_data* record, float& min_damage);
+	void SetupHitboxes(LagRecord_t* record, bool history);
+	bool SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points);
+	bool GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, LagRecord_t* record, float& min_damage, player_t* player);
 
 public:
 	void reset() {
 		m_player = nullptr;
 		m_shots = 0;
-		m_missed_shots = 0;
+		//m_missed_shots = 0;
 		m_last_side_hit = 0;
 		m_type = 0;
 		m_side = 0;
@@ -215,7 +216,7 @@ public:
 	Vector     m_angle;
 	HitscanPoint_t     m_point;
 	float      m_damage;
-	adjust_data* m_record;
+	LagRecord_t* m_record;
 	bool	   m_safe;
 	std::vector <HitscanPoint_t> m_debug_points;
 	bool m_working;
@@ -256,7 +257,7 @@ public:
 		return true;
 	}
 
-	bool CanHit(Vector start, Vector end, adjust_data* record, int box, bool in_shot = false, matrix3x4_t* bones = nullptr);
+	bool CanHit(Vector start, Vector end, LagRecord_t* record, int box, bool in_shot = false, matrix3x4_t* bones = nullptr);
 public:
 	// aimbot.
 	void init();
@@ -264,24 +265,24 @@ public:
 	void think(CUserCmd* m_pcmd);
 	void find(CUserCmd* m_pcmd);
 	bool HasMaximumAccuracy();
-	float CheckHitchance(player_t* player, const Vector& angle, adjust_data* record, int hitbox);
-	bool SelectTarget(adjust_data* record, const HitscanPoint_t& point, float damage);
+	float CheckHitchance(player_t* player, const Vector& angle, LagRecord_t* record, int hitbox);
+	bool SelectTarget(LagRecord_t* record, const HitscanPoint_t& point, float damage);
 	void apply(CUserCmd* m_pcmd);
 	void AutoStop(CUserCmd* m_pcmd);
 	void AutoRevolver(CUserCmd* m_pcmd);
 	void AdjustRevolverData(int commandnumber, int buttons);
-	bool IsSafePoint(adjust_data* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox);
-	bool bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, adjust_data* pRecord);
-	adjust_data* get_record(std::deque <adjust_data>* records);
-	adjust_data* get_record_history(std::deque <adjust_data>* records);
-	adjust_data* get_oldest_record(std::deque<adjust_data>* records);
-	adjust_data* get_first_record(std::deque<adjust_data>* records);
+	bool IsSafePoint(LagRecord_t* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox);
+	bool bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, LagRecord_t* pRecord);
+	LagRecord_t* get_record(std::deque <LagRecord_t>* records);
+	LagRecord_t* get_record_history(std::deque <LagRecord_t>* records);
+	LagRecord_t* get_oldest_record(std::deque<LagRecord_t>* records);
+	LagRecord_t* get_first_record(std::deque<LagRecord_t>* records);
 	// knifebot.
 	void knife(CUserCmd* m_pcmd);
-	bool CanKnife(adjust_data* record, Vector angle, bool& stab);
+	bool CanKnife(LagRecord_t* record, Vector angle, bool& stab);
 
 	bool KnifeTrace(Vector dir, bool stab, CGameTrace* trace);
-	bool KnifeIsBehind(adjust_data* record);
+	bool KnifeIsBehind(LagRecord_t* record);
 };
 
 
@@ -313,11 +314,11 @@ public:
 
 	void build_seed_table();
 	Vector get_spread_direction(weapon_t* weapon, Vector angles, int seed);
-	bool can_intersect_hitbox(const Vector start, const Vector end, Vector spread_dir, adjust_data* log, int hitbox);
-	std::vector<hitbox_data_t> get_hitbox_data(adjust_data* log, int hitbox);
+	bool can_intersect_hitbox(const Vector start, const Vector end, Vector spread_dir, LagRecord_t* log, int hitbox);
+	std::vector<hitbox_data_t> get_hitbox_data(LagRecord_t* log, int hitbox);
 	bool intersects_bb_hitbox(Vector start, Vector delta, Vector min, Vector max);
 	bool __vectorcall intersects_hitbox(Vector eye_pos, Vector end_pos, Vector min, Vector max, float radius);
-	bool can_hit(adjust_data* log, weapon_t* weapon, Vector angles, int hitbox);
+	bool can_hit(LagRecord_t* log, weapon_t* weapon, Vector angles, int hitbox);
 private:
 	std::array<hit_chance_data_t, 256> hit_chance_records = {};
 };

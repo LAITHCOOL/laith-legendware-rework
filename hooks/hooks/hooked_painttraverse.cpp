@@ -15,6 +15,7 @@
 #include "..\..\cheats\lagcompensation\local_animations.h"
 #include "../../cheats/tickbase shift/tickbase_shift.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
+#include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
 using PaintTraverse_t = void(__thiscall*)(void*, vgui::VPANEL, bool, bool);
 
 bool reload_fonts()
@@ -81,6 +82,8 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			g_ctx.globals.missed_shots_spread[i] = 0;
 			player_records[i].clear();
 			g_Lagcompensation->is_dormant[i] = false;
+			g_LagComp->ResetData();
+			g_LocalAnimations->ResetData();
 			playeresp::get().esp_alpha_fade[i] = 0.0f;
 			playeresp::get().health[i] = 100;
 			c_dormant_esp::get().m_cSoundPlayers[i].reset();
@@ -113,6 +116,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 	{
 		in_game = false;
 		g_LocalAnimations->ResetData();
+		g_LagComp->ResetData();
 		g_Networking->reset_data();
 		g_ctx.globals.should_update_weather = true;
 		g_ctx.globals.m_networkable = nullptr;
@@ -190,7 +194,8 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 				}
 				//local_animations::get().local_data.fake_animstate = nullptr;
 				//local_animations::get().local_data.real_animstate = nullptr;
-				//g_LocalAnimations->ResetData();
+				g_LocalAnimations->ResetData();
+				g_LagComp->ResetData();
 				g_ctx.globals.weapon = nullptr;
 				g_ctx.globals.should_choke_packet = false;
 				g_ctx.globals.should_send_packet = false;

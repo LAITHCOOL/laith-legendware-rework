@@ -63,35 +63,14 @@ void __fastcall hooks::hooked_runcommand(void* ecx, void* edx, player_t* player,
 	if (!m_pcmd || !player->is_alive())
 		return original_fn(ecx, player, m_pcmd, move_helper);
 
-	if (m_pcmd->m_tickcount > m_globals()->m_tickcount + g_Networking->tickrate())
+	if (m_pcmd->m_tickcount > m_globals()->m_tickcount + g_Networking->tickrate() + 8)
 	{
 		m_pcmd->m_predicted = true;
 		return;
 	}
 
 	
-
-
-	/* force predicted tickbase */
-	//TickbaseRecord_t* Record = g_EnginePrediction->GetTickbaseRecord(m_pcmd->m_command_number);
-	//if (Record->m_bIsValidRecord)
-	//{
-	//	/* set tickbase */
-	//	player->m_nTickBase() = Record->m_nTickBase - 1;
-
-	//	/* reset record */
-	//	Record->m_nTickBase = -1;
-	//	Record->m_bIsValidRecord = false;
-	//}
-
-	//g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
-	//g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
-
-
-	
 	const auto backup_velocity_modifier = player->m_flVelocityModifier();
-	const int m_nTickbase = player->m_nTickBase();
-	const float m_flCurtime = m_globals()->m_curtime;
 	FixAttackPacket(m_pcmd, true);
 	player->m_flVelocityModifier() = fix_velocity_modifier(player, m_pcmd->m_command_number, true);
 
@@ -108,6 +87,18 @@ void __fastcall hooks::hooked_runcommand(void* ecx, void* edx, player_t* player,
 	player->m_vphysicsCollisionState() = false;
 }
 
+using IsPaused_t = bool(__thiscall*)(void*);
+
+bool __fastcall hooks::hooked_ispaused(void* ecx, void* edx)
+{
+	static auto IsPaused = engine_hook->get_func_address<IsPaused_t>(90);
+	static auto extrapolation = util::FindSignature(crypt_str("client.dll"), crypt_str("0F B6 0D ? ? ? ? 84 C0 0F 44 CF 88 0D ? ? ? ? A0"));
+	if (_ReturnAddress() == (void*)extrapolation)
+		return true;
+
+	return IsPaused(ecx);
+}
+
 using InPrediction_t = bool(__thiscall*)(void*);
 
 bool __stdcall hooks::hooked_inprediction()
@@ -117,10 +108,10 @@ bool __stdcall hooks::hooked_inprediction()
 	static auto setupbones_timing = (void*)util::FindSignature(crypt_str("client.dll"), crypt_str("84 C0 74 0A F3 0F 10 05 ? ? ? ? EB 05"));
 	static void* calcplayerview_return = (void*)util::FindSignature(crypt_str("client.dll"), crypt_str("84 C0 75 0B 8B 0D ? ? ? ? 8B 01 FF 50 4C"));
 
-	if (maintain_sequence_transitions && g_ctx.globals.setuping_bones && _ReturnAddress() == maintain_sequence_transitions)
+	if (_ReturnAddress() == maintain_sequence_transitions)
 		return true;
 
-	if (setupbones_timing && _ReturnAddress() == setupbones_timing)
+	if (_ReturnAddress() == setupbones_timing)
 		return false;
 
 	if (m_engine()->IsInGame()) {
@@ -280,28 +271,56 @@ bool __fastcall hooks::handle_break_lc(void* ecx, void* edx, const int slot, bf_
 	}
 }
 
-class CLC_Move {
-private:
-	char __PAD0[0x8]; // 0x0 two vtables
-public:
-	int backup_commands;
-	int new_commands;
-	std::string* data;
-	bf_write* data_out;
-	bf_read* data_in;
-};                       // size: 0x50
+//class CLC_Move {
+//private:
+//	char __PAD0[0x8]; // 0x0 two vtables
+//public:
+//	int backup_commands;
+//	int new_commands;
+//	std::string* data;
+//	bf_write* data_out;
+//	bf_read* data_in;
+//};                       // size: 0x50
+//
+//template < typename T >
+//class CNetMessagePB : public INetMessage, public T {};
+//using CCLCMsg_Move_t = CNetMessagePB< CLC_Move >;
+//
+//bool __fastcall hooks::hooked_writeusercmddeltatobuffer(void* ecx, void* edx, int slot, bf_write* buf, int from, int to, bool is_new_command)
+//{
+//	static auto original_fn = client_hook->get_func_address <WriteUsercmdDeltaToBuffer_t>(24);
+//
+//
+//	if (!g_ctx.local() || !g_ctx.local()->is_alive())
+//		return original_fn(ecx, slot, buf, from, to, is_new_command);
+//
+//	if (!g_ctx.globals.tickbase_shift)
+//		return original_fn(ecx, slot, buf, from, to, is_new_command);
+//
+//	if (from != -1)
+//		return true;
+//
+//	/*if (tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled && g_ctx.globals.defensive_shift_ticks)
+//		return handle_break_lc(ecx, edx, slot, buf, from, to , is_new_command);*/
+//
+//	auto final_from = -1;
+//
+//	uintptr_t frame_ptr;
+//	__asm mov frame_ptr, ebp;
+//	
+//	CCLCMsg_Move_t* msg = reinterpret_cast<CCLCMsg_Move_t*>(frame_ptr + 0xFCC);
+//
+//	auto backup_commands = reinterpret_cast <int*> (frame_ptr + 0xFD8);
+//	auto new_commands = reinterpret_cast <int*> (frame_ptr + 0xFDC);
+//
+//	return should_shift_cmd(new_commands, backup_commands, ecx, slot, buf, from, to);
+//}
 
-template < typename T >
-class CNetMessagePB : public INetMessage, public T {};
-using CCLCMsg_Move_t = CNetMessagePB< CLC_Move >;
 
+using WriteUsercmdDeltaToBuffer_t = bool(__thiscall*)(void*, int, void*, int, int, bool);
 bool __fastcall hooks::hooked_writeusercmddeltatobuffer(void* ecx, void* edx, int slot, bf_write* buf, int from, int to, bool is_new_command)
 {
 	static auto original_fn = client_hook->get_func_address <WriteUsercmdDeltaToBuffer_t>(24);
-
-
-	if (!g_ctx.local() || !g_ctx.local()->is_alive())
-		return original_fn(ecx, slot, buf, from, to, is_new_command);
 
 	if (!g_ctx.globals.tickbase_shift)
 		return original_fn(ecx, slot, buf, from, to, is_new_command);
@@ -309,21 +328,73 @@ bool __fastcall hooks::hooked_writeusercmddeltatobuffer(void* ecx, void* edx, in
 	if (from != -1)
 		return true;
 
-	/*if (tickbase::get().double_tap_enabled && !tickbase::get().hide_shots_enabled && g_ctx.globals.defensive_shift_ticks)
-		return handle_break_lc(ecx, edx, slot, buf, from, to , is_new_command);*/
-
 	auto final_from = -1;
 
 	uintptr_t frame_ptr;
 	__asm mov frame_ptr, ebp;
-	
-	CCLCMsg_Move_t* msg = reinterpret_cast<CCLCMsg_Move_t*>(frame_ptr + 0xFCC);
 
 	auto backup_commands = reinterpret_cast <int*> (frame_ptr + 0xFD8);
 	auto new_commands = reinterpret_cast <int*> (frame_ptr + 0xFDC);
 
-	return should_shift_cmd(new_commands, backup_commands, ecx, slot, buf, from, to);
+	auto newcmds = *new_commands;
+	auto shift = g_ctx.globals.tickbase_shift;
+
+	g_ctx.globals.tickbase_shift = 0;
+	*backup_commands = 0;
+
+	auto choked_modifier = newcmds + shift;
+
+	if (choked_modifier > 62)
+		choked_modifier = 62;
+
+	*new_commands = choked_modifier;
+
+	auto next_cmdnr = m_clientstate()->iChokedCommands + m_clientstate()->nLastOutgoingCommand + 1;
+	auto final_to = next_cmdnr - newcmds + 1;
+
+	if (final_to <= next_cmdnr)
+	{
+		while (original_fn(ecx, slot, buf, final_from, final_to, true))
+		{
+			final_from = final_to++;
+
+			if (final_to > next_cmdnr)
+				goto next_cmd;
+		}
+
+		return false;
+	}
+next_cmd:
+
+	auto user_cmd = m_input()->GetUserCmd(final_from);
+
+	if (!user_cmd)
+		return true;
+
+	CUserCmd to_cmd;
+	CUserCmd from_cmd;
+
+	from_cmd = *user_cmd;
+	to_cmd = from_cmd;
+
+	to_cmd.m_command_number++;
+	to_cmd.m_tickcount += 200;
+
+	if (newcmds > choked_modifier)
+		return true;
+
+	for (auto i = choked_modifier - newcmds + 1; i > 0; --i)
+	{
+		WriteUserCmd(buf, &to_cmd, &from_cmd);
+
+		from_cmd = to_cmd;
+		to_cmd.m_command_number++;
+		to_cmd.m_tickcount++;
+	}
+
+	return true;
 }
+
 
 bool  hooks::should_shift_cmd(int* new_commands, int* backup_commands, void* ecx, int slot, void* buf, int from, int to) {
 	static auto original = client_hook->get_func_address <WriteUsercmdDeltaToBuffer_t>(24);

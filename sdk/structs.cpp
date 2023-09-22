@@ -456,12 +456,19 @@ void AnimState_s::SetLayerWeightRate(AnimationLayer* pAnimationLayer, float_t fl
 }
 void AnimState_s::SetLayerSequence(AnimationLayer* pAnimationLayer, int iActivity)
 {
+	if (!pAnimationLayer)
+		return;
+
 	int32_t iSequence = this->SelectSequenceFromActivityModifier(iActivity);
 	if (iSequence < 2)
 		return;
 
+	
+
 	pAnimationLayer->m_nSequence = iSequence;
-	pAnimationLayer->m_flPlaybackRate = m_pBaseEntity->GetLayerSequenceCycleRate(pAnimationLayer, iSequence);
+
+	if (m_pBaseEntity && m_pBaseEntity->is_alive())
+		pAnimationLayer->m_flPlaybackRate = m_pBaseEntity->GetLayerSequenceCycleRate(pAnimationLayer, iSequence);
 	pAnimationLayer->m_flCycle = pAnimationLayer->m_flWeight = 0.0f;
 }
 int AnimState_s::SelectSequenceFromActivityModifier(int iActivity)
@@ -1581,7 +1588,7 @@ Vector player_t::m_aimPunchAngleScaled()
 }
 void player_t::update_clientside_animation()
 {
-	if (!this || !get_animation_state1() || m_clientstate()->iDeltaTick == -1) //check
+	if (!this || !get_animation_state1()) //check
 		return;// Repeat
 
 	g_ctx.globals.updating_animation = true; // include update player animation

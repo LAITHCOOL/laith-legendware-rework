@@ -1045,6 +1045,8 @@ void c_menu::draw(bool is_open)
 						g_cfg.ragebot.zeus_bot = true;
 						g_cfg.ragebot.knife_bot = true;
 
+
+						ImGui::Checkbox(crypt_str("Resolver"), &g_cfg.ragebot.enable_resolver);
 						//ImGui::SetCursorPosX(1);
 						ImGui::SliderInt(crypt_str("Field of view"), &g_cfg.ragebot.field_of_view, 1, 180, false, crypt_str("%d°"));
 
@@ -1175,10 +1177,11 @@ void c_menu::draw(bool is_open)
 						//
 						ImGui::SliderInt(crypt_str("Hit chance"), &g_cfg.ragebot.weapon[hooks::rage_weapon].hitchance_amount, 1, 100);
 
+						ImGui::SliderInt(crypt_str("Minimum Damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_visible_damage, 1, 120, true);
 						if (g_cfg.ragebot.autowall)
-							ImGui::SliderInt(crypt_str("Minimum damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_damage, 1, 120, true);
+							ImGui::SliderInt(crypt_str("AutoWall Minimum Damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_damage, 1, 120, true);
 
-						ImGui::SliderInt(crypt_str("Visible minimum damage"), &g_cfg.ragebot.weapon[hooks::rage_weapon].minimum_visible_damage, 1, 120, true);
+						
 
 						draw_keybind(crypt_str("Damage override"), &g_cfg.ragebot.weapon[hooks::rage_weapon].damage_override_key, crypt_str("##HOTKEY__DAMAGE_OVERRIDE"));
 						if (g_cfg.ragebot.weapon[hooks::rage_weapon].damage_override_key.key > KEY_NONE && g_cfg.ragebot.weapon[hooks::rage_weapon].damage_override_key.key < KEY_MAX)

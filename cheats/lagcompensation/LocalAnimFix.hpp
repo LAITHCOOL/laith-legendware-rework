@@ -82,7 +82,7 @@ private:
 			Vector m_vecMatrixOrigin = Vector(0, 0, 0);
 			std::array < matrix3x4_t, MAXSTUDIOBONES > m_Matrix = { };
 
-			C_CSGOPlayerAnimationState m_AnimationState;
+			AnimState_s m_AnimationState;
 		} m_Fake;
 
 		struct
@@ -90,7 +90,7 @@ private:
 			std::array < matrix3x4_t, MAXSTUDIOBONES > m_Matrix = { };
 			std::array < AnimationLayer, 13 > m_Layers = { };
 			std::array < float, MAXSTUDIOPOSEPARAM > m_PoseParameters = { };
-			C_CSGOPlayerAnimationState m_AnimationState;
+			AnimState_s m_AnimationState;
 		} m_Shoot;
 
 		struct

@@ -6,7 +6,7 @@
 #include "..\visuals\other_esp.h"
 #include "../prediction/Networking.h"
 
-void shots::register_shot(player_t* target, Vector eye_pos, adjust_data* record, int fire_tick, HitscanPoint_t point, bool safe)
+void shots::register_shot(player_t* target, Vector eye_pos, LagRecord_t* record, int fire_tick, HitscanPoint_t point, bool safe)
 {
 	auto shot = &this->m_shots.emplace_back();
 
@@ -20,7 +20,7 @@ void shots::register_shot(player_t* target, Vector eye_pos, adjust_data* record,
 
 	if (target)
 	{
-		AimPlayer* data = & g_Ragebot->m_players[target->EntIndex()];
+		AimPlayer* data = & g_Ragebot->m_players[target->EntIndex() - 1];
 		++data->m_shots;
 	}
 }
@@ -28,7 +28,7 @@ void shots::register_shot(player_t* target, Vector eye_pos, adjust_data* record,
 void shots::on_fsn()
 {
 	auto current_shot = this->m_shots.end();
-	auto latency = g_Networking->latency + 1.0f;
+	auto latency = g_Networking->latency + 2.0f;
 
 	for (auto& shot = this->m_shots.begin(); shot != this->m_shots.end(); ++shot)
 	{
@@ -55,7 +55,7 @@ void shots::on_fsn()
 	if (current_shot == this->m_shots.end())
 		return;
 
-	auto data = &g_Ragebot->m_players[current_shot->target->EntIndex()];
+	auto data = &g_Ragebot->m_players[current_shot->target->EntIndex() - 1];
 
 	if (!data)
 		return;
@@ -104,6 +104,9 @@ void shots::on_fsn()
 
 	};
 
+	std::string resolver_debug = "";
+	if (current_shot->record)
+		resolver_debug = " [ " + std::to_string((int)current_shot->record->m_flDesyncDelta) + " ] ";
 
 	if (!current_shot->latency)
 	{
@@ -113,9 +116,7 @@ void shots::on_fsn()
 		{
 			if (current_shot->impact_hit_player)
 			{
-				g_ctx.globals.missed_shots[current_shot->target->EntIndex()]++;
 				++data->m_missed_shots;
-				auto resolver_debug = ("resolver type: [") + get_resolver_type(current_shot->record->type) + get_resolver_mode(current_shot->record->curMode) + std::to_string((int)current_shot->record->desync_amount) + ("]");
 				if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
 				{
 					if (current_shot->record->m_fDidBacktrack)
@@ -168,7 +169,7 @@ void shots::on_impact(Vector impactpos)
 
 	trace_t trace, trace_zero, trace_first, trace_second;
 	m_trace()->ClipRayToEntity(Ray_t(current_shot->eye_pos, impactpos), MASK_SHOT_HULL | CONTENTS_HITBOX, current_shot->target, &trace);
-	if (!current_shot->record->bot && current_shot->shot_info.safe)
+	if (current_shot->shot_info.safe)
 	{
 		const auto backup_bone_cache = current_shot->target->m_CachedBoneData().Base();
 
@@ -186,7 +187,7 @@ void shots::on_impact(Vector impactpos)
 
 	auto hit = trace.hit_entity == current_shot->target;
 
-	if (!current_shot->record->bot && current_shot->shot_info.safe)
+	if (!current_shot->record->m_bIsFakePlayer && current_shot->shot_info.safe)
 		hit = hit && trace_zero.hit_entity == current_shot->target && trace_first.hit_entity == current_shot->target && trace_second.hit_entity == current_shot->target;
 
 	if (hit)
@@ -266,11 +267,12 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 		break;
 	}
 
-	if (weapon_is_aim(weapon) && current_shot)
+	if (weapon_is_aim(weapon) && current_shot->record)
 	{
 
-		/*otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
-		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base());		Color result;
+		otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
+		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data());		
+		Color result;
 
 		if (hitgroup == HITGROUP_HEAD)
 			result = Color::Red;
@@ -281,12 +283,12 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 
 		otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
 		{
-			entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == current_shot->target ? current_shot->record->m_Matricies[MiddleMatrix].data() : entity->m_CachedBoneData().Base()),
+			entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data()),
 			m_globals()->m_curtime,
 			result,
 			damage,
 			hitgroup
-		};*/
+		};
 
 	}
 	

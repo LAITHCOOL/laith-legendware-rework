@@ -28,7 +28,7 @@ void C_EnginePrediction::OnRunCommand(int nCommand)
 {
 	NetvarData_t* m_Data = &m_NetVars[nCommand % MULTIPLAYER_BACKUP];
 
-	m_Data->m_nTickBase = g_ctx.globals.fixed_tickbase;
+	m_Data->m_nTickBase = g_ctx.local()->m_nTickBase();
 	m_Data->m_angAimPunchAngle = g_ctx.local()->m_aimPunchAngle();
 	m_Data->m_angViewPunchAngle = g_ctx.local()->m_viewPunchAngle();
 	m_Data->m_vecAimPunchAngleVel = g_ctx.local()->m_aimPunchAngleVel();

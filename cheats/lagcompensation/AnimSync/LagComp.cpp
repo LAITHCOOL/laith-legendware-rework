@@ -1,127 +1,157 @@
 #include "LagComp.hpp"
-
-void C_LagComp::RunLagComp(ClientFrameStage_t Stage)
+#include "../../MultiThread/Multithread.hpp"
+struct LagCompThreadData
 {
+	int index;
+	ClientFrameStage_t stage;
+};
+
+void ThreadedLagComp(LagCompThreadData* Data)
+{
+	int nPlayerID = Data->index;
+	ClientFrameStage_t Stage = Data->stage;
+
 	if (Stage != ClientFrameStage_t::FRAME_NET_UPDATE_END)
 		return;
 
-	/* Iterate all players */
-	for (int nPlayerID = 1; nPlayerID <= m_globals()->m_maxclients; nPlayerID++)
+	/* Get player data of this player */
+	auto m_PlayerData = &g_LagComp->m_LagCompensationPlayerData[nPlayerID - 1];
+
+	/* Get player and check its data */
+	player_t* pPlayer = static_cast<player_t*>(m_entitylist()->GetClientEntity(nPlayerID));
+	if (!pPlayer || !pPlayer->is_player() || !pPlayer->is_alive() || pPlayer->m_iTeamNum() == g_ctx.local()->m_iTeamNum() || pPlayer == g_ctx.local())
 	{
-		/* Get player data of this player */
-		auto m_PlayerData = &m_LagCompensationPlayerData[nPlayerID - 1];
-
-		/* Get player and check its data */
-		player_t* pPlayer = static_cast<player_t*>(m_entitylist()->GetClientEntity(nPlayerID));
-		if (!pPlayer || !pPlayer->is_player() || !pPlayer->is_alive() || pPlayer->m_iTeamNum() == g_ctx.local()->m_iTeamNum() || pPlayer == g_ctx.local())
-		{
-			m_PlayerData->m_bLeftDormancy = true;
-			continue;
-		}
-
-		/* Get record of this player */
-		auto m_LagRecords = &m_LagCompensationRecords[nPlayerID - 1];
-
-		/* Check data changed */
-		if (pPlayer->m_flOldSimulationTime() == pPlayer->m_flSimulationTime())
-			continue;
-
-		/* Set left dormancy */
-		if (pPlayer->IsDormant())
-		{
-			m_PlayerData->m_bLeftDormancy = true;
-			continue;
-		}
-
-		/* define previous record of this player */
-		LagRecord_t m_PreviousRecord;
-		m_PreviousRecord.m_bRestoreData = false;
-		if (!m_LagRecords->empty())
-		{
-			m_PlayerData->m_LagRecord = m_LagRecords->back();
-			m_PreviousRecord = m_PlayerData->m_LagRecord;
-			m_PreviousRecord.m_bRestoreData = true;
-		}
-
-		/* Store data */
-		LagRecord_t m_Record;
-		StoreRecordData(pPlayer, &m_Record, &m_PreviousRecord);
-
-		/* check for fake update */
-		if (m_PreviousRecord.m_bRestoreData)
-		{
-			if (m_PreviousRecord.m_Layers[11].m_flCycle == m_Record.m_Layers[11].m_flCycle)
-			{
-				pPlayer->m_flSimulationTime() = m_PreviousRecord.m_flSimulationTime;
-				continue;
-			}
-		}
-
-		/* Check tickbase exploits */
-		if (m_PreviousRecord.m_flSimulationTime > m_Record.m_flSimulationTime)
-			HandleTickbaseShift(pPlayer, &m_PreviousRecord);
-
-		/* Player who left dormancy right now shouldn't have any records */
-		if (m_PlayerData->m_bLeftDormancy)
-			CleanPlayer(pPlayer);
-
-		/* Invalidate records for defensive and break lc */
-		if (m_Record.m_flSimulationTime <= m_PlayerData->m_flExploitTime)
-		{
-			/* Don't care at all about this cases if we have anti-exploit */
-			m_Record.m_bIsInvalid = true;
-			m_Record.m_bHasBrokenLC = true;
-		}
-
-		/* handle break lagcompensation by high speed and fakelags */
-		if (m_PreviousRecord.m_bRestoreData)
-		{
-			if ((m_Record.m_vecOrigin - m_PreviousRecord.m_vecOrigin).Length2DSqr() > 4096.0f)
-			{
-				m_Record.m_bHasBrokenLC = true;
-				CleanPlayer(pPlayer);
-			}
-		}
-
-		/* Determine simulation ticks */
-		/* Another code for tickbase shift */
-		if (m_Record.m_flSimulationTime < m_PreviousRecord.m_flSimulationTime)
-		{
-			m_Record.m_bIsInvalid = true;
-			m_Record.m_bHasBrokenLC = true;
-
-			if (m_PreviousRecord.m_bRestoreData)
-				m_Record.m_nSimulationTicks = TIME_TO_TICKS(m_Record.m_flOldSimulationTime - m_PreviousRecord.m_flOldSimulationTime);
-			else
-				m_Record.m_nSimulationTicks = m_PreviousRecord.m_nSimulationTicks;
-		}
-		else
-		{
-			if (m_PreviousRecord.m_bRestoreData)
-				m_Record.m_nSimulationTicks = TIME_TO_TICKS(m_Record.m_flSimulationTime - m_PreviousRecord.m_flSimulationTime);
-			else
-				m_Record.m_nSimulationTicks = TIME_TO_TICKS(m_Record.m_flSimulationTime - m_Record.m_flOldSimulationTime);
-		}
-
-
-		/* Set this record as first after dormant */
-		if (m_PlayerData->m_bLeftDormancy)
-			m_Record.m_bFirstAfterDormant = true;
-
-		/* Push record and erase extra records */
-		m_LagRecords->emplace_back(m_Record);
-		while (m_LagRecords->size() > 32)
-			m_LagRecords->pop_front();
-
-		/* Simulate player animations */
-		//g_PlayerAnimations->SimulatePlayerAnimations(pPlayer, &m_LagRecords->back(), m_PlayerData);
-
-		C_PlayerAnimations::get().SimulatePlayerAnimations(pPlayer, &m_LagRecords->back(), m_PlayerData);
-
-		/* Dormancy handled */
-		m_PlayerData->m_bLeftDormancy = false;
+		m_PlayerData->m_bLeftDormancy = true;
+		return;
 	}
+
+	/* Get record of this player */
+	auto m_LagRecords = &g_LagComp->m_LagCompensationRecords[nPlayerID - 1];
+
+	/* Check data changed */
+	if (pPlayer->m_flOldSimulationTime() == pPlayer->m_flSimulationTime())
+		return;
+
+	/* Set left dormancy */
+	if (pPlayer->IsDormant())
+	{
+		m_PlayerData->m_bLeftDormancy = true;
+		return;
+	}
+
+	/* define previous record of this player */
+	LagRecord_t m_PreviousRecord;
+	m_PreviousRecord.m_bRestoreData = false;
+	if (!m_LagRecords->empty())
+	{
+		m_PlayerData->m_LagRecord = m_LagRecords->back();
+		m_PreviousRecord = m_PlayerData->m_LagRecord;
+		m_PreviousRecord.m_bRestoreData = true;
+	}
+
+	/* Store data */
+	LagRecord_t m_Record;
+	g_LagComp->StoreRecordData(pPlayer, &m_Record, &m_PreviousRecord);
+
+	/* check for fake update */
+	if (m_PreviousRecord.m_bRestoreData)
+	{
+		if (m_PreviousRecord.m_Layers[11].m_flCycle == m_Record.m_Layers[11].m_flCycle)
+		{
+			pPlayer->m_flSimulationTime() = m_PreviousRecord.m_flSimulationTime;
+			return;
+		}
+	}
+
+	/* Check tickbase exploits */
+	if (m_PreviousRecord.m_flSimulationTime > m_Record.m_flSimulationTime)
+		g_LagComp->HandleTickbaseShift(pPlayer, &m_PreviousRecord);
+
+	/* Player who left dormancy right now shouldn't have any records */
+	if (m_PlayerData->m_bLeftDormancy)
+		g_LagComp->CleanPlayer(pPlayer);
+
+	/* Invalidate records for defensive and break lc */
+	if (m_Record.m_flSimulationTime <= m_PlayerData->m_flExploitTime)
+	{
+		/* Don't care at all about this cases if we have anti-exploit */
+		m_Record.m_bIsInvalid = true;
+		m_Record.m_bHasBrokenLC = true;
+	}
+
+	/* handle break lagcompensation by high speed and fakelags */
+	if (m_PreviousRecord.m_bRestoreData)
+	{
+		if ((m_Record.m_vecOrigin - m_PreviousRecord.m_vecOrigin).Length2DSqr() > 4096.0f)
+		{
+			m_Record.m_bHasBrokenLC = true;
+			g_LagComp->CleanPlayer(pPlayer);
+		}
+	}
+
+	/* Determine simulation ticks */
+	/* Another code for tickbase shift */
+	if (m_Record.m_flSimulationTime < m_PreviousRecord.m_flSimulationTime)
+	{
+		m_Record.m_bIsInvalid = true;
+		m_Record.m_bHasBrokenLC = true;
+
+		if (m_PreviousRecord.m_bRestoreData)
+			m_Record.m_nSimulationTicks = TIME_TO_TICKS(m_Record.m_flOldSimulationTime - m_PreviousRecord.m_flOldSimulationTime);
+		else
+			m_Record.m_nSimulationTicks = m_PreviousRecord.m_nSimulationTicks;
+	}
+	else
+	{
+		if (m_PreviousRecord.m_bRestoreData)
+			m_Record.m_nSimulationTicks = TIME_TO_TICKS(m_Record.m_flSimulationTime - m_PreviousRecord.m_flSimulationTime);
+		else
+			m_Record.m_nSimulationTicks = TIME_TO_TICKS(m_Record.m_flSimulationTime - m_Record.m_flOldSimulationTime);
+	}
+
+
+	/* Set this record as first after dormant */
+	if (m_PlayerData->m_bLeftDormancy)
+		m_Record.m_bFirstAfterDormant = true;
+
+	/* Push record and erase extra records */
+	m_LagRecords->emplace_back(m_Record);
+	while (m_LagRecords->size() > 32)
+		m_LagRecords->pop_front();
+
+	/* Simulate player animations */
+	//g_PlayerAnimations->SimulatePlayerAnimations(pPlayer, &m_LagRecords->back(), m_PlayerData);
+
+	g_PlayerAnimations->SimulatePlayerAnimations(pPlayer, &m_LagRecords->back(), m_PlayerData);
+
+	/* Dormancy handled */
+	m_PlayerData->m_bLeftDormancy = false;
+	
 }
+
+void C_LagComp::RunLagComp(ClientFrameStage_t stage)
+{
+	std::vector<LagCompThreadData> jobDataVec(m_globals()->m_maxclients);
+
+	// Prepare the job data
+	for (int i = 1; i < m_globals()->m_maxclients; i++)
+	{
+		LagCompThreadData jobData;
+		jobData.index = i;
+		jobData.stage = stage;
+		jobDataVec[i] = jobData;
+	}
+
+	// Enqueue the jobs 
+	for (auto& jobData : jobDataVec)
+	{
+		Threading::QueueJobRef(ThreadedLagComp, &jobData);
+	}
+
+	// Wait for all the jobs to finish 
+	Threading::FinishQueue();
+}
+
 void C_LagComp::StoreRecordData(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PreviousRecord)
 {
 	std::memcpy(m_LagRecord->m_Layers.data(), pPlayer->get_animlayers(), sizeof(AnimationLayer) * 13);
@@ -138,6 +168,7 @@ void C_LagComp::StoreRecordData(player_t* pPlayer, LagRecord_t* m_LagRecord, Lag
 	m_LagRecord->m_vecVelocity = pPlayer->m_vecVelocity();
 	m_LagRecord->m_bIsWalking = pPlayer->m_bIsWalking();
 	m_LagRecord->m_vecAbsOrigin = pPlayer->get_abs_origin();
+	m_LagRecord->m_flEyeYaw = pPlayer->GetAnimState()->m_flEyeYaw;
 	m_LagRecord->player = pPlayer;
 
 	weapon_t* pWeapon = pPlayer->m_hActiveWeapon();
@@ -150,17 +181,17 @@ void C_LagComp::StoreRecordData(player_t* pPlayer, LagRecord_t* m_LagRecord, Lag
 		}
 	}
 
-	///* Get player info */
-	//player_info_t m_PlayerInfo;
+	/* Get player info */
+	player_info_t m_PlayerInfo;
 
-	//if (!m_engine()->GetPlayerInfo(pPlayer->EntIndex(), &m_PlayerInfo))
-	//	return;
+	if (!m_engine()->GetPlayerInfo(pPlayer->EntIndex(), &m_PlayerInfo))
+		return;
 
-	//if (m_PlayerInfo.fakeplayer)
-	//{
-	//	m_LagRecord->m_nSimulationTicks = 1;
-	//	m_LagRecord->m_bIsFakePlayer = true;
-	//}
+	if (m_PlayerInfo.fakeplayer)
+	{
+		m_LagRecord->m_nSimulationTicks = 1;
+		m_LagRecord->m_bIsFakePlayer = true;
+	}
 }
 
 void C_LagComp::HandleTickbaseShift(player_t* pPlayer, LagRecord_t* m_PreviousRecord)
@@ -199,6 +230,7 @@ void C_LagComp::StartLagCompensation()
 		Data->m_angAbsAngles = pPlayer->get_abs_angles();
 		Data->m_vecAbsOrigin = pPlayer->get_abs_origin();
 		Data->m_angEyeAngles = pPlayer->m_angEyeAngles();
+		Data->m_flEyeYaw = pPlayer->GetAnimState()->m_flEyeYaw;
 		Data->m_vecOrigin = pPlayer->m_vecOrigin();
 		Data->m_flSimulationTime = pPlayer->m_flSimulationTime();
 		Data->m_nFlags = pPlayer->m_fFlags();
@@ -231,8 +263,12 @@ void C_LagComp::FinishLagCompensation()
 		std::memcpy(pPlayer->m_flPoseParameter().data(), Data->m_PoseParameters.data(), sizeof(float) * MAXSTUDIOPOSEPARAM);
 		std::memcpy(pPlayer->m_CachedBoneData().Base(), Data->m_Matricies[0].data(), sizeof(matrix3x4_t) * pPlayer->m_CachedBoneData().Count());
 
-		pPlayer->GetCollideable()->OBBMins() = Data->m_vecMins;
-		pPlayer->GetCollideable()->OBBMaxs() = Data->m_vecMaxs;
+		/* set time */
+		float flCurTime = m_globals()->m_curtime;
+		m_globals()->m_curtime = TIME_TO_TICKS(g_ctx.globals.fixed_tickbase);
+		pPlayer->SetCollisionBounds(Data->m_vecMins, Data->m_vecMaxs);
+		m_globals()->m_curtime = flCurTime;
+
 		pPlayer->m_angEyeAngles() = Data->m_angEyeAngles;
 		pPlayer->set_abs_angles(Data->m_angAbsAngles);
 		pPlayer->set_abs_origin(Data->m_vecAbsOrigin);
@@ -265,7 +301,7 @@ void C_LagComp::ForcePlayerRecord(player_t* Player, LagRecord_t* m_LagRecord)
 	Player->SetCollisionBounds(m_LagRecord->m_vecMins, m_LagRecord->m_vecMaxs);
 	m_globals()->m_curtime = flCurTime;
 
-	std::memcpy(Player->m_CachedBoneData().Base(), m_LagRecord->m_Matricies[EBoneMatrix::Aimbot].data(), sizeof(matrix3x4_t) * Player->m_CachedBoneData().Count());
+	std::memcpy(Player->m_CachedBoneData().Base(), m_LagRecord->m_Matricies[MiddleMatrix].data(), sizeof(matrix3x4_t) * Player->m_CachedBoneData().Count());
 	return Player->invalidate_bone_cache();
 }
 
@@ -318,33 +354,6 @@ int C_LagComp::GetRecordPriority(LagRecord_t* m_Record)
 	return nTotalPoints;
 }
 
-void C_LagComp::GetLatency()
-{
-	/* set networking data */
-	int m_nTickRate = (int)(1.0f / m_globals()->m_intervalpertick);
-	int m_nMaximumChoke = 14;
-	int m_bSkipDatagram = true;
-
-
-	auto net_channel_info = m_engine()->GetNetChannelInfo();
-	/* calc latency */
-	INetChannel* m_NetChannel = m_clientstate()->pNetChannel;
-
-	if (net_channel_info != nullptr && m_NetChannel != nullptr)
-	{
-		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-		/* set latency */
-		latency = outgoing + incoming;
-		/* set sequence */
-		int m_nSequence = m_NetChannel->m_nOutSequenceNr;
-	}
-
-	/* set servertick */
-	int m_nServerTick = m_globals()->m_tickcount + TIME_TO_TICKS(latency);
-	m_nCompensatedServerTick = m_nServerTick;
-}
-
 bool C_LagComp::GetBacktrackMatrix(player_t* pPlayer, matrix3x4_t* aMatrix)
 {
 	if (g_cfg.ragebot.anti_exploit)
@@ -371,11 +380,11 @@ bool C_LagComp::GetBacktrackMatrix(player_t* pPlayer, matrix3x4_t* aMatrix)
 		float flDeadTime = (m_Record->m_flSimulationTime + flCorrectTime + flTimeDelta) - TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 
 		std::array < matrix3x4_t, MAXSTUDIOBONES > m_BoneArray;
-		std::memcpy(m_BoneArray.data(), m_Record->m_Matricies[EBoneMatrix::Visual].data(), sizeof(matrix3x4_t) * MAXSTUDIOBONES);
+		std::memcpy(m_BoneArray.data(), m_Record->m_Matricies[VisualMatrix].data(), sizeof(matrix3x4_t) * MAXSTUDIOBONES);
 
 		Vector vecInterpolatedOrigin = math::interpolate((m_Record - 1)->m_vecAbsOrigin, m_Record->m_vecAbsOrigin, std::clamp(flDeadTime * (1.0f / flTimeDelta), 0.f, 1.f));
 		for (int nBone; nBone < MAXSTUDIOBONES; nBone++)
-			m_BoneArray[nBone].SetOrigin(m_Record->m_Matricies[EBoneMatrix::Visual][nBone].GetOrigin() - m_Record->m_vecAbsOrigin + vecInterpolatedOrigin);
+			m_BoneArray[nBone].SetOrigin(m_Record->m_Matricies[VisualMatrix][nBone].GetOrigin() - m_Record->m_vecAbsOrigin + vecInterpolatedOrigin);
 
 		std::memcpy(aMatrix, m_BoneArray.data(), sizeof(matrix3x4_t) * MAXSTUDIOBONES);
 		return true;
@@ -385,7 +394,7 @@ bool C_LagComp::GetBacktrackMatrix(player_t* pPlayer, matrix3x4_t* aMatrix)
 }
 bool C_LagComp::IsRecordValid(player_t* pPlayer, LagRecord_t* m_LagRecord)
 {
-	if (!m_LagRecord || ((m_LagRecord->m_bIsInvalid || m_LagRecord->m_bHasBrokenLC) && !g_cfg.ragebot.anti_exploit))
+	if (!m_LagRecord || !pPlayer || ((m_LagRecord->m_bIsInvalid || m_LagRecord->m_bHasBrokenLC) && !g_cfg.ragebot.anti_exploit))
 		return false;
 
 	return this->IsTimeValid(m_LagRecord->m_flSimulationTime, g_ctx.globals.fixed_tickbase);
@@ -394,11 +403,11 @@ bool C_LagComp::IsTimeValid(float flSimulationTime, int nTickBase)
 {
 	const float flLerpTime = GetLerpTime();
 
-	float flDeltaTime = fmin(latency + flLerpTime, 0.2f) - TICKS_TO_TIME(nTickBase - TIME_TO_TICKS(flSimulationTime));
+	float flDeltaTime = fmin(g_Networking->latency + flLerpTime, 0.2f) - TICKS_TO_TIME(nTickBase - TIME_TO_TICKS(flSimulationTime));
 	if (fabs(flDeltaTime) > 0.2f)
 		return false;
 
-	int nDeadTime = (int)((float)(TICKS_TO_TIME(m_nCompensatedServerTick)) - 0.2f);
+	int nDeadTime = (int)((float)(TICKS_TO_TIME(g_Networking->server_tick())) - 0.2f);
 	if (TIME_TO_TICKS(flSimulationTime + flLerpTime) < nDeadTime)
 		return false;
 
@@ -419,7 +428,7 @@ LagRecord_t* C_LagComp::SetupData(player_t* pPlayer, LagRecord_t* m_Record, Play
 		return &m_PrevRecord;
 
 	/* Determine simulation ticks with anim cycle */
-	m_Record->m_nSimulationTicks = C_PlayerAnimations::get().DetermineAnimationCycle(pPlayer, m_Record, &m_PrevRecord);
+	m_Record->m_nSimulationTicks = g_PlayerAnimations->DetermineAnimationCycle(pPlayer, m_Record, &m_PrevRecord);
 	if (TIME_TO_TICKS(m_Record->m_flSimulationTime - m_PrevRecord.m_flSimulationTime) > 17)
 		return nullptr;
 
@@ -505,4 +514,27 @@ LagRecord_t C_LagComp::FindBestRecord(player_t* pPlayer, std::deque < LagRecord_
 
 	/* return result */
 	return Record;
+}
+
+void C_LagComp::FixPvs(ClientFrameStage_t stage)
+{
+	if (stage != FRAME_RENDER_START)
+
+	for (int i = 1; i < m_globals()->m_maxclients; i++)
+	{
+		player_t* pCurEntity = static_cast<player_t*>(m_entitylist()->GetClientEntity(i));
+
+		if (pCurEntity == g_ctx.local())
+			return;
+
+		if (!pCurEntity
+			|| !pCurEntity->is_player()
+			|| pCurEntity->EntIndex() == m_engine()->GetLocalPlayer())
+			return;
+
+		*reinterpret_cast<int*>(reinterpret_cast<uintptr_t>(pCurEntity) + 0xA30) = m_globals()->m_framecount;
+		*reinterpret_cast<int*>(reinterpret_cast<uintptr_t>(pCurEntity) + 0xA28) = 0;
+	}
+
+	
 }

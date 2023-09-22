@@ -2,7 +2,6 @@
 #include "..\..\includes.hpp"
 #include "..\..\sdk\structs.hpp"
 #include "../animation_system.h"
-
 enum EPlayerActivity
 {
 	NoActivity = 0,
@@ -135,11 +134,12 @@ struct LagRecord_t
 	bool m_bIsResolved = false;
 	bool m_bIsWalking = false;
 	bool m_bUsedAsPreviousRecord = false;
+	bool m_fDidBacktrack = false;
 	bool m_bRestoreData = true;
 
 	std::array < AnimationLayer, 13 > m_Layers = { };
 	std::array < float, MAXSTUDIOPOSEPARAM > m_PoseParameters = { };
-	std::array < std::array < matrix3x4_t, MAXSTUDIOBONES >, 5 > m_Matricies;
+	std::array < std::array < matrix3x4_t, MAXSTUDIOBONES >, 7 > m_Matricies;
 };
 
 struct PlayerData_t
@@ -152,13 +152,11 @@ struct PlayerData_t
 	Vector m_vecLastOrigin = Vector(0, 0, 0);
 };
 
-class C_LagComp : public singleton <C_LagComp>
+class C_LagComp
 {
 public:
+	void RunLagComp(ClientFrameStage_t stage);
 
-	
-
-	void RunLagComp(ClientFrameStage_t Stage);
 
 	void StoreRecordData(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PreviousRecord);
 	void HandleTickbaseShift(player_t* pPlayer, LagRecord_t* m_PreviousRecord);
@@ -168,10 +166,10 @@ public:
 	void ForcePlayerRecord(player_t* Player, LagRecord_t* m_LagRecord);
 	float GetLerpTime();
 	int GetRecordPriority(LagRecord_t* m_Record);
-	void GetLatency();
 	bool GetBacktrackMatrix(player_t* pPlayer, matrix3x4_t* aMatrix);
 	bool IsRecordValid(player_t* pPlayer, LagRecord_t* m_LagRecord);
 	bool IsTimeValid(float flSimulationTime, int nTickBase);
+	void FixPvs(ClientFrameStage_t stage);
 	LagRecord_t* SetupData(player_t* pPlayer, LagRecord_t* m_Record, PlayerData_t* m_PlayerData);
 	LagRecord_t FindFirstRecord(player_t* pPlayer, std::deque<LagRecord_t> m_LagRecords);
 	LagRecord_t FindBestRecord(player_t* pPlayer, std::deque<LagRecord_t> m_LagRecords, int& nPriority, const float& flSimTime);
@@ -180,18 +178,38 @@ public:
 		return m_LagCompensationRecords[pPlayer->EntIndex() - 1];
 	}
 
+	virtual PlayerData_t& GetPlayerData(player_t* pPlayer)
+	{
+		return m_LagCompensationPlayerData[pPlayer->EntIndex() - 1];
+	}
+	virtual void ResetData()
+	{
+		for (int nPlayer = 0; nPlayer < m_LagCompensationRecords.size(); nPlayer++)
+		{
+			if (m_LagCompensationRecords[nPlayer].empty())
+				continue;
+
+			m_LagCompensationRecords[nPlayer].clear();
+		}
+	}
+
+
 	float latency = 0;
 	int m_nCompensatedServerTick = 0;
 
-private:
 
 	std::array < LagRecord_t, 64 > m_BackupData;
 	std::array < std::deque < LagRecord_t >, 64 > m_LagCompensationRecords;
 	std::array < PlayerData_t, 64 > m_LagCompensationPlayerData;
+
+
+private:
+
+	
 };
+inline C_LagComp* g_LagComp = new C_LagComp();
 
-
-struct C_PlayerAnimations : public singleton <C_PlayerAnimations>
+struct C_PlayerAnimations
 {
 public:
 	template < class T >
@@ -199,6 +217,7 @@ public:
 	{
 		return current + (((target - current) / maximum) * progress);
 	}
+	void TransformateMatrix(player_t* pPlayer, PlayerData_t* m_PlayerData);
 	Vector DeterminePlayerVelocity(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PrevRecord, AnimState_s* m_AnimationState);
 	void CopyRecordData(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PrevRecord, AnimState_s* m_AnimationState);
 	int DetermineAnimationCycle(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PrevRecord);
@@ -212,4 +231,9 @@ public:
 	float BuildFootYaw(player_t* pPlayer, LagRecord_t* m_LagRecord);
 	void GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_LagRecord);
 	void SimulatePlayerAnimations(player_t* e, LagRecord_t* record, PlayerData_t* player_data);
+	bool CopyCachedMatrix(player_t* pPlayer, matrix3x4_t* aMatrix, int nBoneCount);
+	void InterpolateMatricies();
+	CResolver player_resolver[65];
 };
+
+inline C_PlayerAnimations* g_PlayerAnimations = new C_PlayerAnimations();

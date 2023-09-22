@@ -1,6 +1,6 @@
 #include "LagComp.hpp"
-
-
+#include "../../ragebot/aim.h"
+#include "../LocalAnimFix.hpp"
 
 void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* record, PlayerData_t* player_data)
 {
@@ -10,13 +10,13 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 		return;
 
 	/* Setup data and get previous record */
-	LagRecord_t* m_PrevRecord = C_LagComp::get().SetupData(e, record, player_data);
+	LagRecord_t* m_PrevRecord = g_LagComp->SetupData(e, record, player_data);
 
 	/* Copy data from previous or current record depends on situation */
 	CopyRecordData(e, record, m_PrevRecord, animstate);
 
 	/* Determine player's velocity */
-	record->m_vecVelocity = C_PlayerAnimations::get().DeterminePlayerVelocity(e, record, m_PrevRecord, animstate);
+	record->m_vecVelocity = DeterminePlayerVelocity(e, record, m_PrevRecord, animstate);
 
 	if (record->m_bFirstAfterDormant)
 		HandleDormancyLeaving(e, record, animstate);
@@ -167,27 +167,42 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 
 	/* Save additional record data */
 	record->m_angAbsAngles = Vector(0.0f, animstate->m_flFootYaw, 0.0f);
-	{
-		float flAimMatrixWidthRange = math::lerp(std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfWalkTopSpeed, 0.0f, 1.0f), 1.0f, math::lerp(e->GetAnimState()->m_flWalkToRunTransition, 0.8f, 0.5f)); //-V807
-		if (e->GetAnimState()->m_flAnimDuckAmount > 0)
-			flAimMatrixWidthRange = math::lerp(e->GetAnimState()->m_flAnimDuckAmount * std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
+	//{
+	//	float flAimMatrixWidthRange = math::lerp(std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfWalkTopSpeed, 0.0f, 1.0f), 1.0f, math::lerp(e->GetAnimState()->m_flWalkToRunTransition, 0.8f, 0.5f)); //-V807
+	//	if (e->GetAnimState()->m_flAnimDuckAmount > 0)
+	//		flAimMatrixWidthRange = math::lerp(e->GetAnimState()->m_flAnimDuckAmount * std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
 
-		record->m_flDesyncDelta = flAimMatrixWidthRange * e->GetAnimState()->m_flAimYawMax;
-	}
+	//	record->m_flDesyncDelta = flAimMatrixWidthRange * e->GetAnimState()->m_flAimYawMax;
+	//}
 
 	/* Save record's poses */
 	std::memcpy(record->m_PoseParameters.data(), e->m_flPoseParameter().data(), sizeof(float) * record->m_PoseParameters.size());
 
+	if (g_cfg.ragebot.enable_resolver)
+	{
+		/*simple temporary resolver*/
+		AimPlayer* data = &g_Ragebot->m_players[e->EntIndex() - 1];
+
+		record->m_flDesyncDelta = e->get_max_desync_delta();
+
+		if (data->m_missed_shots > 0)
+			record->m_flDesyncDelta = -(e->get_max_desync_delta());
+
+		if (data->m_missed_shots > 1)
+			data->m_missed_shots = 0;
+
+		e->GetAnimState()->m_flFootYaw = math::normalize_yaw(record->m_flEyeYaw + record->m_flDesyncDelta);
+	}
 
 	/* Setup bones on this record */
 	{
 		/* Setup visual matrix */
-		SetupPlayerMatrix(e, record, record->m_Matricies[MiddleMatrix].data(), EMatrixFlags::Interpolated | EMatrixFlags::VisualAdjustment);
-		std::memcpy(player_data->m_aCachedMatrix.data(), record->m_Matricies[MiddleMatrix].data(), sizeof(matrix3x4_t) * MAXSTUDIOBONES);
+		SetupPlayerMatrix(e, record, record->m_Matricies[VisualMatrix].data(), EMatrixFlags::Interpolated | EMatrixFlags::VisualAdjustment);
+		std::memcpy(player_data->m_aCachedMatrix.data(), record->m_Matricies[VisualMatrix].data(), sizeof(matrix3x4_t) * MAXSTUDIOBONES);
 
 		/* Setup rage matrix */
 		if (g_cfg.ragebot.enable)
-			SetupPlayerMatrix(e, record, record->m_Matricies[ZeroMatrix].data(), EMatrixFlags::BoneUsedByHitbox);
+			SetupPlayerMatrix(e, record, record->m_Matricies[MiddleMatrix].data(), EMatrixFlags::BoneUsedByHitbox);
 
 		/* Generate safe aimbot points */
 		GenerateSafePoints(e, record);
@@ -196,8 +211,55 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 	m_PlayerGlobals.AdjustData(e);
 	m_Globals.AdjustData();
 }
+bool C_PlayerAnimations::CopyCachedMatrix(player_t* pPlayer, matrix3x4_t* aMatrix, int nBoneCount)
+{
+	PlayerData_t* m_PlayerData = &g_LagComp->GetPlayerData(pPlayer);
 
+	std::memcpy(aMatrix, m_PlayerData->m_aCachedMatrix.data(), sizeof(matrix3x4_t) * nBoneCount);
+	return true;
+}
+void C_PlayerAnimations::InterpolateMatricies()
+{
+	g_LocalAnimations->InterpolateMatricies();
+	for (int nPlayerID = 1; nPlayerID <= 64; nPlayerID++)
+	{
+		player_t* pPlayer = static_cast<player_t*>(m_entitylist()->GetClientEntity(nPlayerID));
+		if (!pPlayer || !pPlayer->is_player() || pPlayer->m_iTeamNum() == g_ctx.local()->m_iTeamNum() || pPlayer == g_ctx.local() || pPlayer->IsDormant() || !pPlayer->is_alive())
+			continue;
 
+		PlayerData_t* m_PlayerData = &g_LagComp->GetPlayerData(pPlayer);
+		if (!m_PlayerData)
+			continue;
+
+		// get bone count
+		int nBoneCount = pPlayer->m_CachedBoneData().Count();
+		if (nBoneCount > MAXSTUDIOBONES)
+			nBoneCount = MAXSTUDIOBONES;
+
+		// re-pos matrix
+		g_PlayerAnimations->TransformateMatrix(pPlayer, m_PlayerData);
+
+		// copy the entire matrix
+		std::memcpy(pPlayer->m_CachedBoneData().Base(), m_PlayerData->m_aCachedMatrix.data(), sizeof(matrix3x4_t) * nBoneCount);
+
+		// build attachments
+		std::memcpy(pPlayer->GetBoneAccessor().GetBoneArrayForWrite(), m_PlayerData->m_aCachedMatrix.data(), sizeof(matrix3x4_t) * nBoneCount);
+		pPlayer->SetupBones_AttachmentHelper();
+		std::memcpy(pPlayer->GetBoneAccessor().GetBoneArrayForWrite(), m_PlayerData->m_aCachedMatrix.data(), sizeof(matrix3x4_t) * nBoneCount);
+	}
+}
+
+void C_PlayerAnimations::TransformateMatrix(player_t* pPlayer, PlayerData_t* m_PlayerData)
+{
+	Vector vecOriginDelta = pPlayer->GetAbsOrigin() - m_PlayerData->m_vecLastOrigin;
+	for (auto& Matrix : m_PlayerData->m_aCachedMatrix)
+	{
+		Matrix[0][3] += vecOriginDelta.x;
+		Matrix[1][3] += vecOriginDelta.y;
+		Matrix[2][3] += vecOriginDelta.z;
+	}
+	m_PlayerData->m_vecLastOrigin = pPlayer->GetAbsOrigin();
+}
 Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PrevRecord, AnimState_s* m_AnimationState)
 {
 
@@ -756,11 +818,11 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 		float flEyeRotation = m_LagRecord->m_angEyeAngles.y;
 		switch (ESafeSied)
 		{
-		case -1: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation - 60.0f); break;
-		case 0: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation); break;
-		case 1: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation + 60.0f); break;
-		case -2: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation - 30.0f); break;
-		case 2: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation + 30.0f); break;
+		case LeftMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation - 58.0f); break;
+		case ZeroMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation); break;
+		case RightMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation + 58.0f); break;
+		case LowLeftMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation - 29.0f); break;
+		case LowRightMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation + 29.0f); break;
 		}
 
 		// generate foot yaw
@@ -794,11 +856,11 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 		matrix3x4_t* aMatrix = nullptr;
 		switch (ESafeSied)
 		{
-		case -1: aMatrix = m_LagRecord->m_Matricies[MatrixBoneSide::LeftMatrix].data(); break;
-		case 0: aMatrix = m_LagRecord->m_Matricies[MatrixBoneSide::ZeroMatrix].data(); break;
-		case 1: aMatrix = m_LagRecord->m_Matricies[MatrixBoneSide::RightMatrix].data(); break;
-		case -2: aMatrix = m_LagRecord->m_Matricies[MatrixBoneSide::LowLeftMatrix].data(); break;
-		case 2: aMatrix = m_LagRecord->m_Matricies[MatrixBoneSide::LowRightMatrix].data(); break;
+		case LeftMatrix: aMatrix = m_LagRecord->m_Matricies[LeftMatrix].data(); break;
+		case ZeroMatrix: aMatrix = m_LagRecord->m_Matricies[ZeroMatrix].data(); break;
+		case RightMatrix: aMatrix = m_LagRecord->m_Matricies[RightMatrix].data(); break;
+		case LowLeftMatrix: aMatrix = m_LagRecord->m_Matricies[LowLeftMatrix].data(); break;
+		case LowRightMatrix: aMatrix = m_LagRecord->m_Matricies[LowRightMatrix].data(); break;
 		}
 
 		// setup bones
@@ -810,13 +872,13 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 		std::memcpy(pPlayer->GetAnimState(), &m_AnimationState, sizeof(AnimState_s));
 	};
 	// check conditions
-	//if (!g_ctx.local()->is_alive() || !g_cfg.ragebot.enable)
-		//return;
+	if (!g_ctx.local()->is_alive() || !g_cfg.ragebot.enable)
+		return;
 
 	// build safe points
-	BuildSafePoint(-1);
-	BuildSafePoint(0);
-	BuildSafePoint(1);
-	BuildSafePoint(-2);
-	BuildSafePoint(2);
+	BuildSafePoint(LeftMatrix);
+	BuildSafePoint(RightMatrix);
+	//BuildSafePoint(3);
+	//BuildSafePoint(4);
+	BuildSafePoint(ZeroMatrix);
 }

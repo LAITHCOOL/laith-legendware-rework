@@ -88,6 +88,7 @@ enum MatrixBoneSide
 	LowLeftMatrix,
 	LowRightMatrix,
 	ZeroMatrix,
+	VisualMatrix,
 };
 enum ADVANCED_ACTIVITY : int
 {
@@ -226,6 +227,25 @@ public:
 	resolver_type type = ORIGINAL;
 };
 
+struct PlayerState {
+	AnimationLayer animLayers[13];
+	matrix3x4_t boneData[MAXSTUDIOBONES];
+	int flags;
+	Vector absOrigin;
+	float simulationTime;
+	float duckAmount;
+	float lowerBodyYawTarget;
+	float thirdPersonRecoil;
+	Vector angles;
+	Vector absAngles;
+	Vector velocity;
+	Vector origin;
+	Vector mins;
+	Vector maxs;
+	// Add other properties as needed
+};
+
+
 class adjust_data
 {
 public:
@@ -235,7 +255,8 @@ public:
 	AnimationLayer previous_layers[13];
 	AnimationLayer layers[13];
 	//matrixes matrixes_data;
-	std::array < std::array < matrix3x4_t, MAXSTUDIOBONES >, 7 > m_Matricies;
+	std::array < std::array < matrix3x4_t, MAXSTUDIOBONES >, 6 > m_Matricies;
+	std::array < std::array < matrix3x4_t, MAXSTUDIOBONES >, 6 > empty_matrix;
 	EFixedVelocity m_nVelocityMode = EFixedVelocity::Unresolved;
 	resolver_type type;
 	resolver_side side;
@@ -244,6 +265,7 @@ public:
 	{
 		bool LowDelta = false;
 		bool ShouldFlip = false;
+		int MissedShots = 0;
 	}types[7];
 
 	bool break_lagcomp;
@@ -294,8 +316,8 @@ public:
 	Vector maxs;
 	bool m_fDidBacktrack;
 	matrix3x4_t* m_pBoneCache;
-
 	float m_fSpawnTime;
+
 	adjust_data()
 	{
 		reset();
@@ -306,10 +328,10 @@ public:
 		player = nullptr;
 		i = -1;
 
-		/*type = ORIGINAL;
+		type = ORIGINAL;
 		side = RESOLVER_ORIGINAL;
 		curSide = NO_SIDE;
-		curMode = NO_MODE;*/
+		curMode = NO_MODE;
 		bot = false;
 		invalid = false;
 		m_bHasBrokenLC = false;
@@ -329,7 +351,6 @@ public:
 		duck_amount = 0.0f;
 		lby = 0.0f;
 		m_flThirdPersonRecoil = 0.0f;
-		m_nSimulationTicks = 0;
 		angles.Zero();
 		abs_angles.Zero();
 		velocity.Zero();
@@ -337,24 +358,22 @@ public:
 		mins.Zero();
 		m_vecAbsOrigin.Zero();
 		maxs.Zero();
-		m_bRestoreData = false;
 	}
 
 	adjust_data(player_t* e, bool store = true)
 	{
-		/*type = ORIGINAL;
-		side = RESOLVER_ORIGINAL;
-		curSide = NO_SIDE;
-		curMode = NO_MODE;
-		m_flExploitTime = 0.0f;
-		m_flLastSimTime = 0.0f;
-		invalid = false;
-		m_bHasBrokenLC = false;
-		immune = false;
-		dormant = false;
-		shot = false;
-		shot_tick = 0;
-		m_bRestoreData = false;*/
+		//type = ORIGINAL;
+		//side = RESOLVER_ORIGINAL;
+		//curSide = NO_SIDE;
+		//curMode = NO_MODE;
+		//m_flExploitTime = 0.0f;
+		//m_flLastSimTime = 0.0f;
+		//invalid = false;
+		//m_bHasBrokenLC = false;
+		//immune = false;
+		//dormant = false;
+		//shot = false;
+		//shot_tick = 0;
 		reset();
 		store_data(e, store);
 	}
@@ -410,6 +429,29 @@ public:
 		m_fSpawnTime = player->m_flSpawnTime();
 		m_bRestoreData = true;
 	}
+	PlayerState originalPlayerState;
+	void backup_data()
+	{
+		if (!valid())
+			return; 
+
+		// Copy the current state of the player into the originalPlayerState struct
+		memcpy(originalPlayerState.animLayers, player->get_animlayers(), sizeof(originalPlayerState.animLayers));
+		memcpy(originalPlayerState.boneData, player->m_CachedBoneData().Base(), sizeof(originalPlayerState.boneData));
+
+		originalPlayerState.flags = player->m_fFlags();
+		originalPlayerState.absOrigin = player->get_abs_origin();
+		originalPlayerState.simulationTime = player->m_flSimulationTime();
+		originalPlayerState.duckAmount = player->m_flDuckAmount();
+		originalPlayerState.lowerBodyYawTarget = player->m_flLowerBodyYawTarget();
+		originalPlayerState.thirdPersonRecoil = player->m_flThirdpersonRecoil();
+		originalPlayerState.angles = player->m_angEyeAngles();
+		originalPlayerState.absAngles = player->get_abs_angles();
+		originalPlayerState.velocity = player->m_vecVelocity();
+		originalPlayerState.origin = player->m_vecOrigin();
+		originalPlayerState.mins = player->GetCollideable()->OBBMins();
+		originalPlayerState.maxs = player->GetCollideable()->OBBMaxs();
+	}
 
 	void adjust_player()
 	{
@@ -434,8 +476,29 @@ public:
 
 		player->UpdateCollisionBounds();
 		player->SetCollisionBounds(mins, maxs);
+	}
 
-		m_bRestoreData = false;
+	void set_backuped_data()
+	{
+		if (!valid())
+			return;
+
+		// Restore the original state from originalPlayerState struct
+		memcpy(player->get_animlayers(), originalPlayerState.animLayers, sizeof(originalPlayerState.animLayers));
+		memcpy(player->m_CachedBoneData().Base(), originalPlayerState.boneData, sizeof(originalPlayerState.boneData));
+
+		player->m_fFlags() = originalPlayerState.flags;
+		player->get_abs_origin() = originalPlayerState.absOrigin;
+		player->m_flSimulationTime() = originalPlayerState.simulationTime;
+		player->m_flDuckAmount() = originalPlayerState.duckAmount;
+		player->m_flLowerBodyYawTarget() = originalPlayerState.lowerBodyYawTarget;
+		player->m_flThirdpersonRecoil() = originalPlayerState.thirdPersonRecoil;
+		player->m_angEyeAngles() = originalPlayerState.angles;
+		player->set_abs_angles(originalPlayerState.absAngles);
+		player->m_vecVelocity() = originalPlayerState.velocity;
+		player->m_vecOrigin() = originalPlayerState.origin;
+		player->UpdateCollisionBounds();
+		player->SetCollisionBounds(originalPlayerState.mins, originalPlayerState.maxs);
 	}
 
 	bool IsTimeValid(float flSimulationTime, int nTickBase)
@@ -556,34 +619,17 @@ public:
 
 		if (invalid || m_bHasBrokenLC)
 			return false;
-		
-
-		auto net_channel_info = m_engine()->GetNetChannelInfo();
-
-		if (!net_channel_info)
-			return false;
 
 		static auto sv_maxunlag = m_cvar()->FindVar(crypt_str("sv_maxunlag"));
 
-		auto outgoing = net_channel_info->GetLatency(FLOW_OUTGOING);
-		auto incoming = net_channel_info->GetLatency(FLOW_INCOMING);
-
-		auto correct = math::clamp(outgoing + incoming + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
+		auto correct = math::clamp(g_Networking->latency + util::get_interpolation(), 0.0f, sv_maxunlag->GetFloat());
 
 		auto curtime = g_ctx.local()->is_alive() ? TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) : m_globals()->m_curtime;
-		//auto curtime = m_globals()->m_curtime;
 		auto delta_time = correct - (curtime - simulation_time);
 
 		if (fabs(delta_time) > 0.2f)
 			return false;
-
-		auto extra_choke = 0;
-
-		if (g_ctx.globals.fakeducking)
-			extra_choke = 14 - m_clientstate()->iChokedCommands;
-
-		auto server_tickcount = extra_choke + m_globals()->m_tickcount + TIME_TO_TICKS(outgoing + incoming);
-		auto dead_time = (int)(TICKS_TO_TIME(server_tickcount) - sv_maxunlag->GetFloat());
+		auto dead_time = (int)(TICKS_TO_TIME(g_Networking->server_tick()) - sv_maxunlag->GetFloat());
 
 		if (simulation_time < (float)dead_time)
 			return false;
@@ -675,7 +721,7 @@ public:
 	void setup_matrix(player_t* e, const int& matrix, adjust_data* record);
 	void SimulatePlayerActivity(player_t* pPlayer, adjust_data* m_LagRecord, adjust_data* m_PrevRecord);
 	float ComputeActivityPlayback(player_t* pPlayer, adjust_data* m_Record);
-	void SimulatePlayerAnimations(player_t* e);
+	void SimulatePlayerAnimations(player_t* e, adjust_data* record, adjust_data* prev_record);
 	void FixPvs(player_t* e);
 	void SetupCollision(player_t* pPlayer, adjust_data* m_LagRecord);
 	float land_time = 0.0f;

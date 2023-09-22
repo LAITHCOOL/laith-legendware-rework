@@ -68,164 +68,8 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 	g_ctx.globals.in_createmove = true;
 	g_ctx.set_command(m_pcmd);
 
-	/*CreateMove branch without aimbot*/
-	if (g_ctx.globals.isshifting)
-	{
+	g_LagComp->StartLagCompensation();
 
-		auto BoostMovement = [&]()
-		{
-			/* get cmd move data */
-			float& flForwardMove = m_pcmd->m_forwardmove;
-			float& flSideMove = m_pcmd->m_sidemove;
-			int& nButtons = m_pcmd->m_buttons;
-
-			/* Force .y movement */
-			if (flForwardMove > 5.0f)
-			{
-				/* force buttons */
-				nButtons |= IN_FORWARD;
-				nButtons &= ~IN_BACK;
-
-				/* force movement */
-				flForwardMove = 450.0f;
-			}
-			else if (flForwardMove < -5.0f)
-			{
-				/* force buttons */
-				nButtons |= IN_BACK;
-				nButtons &= ~IN_FORWARD;
-
-				/* force movement */
-				flForwardMove = -450.0f;
-			}
-
-			/* Force .x movement */
-			if (flSideMove > 5.0f)
-			{
-				/* force buttons */
-				nButtons |= IN_MOVERIGHT;
-				nButtons &= ~IN_MOVELEFT;
-
-				/* force movement */
-				flSideMove = 450.0f;
-			}
-			else if (flSideMove < -5.0f)
-			{
-				/* force buttons */
-				nButtons |= IN_MOVELEFT;
-				nButtons &= ~IN_MOVERIGHT;
-
-				/* force movement */
-				flSideMove = -450.0f;
-			}
-
-			/* do not slowdown */
-			nButtons &= ~IN_SPEED;
-		};
-
-			BoostMovement();
-
-		g_Networking->start_move(m_pcmd, g_ctx.send_packet);
-
-		g_ctx.globals.wish_angle = m_pcmd->m_viewangles;
-		auto wish_angle = m_pcmd->m_viewangles;
-
-		if (g_cfg.misc.bunnyhop)
-			g_Bunnyhop->create_move();
-
-		g_Misc->fast_stop(m_pcmd, wish_angle.y);
-		g_Misc->SlideWalk(m_pcmd);
-		g_Misc->NoDuck(m_pcmd);
-		g_Misc->AutoCrouch(m_pcmd);
-
-		g_GrenadePrediction->Tick(m_pcmd->m_buttons);
-
-		if (g_cfg.misc.crouch_in_air && !(g_ctx.local()->m_fFlags() & FL_ONGROUND))
-			m_pcmd->m_buttons |= IN_DUCK;
-
-		/* update prediction */
-		g_EnginePrediction->UpdatePrediction();
-		/* run main cheat features here */
-		g_EnginePrediction->StartPrediction();
-		{
-			g_ctx.globals.inaccuracy = g_EnginePrediction->GetInaccuracy();
-			g_ctx.globals.spread = g_EnginePrediction->GetSpread();
-			/* setup shoot position */
-			g_LocalAnimations->CopyPlayerAnimationData(false);
-			g_LocalAnimations->SetupShootPosition();
-			if (g_cfg.misc.airstrafe)
-				g_Airstrafe->create_move(m_pcmd, wish_angle.y);
-
-			if (key_binds::get().get_key_bind_state(19) && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && !(g_ctx.local()->m_fFlags() & FL_ONGROUND)) //-V807
-				m_pcmd->m_buttons |= IN_JUMP;
-
-			if (key_binds::get().get_key_bind_state(21))
-				g_Slowwalk->create_move(m_pcmd);
-
-			if (g_cfg.ragebot.enable && !g_ctx.globals.weapon->is_non_aim() && g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND && g_ctx.local()->m_fFlags() & FL_ONGROUND)
-				g_Slowwalk->create_move(m_pcmd, 0.95f + 0.003125f * (16 - m_clientstate()->iChokedCommands));
-
-			g_ctx.globals.aimbot_working = false;
-			g_ctx.globals.revolver_working = false;
-
-
-			//g_Ragebot->think(m_pcmd);
-
-			//g_LegitBot->createmove(m_pcmd);
-
-			g_Misc->ax();
-
-			g_AntiAim->desync_angle = 0.0f;
-			g_AntiAim->create_move(m_pcmd);
-
-			g_Networking->packet_cycle(m_pcmd, g_ctx.send_packet);
-
-			//g_Misc->automatic_peek(m_pcmd, g_ctx.globals.wish_angle.y);
-			//g_Misc->AutoPeek(m_pcmd);
-			g_AutoPeek->Run(m_pcmd);
-			g_Networking->process_dt_aimcheck(m_pcmd);
-
-		}
-		g_EnginePrediction->FinishPrediction();
-
-		if (g_ctx.globals.loaded_script)
-			for (auto current : c_lua::get().hooks.getHooks(crypt_str("on_createmove")))
-				current.func();
-
-		if (g_cfg.misc.anti_untrusted)
-			math::normalize_angles(m_pcmd->m_viewangles);
-		else
-			m_pcmd->m_viewangles.y = math::normalize_yaw(m_pcmd->m_viewangles.y);
-
-		if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && m_pcmd->m_viewangles.z != 0.f)
-			m_pcmd->m_viewangles.z = 0.f;
-
-		util::MovementFix(wish_angle, m_pcmd);
-
-		g_Networking->process_packets(m_pcmd);
-
-		if (g_ctx.send_packet && g_ctx.globals.should_send_packet)
-			g_ctx.globals.should_send_packet = false;
-
-		g_Misc->buybot();
-
-		if (g_ctx.send_packet && !g_ctx.globals.should_send_packet && (!g_ctx.globals.should_choke_packet || (!tickbase::get().hide_shots_enabled && !g_ctx.globals.double_tap_fire)))
-		{
-			g_LocalAnimations->temp_fakeangle = m_pcmd->m_viewangles;
-			math::normalize_angles(g_LocalAnimations->temp_fakeangle);
-			math::clamp_angles(g_LocalAnimations->temp_fakeangle);
-		}
-		g_LocalAnimations->OnCreateMove();
-
-		g_Networking->finish_packet(m_pcmd, verified, bSendPacket, g_ctx.globals.isshifting);
-
-
-		C_LagComp::get().FinishLagCompensation();
-		return;
-	}
-
-
-	/*CreateMove branch with aimbot*/
 	g_Networking->start_move(m_pcmd, g_ctx.send_packet);
 
 	g_ctx.globals.wish_angle = m_pcmd->m_viewangles;
@@ -304,7 +148,7 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 	if (!(g_ctx.local()->m_fFlags() & FL_ONGROUND) && m_pcmd->m_viewangles.z != 0.f)
 		m_pcmd->m_viewangles.z = 0.f;
 
-	util::MovementFix(wish_angle, m_pcmd);
+	util::movement_fix(wish_angle, m_pcmd);
 
 	g_Networking->process_packets(m_pcmd);
 
@@ -313,16 +157,16 @@ void __stdcall CreateMove(int sequence_number, float input_sample_frametime, boo
 
 	g_Misc->buybot();
 
-	if (g_ctx.send_packet && !g_ctx.globals.should_send_packet && (!g_ctx.globals.should_choke_packet || (!tickbase::get().hide_shots_enabled && !g_ctx.globals.double_tap_fire)))
+	if (g_ctx.send_packet && !g_ctx.globals.should_send_packet)
 	{
 		g_LocalAnimations->temp_fakeangle = m_pcmd->m_viewangles;
-		math::normalize_angles(g_LocalAnimations->temp_fakeangle);
-		math::clamp_angles(g_LocalAnimations->temp_fakeangle);
+		//math::normalize_angles(g_LocalAnimations->temp_fakeangle);
+		//math::clamp_angles(g_LocalAnimations->temp_fakeangle);
 	}
 	g_LocalAnimations->OnCreateMove();
 
-	g_Networking->finish_packet(m_pcmd, verified, bSendPacket, g_ctx.globals.isshifting);
-	C_LagComp::get().FinishLagCompensation();
+	g_Networking->finish_packet(m_pcmd, verified, bSendPacket, false);
+	g_LagComp->FinishLagCompensation();
 	return;
 }
 __declspec(naked) void __stdcall hooks::hooked_createmove_naked(int sequence_number, float input_sample_frametime, bool active)

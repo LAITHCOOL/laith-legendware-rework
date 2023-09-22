@@ -6,6 +6,7 @@
 #include "..\cheats\visuals\player_esp.h"
 #include "..\cheats\lagcompensation\animation_system.h"
 #include "..\cheats\misc\misc.h"
+#include "../cheats/prediction/EnginePrediction.h"
 #include <thread>
 
 #define INRANGE(x, a, b) (x >= a && x <= b)  //-V1003
@@ -218,6 +219,138 @@ namespace util
 		}
 	}
 
+
+	void FixMove(CUserCmd* cmd, Vector& wanted_move, bool a7)
+	{
+		// Declare and initialize variables
+		float move_magnitude = 0.0f;
+		float forwardY = 0.0f, forwardZ = 0.0f, forwardX = 0.0f;
+		float rightY = 0.0f, rightZ = 0.0f, rightX = 0.0f;
+		float upZ = 1.0f;
+
+		// Copy the input wanted_move and view angles
+		Vector inputAngles = wanted_move;
+		Vector viewAngles = cmd->m_viewangles;
+
+		// Check if wanted_move is the same as the view angles
+		if (wanted_move == viewAngles)
+			return;
+
+		// Calculate the magnitude of movement
+		move_magnitude = std::sqrt((cmd->m_forwardmove * cmd->m_forwardmove) + (cmd->m_sidemove * cmd->m_sidemove));
+
+		// If there's no movement, return
+		if (move_magnitude == 0.0f)
+			return;
+
+		// Check if the local player's move type is 8 (LADDER) or 9 (NOCLIP)
+		if (g_ctx.local()->get_move_type() == 8 || g_ctx.local()->get_move_type() == 9)
+			return;
+
+		// Calculate forward, right, and up vectors based on input angles
+		Vector forwardVector, rightVector, upVector;
+		math::angle_vectors(inputAngles, &forwardVector, &rightVector, &upVector);
+
+		// Extract components of the forward vector
+		forwardY = forwardVector.y;
+		forwardZ = forwardVector.z;
+
+		// Set upZ to 1.0 if forwardVector.z is zero, otherwise calculate forwardX, forwardY, and forwardXNormalized
+		if (forwardVector.z != 0.0f) {
+			forwardZ = 0.0f;
+			float forwardVectorLength2D = forwardVector.Length2D();
+			if (forwardVectorLength2D >= 0.00000011920929f) {
+				forwardY = forwardVector.y * (1.0f / forwardVectorLength2D);
+				forwardX = forwardVector.x * (1.0f / forwardVectorLength2D);
+			}
+			else {
+				forwardY = 0.0f;
+				forwardX = 0.0f;
+			}
+		}
+
+		// Extract components of the right vector
+		rightY = rightVector.y;
+		rightZ = rightVector.z;
+
+		// Set rightX and rightZ to components of the right vector
+		if (rightVector.z != 0.0) {
+			rightZ = 0.0f;
+			float rightVectorLength2D = rightVector.Length2D();
+			if (rightVectorLength2D < 0.00000011920929f) {
+				rightY = 0.0f;
+				rightX = 0.0f;
+			}
+			else {
+				rightY = rightVector.y * (1.0f / rightVectorLength2D);
+				rightX = rightVector.x * (1.0f / rightVectorLength2D);
+			}
+		}
+
+		// Set upZ to 0.0 if upVector.z is small
+		if (upVector.z < 0.00000011920929f)
+			upZ = 0.0f;
+
+		// Handle special case for cmd->m_forward_move if viewAngles.z is 180.0 and a7 is false
+		if (viewAngles.z == 180.0 && !a7)
+			cmd->m_forwardmove = std::abs(cmd->m_forwardmove);
+
+		// Calculate vectors based on view angles
+		math::angle_vectors(viewAngles, &rightVector, &forwardVector, &upVector);
+
+		// Extract components of the right and forward vectors
+		rightZ = rightVector.z;
+		if (rightVector.z == 0.0f) {
+			rightY = rightVector.y;
+			rightX = rightVector.x;
+		}
+		else {
+			rightZ = 0.0f;
+			float rightVectorLength2D = rightVector.Length2D();
+			if (rightVectorLength2D < 0.00000011920929f) {
+				rightY = 0.0f;
+				rightX = 0.0f;
+			}
+			else {
+				rightX = rightVector.x * (1.0f / rightVectorLength2D);
+				rightY = rightVector.y * (1.0f / rightVectorLength2D);
+			}
+		}
+
+		float forwardZView = forwardVector.z;
+		float forwardYView;
+		float forwardXView;
+		if (forwardVector.z == 0.0f) {
+			 forwardYView = forwardVector.y;
+			 forwardXView = forwardVector.x;
+		}
+		else {
+			forwardZView = 0.0f;
+			float forwardVectorLength2D = forwardVector.Length2D();
+			if (forwardVectorLength2D < 0.00000011920929f) {
+				 forwardYView = 0.0f;
+				 forwardXView = 0.0f;
+			}
+			else {
+				 forwardXView = forwardVector.x * (1.0f / forwardVectorLength2D);
+				 forwardYView = forwardVector.y * (1.0f / forwardVectorLength2D);
+			}
+		}
+
+		// Set upZ to 0.0 if upVector.z is small
+		if (upVector.z < 0.00000011920929f)
+			upZ = 0.0f;
+
+		// Calculate new movement values for cmd
+		float rightMove = rightY * cmd->m_sidemove;
+		float forwardMove = forwardX * cmd->m_forwardmove;
+		float upMove = upZ * cmd->m_upmove;
+
+		cmd->m_forwardmove = ((((rightMove * rightY) + (rightX * rightX)) + (rightZ * forwardYView)) + (((upMove * rightY) + (forwardMove * rightX)) + (rightMove * forwardZView))) + (((upMove * rightY) + (upMove * rightX)) + (upZ * forwardZView));
+		cmd->m_sidemove = ((((rightMove * forwardY) + (rightX * forwardXView)) + (rightZ * forwardZView)) + (((upMove * forwardY) + (forwardMove * forwardXView)) + (rightMove * forwardZView))) + (((upMove * forwardY) + (upMove * forwardXView)) + (upZ * forwardZView));
+		cmd->m_upmove = ((((rightMove * 0.0f) + (rightX * 0.0f)) + (rightZ * upZ)) + (((upMove * 0.0f) + (forwardMove * 0.0f)) + (rightMove * upZ))) + (((upMove * 0.0f) + (upMove * 0.0f)) + (upZ * upZ));
+	}
+
 	void movement_fix(Vector& wish_angle, CUserCmd* m_pcmd)
 	{
 		Vector view_fwd, view_right, view_up, cmd_fwd, cmd_right, cmd_up;
@@ -270,8 +403,12 @@ namespace util
 		static auto cl_upspeed = m_cvar()->FindVar(crypt_str("cl_upspeed"));
 
 		m_pcmd->m_forwardmove = math::clamp(m_pcmd->m_forwardmove, -cl_forwardspeed->GetFloat(), cl_forwardspeed->GetFloat());
+
 		m_pcmd->m_sidemove = math::clamp(m_pcmd->m_sidemove, -cl_sidespeed->GetFloat(), cl_sidespeed->GetFloat());
 		m_pcmd->m_upmove = math::clamp(m_pcmd->m_upmove, -cl_upspeed->GetFloat(), cl_upspeed->GetFloat());
+
+		m_pcmd->m_upmove = sin(DEG2RAD(m_pcmd->m_viewangles.z)) * sin(DEG2RAD(m_pcmd->m_viewangles.x)) * m_pcmd->m_sidemove;
+		m_pcmd->m_forwardmove = cos(DEG2RAD(m_pcmd->m_viewangles.z)) * m_pcmd->m_forwardmove + sin(DEG2RAD(m_pcmd->m_viewangles.x)) * sin(DEG2RAD(m_pcmd->m_viewangles.z)) * m_pcmd->m_sidemove;
 	}
 
 	unsigned int find_in_datamap(datamap_t* map, const char* name)
@@ -498,7 +635,7 @@ namespace util
 			auto range = 0.2f;
 
 			if (g_ctx.local()->is_alive())
-				curtime = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
+				curtime = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 
 			auto next_record = record + 1;
 			auto end = next_record == records->rend();

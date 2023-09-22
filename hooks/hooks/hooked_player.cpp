@@ -7,28 +7,34 @@
 #include "../../cheats/prediction/EnginePrediction.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
 #include "../../cheats/lagcompensation/animation_system.h"
+#include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
 //_declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
 //{
-//    auto player = reinterpret_cast<player_t*>(uintptr_t(ecx) - 0x4);
-//
-//    if (!player->valid(false))
+//    player_t* Player = (player_t*)((DWORD)(ecx)-0x4);
+//    if (!Player || !Player->is_player() || !Player->is_alive() || Player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
 //        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
 //
+//    bool bResult = true;
 //    if (g_ctx.globals.setuping_bones)
+//        bResult = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//    else  if (!Player->valid(false))
 //        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-//
-//    if (!g_cfg.ragebot.enable )
-//        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//    else if (!Player->m_CachedBoneData().Count()) //-V807
+//        bResult = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//    else if (bone_world_out && max_bones != -1)
+//        memcpy(bone_world_out, Player->m_CachedBoneData().Base(), Player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 //
 //    else if (bone_world_out)
 //    {
-//        if (player->EntIndex() == g_ctx.local()->EntIndex())
-//            g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
+//        if (Player->EntIndex() == g_ctx.local()->EntIndex())
+//            bResult = g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
 //        else
-//            g_Lagcompensation->CopyCachedMatrix(player, bone_world_out);
+//            bResult = g_PlayerAnimations->CopyCachedMatrix(Player, bone_world_out, max_bones);
+//
 //    }
 //
-//    return true;
+//    return bResult;
+//
 //}
 _declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
 {
@@ -65,12 +71,13 @@ _declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_wo
                 result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
             else if (player == g_ctx.local() && bone_world_out)
                 result = g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
+            else if (player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
+                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
             else if (!player->m_CachedBoneData().Count()) //-V807
                 result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
             else if (bone_world_out && max_bones != -1)
-                memcpy(bone_world_out, player->m_CachedBoneData().Base(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-           
-           
+                result = g_PlayerAnimations->CopyCachedMatrix(player, bone_world_out, max_bones);
+                //memcpy(bone_world_out, player->m_CachedBoneData().Base(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
             if (previous_weapon)
                 animstate->m_pLastBoneSetupWeapon = previous_weapon;
@@ -212,21 +219,26 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
         ((PhysicsSimulateFn)original_physicssimulate)(player);
         return;
     }
+   /* g_ctx.globals.fixed_tickbase = player->m_nTickBase();
+    if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number)
+        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);*/
 
-   /* if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number)
+    if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number)
         player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
-    else if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number + 1)
-        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
 
-   
-   /* else if (cmd_ctx->command_number == g_ctx.globals.shot_command)
-        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
-   /* else if ((cmd_ctx->command_number > g_ctx.globals.shifting_command_number) && g_ctx.globals.isshifting)
-        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(g_cfg.ragebot.shift_amount);*/
+    g_ctx.globals.backup_tickbase = player->m_nTickBase();
+
+    if (g_ctx.globals.next_tickbase_shift)
+        g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.next_tickbase_shift;
+    else
+        g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
+
 
     g_Ragebot->AdjustRevolverData(cmd_ctx->command_number, cmd_ctx->cmd.m_buttons);
-
+   // g_EnginePrediction->RestoreNetvars();
     ((PhysicsSimulateFn)original_physicssimulate)(player);
+    //g_EnginePrediction->SaveNetvars();
+
    
 }
 _declspec(noinline)void hooks::modifyeyeposition_detour123(C_CSGOPlayerAnimationState* state, Vector& position)
@@ -342,8 +354,9 @@ void hooks::hkInterpolateServerEntities(void* ecx)
     if (!g_ctx.available())
         return ((InterpolateServerEntities_t)original_o_InterpolateServerEntities)(ecx);
 
+
     ((InterpolateServerEntities_t)original_o_InterpolateServerEntities)(ecx);
-    return g_LocalAnimations->InterpolateMatricies();
+    return g_PlayerAnimations->InterpolateMatricies();;
 }
 
 using ClampBonesInBBox_t = void(__thiscall*) (void*, matrix3x4_t*, int);

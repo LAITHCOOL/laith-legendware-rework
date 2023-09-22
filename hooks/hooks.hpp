@@ -152,6 +152,7 @@ namespace hooks
 	void __stdcall hooked_lockcursor();
 	int __fastcall hooked_listleavesinbox(void* ecx, void* edx, Vector& mins, Vector& maxs, unsigned short* list, int list_max);
 	void __fastcall hooked_runcommand(void* ecx, void* edx, player_t* player, CUserCmd* m_pcmd, IMoveHelper* move_helper);
+	bool __fastcall hooked_ispaused(void* ecx, void* edx);
 	bool __stdcall hooked_inprediction();
 	void __cdecl Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTick);
 	//bool __fastcall handle_break_lc(const std::uintptr_t ecx, const std::uintptr_t edx, const int slot, bf_write* buffer, int& from, int& to, move_msg_t* move_msg);

@@ -408,10 +408,10 @@ bool antiaim::should_break_lby(CUserCmd* m_pcmd, int lby_type)
 		return false;
 
 	if (animstate->m_velocity > 0.1f || fabs(animstate->flUpVelocity) > 100.0f)
-		g_ctx.globals.next_lby_update = TICKS_TO_TIME(g_ctx.local()->m_nTickBase() + 14);
+		g_ctx.globals.next_lby_update = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase + 14);
 	else
 	{
-		if (TICKS_TO_TIME(g_ctx.local()->m_nTickBase()) > g_ctx.globals.next_lby_update)
+		if (TICKS_TO_TIME(g_ctx.globals.fixed_tickbase) > g_ctx.globals.next_lby_update)
 		{
 			g_ctx.globals.next_lby_update = 0.0f;
 			return true;

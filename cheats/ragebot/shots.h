@@ -29,7 +29,7 @@ struct shot_record
 
 	Vector eye_pos = ZERO;
 
-	adjust_data* record = nullptr;
+	LagRecord_t* record = nullptr;
 
 	shot_info shot_info;
 };
@@ -39,7 +39,7 @@ class shots : public singleton <shots>
 private:
 	std::vector <shot_record> m_shots;
 public:
-	void register_shot(player_t* target, Vector eye_pos, adjust_data* record, int fire_tick, HitscanPoint_t point, bool safe);
+	void register_shot(player_t* target, Vector eye_pos, LagRecord_t* record, int fire_tick, HitscanPoint_t point, bool safe);
 	void on_fsn();
 	void on_impact(Vector impactpos);
 	void on_weapon_fire();

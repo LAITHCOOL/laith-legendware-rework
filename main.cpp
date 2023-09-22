@@ -638,6 +638,7 @@ __forceinline void setup_hooks()
 	hooks::engine_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_isconnected), 27); //-V107 //-V221
 	hooks::engine_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_getscreenaspectratio), 101); //-V107 //-V221
 	hooks::engine_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_ishltv), 93); //-V107 //-V221
+	hooks::engine_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_ispaused), 90); //-V107 //-V221
 
 
 	hooks::renderview_hook = new vmthook(reinterpret_cast<DWORD**>(m_renderview()));
@@ -670,7 +671,7 @@ __forceinline void setup_hooks()
 
 	hooks::client_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_sendnetmsg), 40);//
 	hooks::prediction_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::Hooked_SetupMove), 20);
-	hooks::engine_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::Hooked_IsPaused), 90); // breaks local animations
+	//hooks::engine_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::Hooked_IsPaused), 90); // breaks local animations
 	hooks::game_movement_hook = new vmthook(reinterpret_cast<DWORD**>(m_gamemovement()));
 	hooks::game_movement_hook->hook_function(reinterpret_cast<uintptr_t>(hooks::hooked_processmovement), 1);//
 	/*

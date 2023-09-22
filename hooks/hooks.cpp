@@ -215,7 +215,7 @@ namespace hooks
 	DWORD original_calcviewmodelbob;
 	DWORD original_processinterpolatedlist;
 	DWORD original_o_InterpolateServerEntities = (DWORD)DetourFunction((byte*)util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 EC 1C 8B 0D ? ? ? ? 53 56 57")), (byte*)hooks::hkInterpolateServerEntities);
-	DWORD original_clmove = (DWORD)DetourFunction((byte*)util::FindSignature(crypt_str("engine.dll"), crypt_str("55 8B EC 83 EC 10 53 8A D9 F3 0F 11 45 FC 8B")), (byte*)hooks::Hooked_CLMove);
+	DWORD original_clmove = (DWORD)DetourFunction((byte*)util::FindSignature(crypt_str("engine.dll"), crypt_str("55 8B EC 81 EC 64 01 00 00 53 56 8A F9")), (byte*)hooks::Hooked_CLMove);
 	
 	//
 

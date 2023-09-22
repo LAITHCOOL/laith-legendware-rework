@@ -23,6 +23,7 @@ public:
 	void start_move(CUserCmd* m_pcmd, bool& bSendPacket);
 	void process_dt_aimcheck(CUserCmd* m_pcmd);
 	void packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket);
+	bool should_process_packetstart(int outgoing);
 	bool setup_packet(int sequence_number, bool* pbSendPacket);
 	int ping();
 	int framerate();
@@ -35,6 +36,9 @@ public:
 	void build_seed_table();
 	void process_packets(CUserCmd* m_pcmd);
 	void finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, bool& bSendPacket , bool shifting);
+
+	std::deque <int> command_list = {};
+
 };
 
 inline networking* g_Networking = new networking();

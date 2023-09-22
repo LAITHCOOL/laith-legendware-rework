@@ -146,7 +146,7 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 
 	if (!g_ctx.available())
 	{
-		//g_LagCompensation::ResetData();
+		//g_LagCompensation::get().ResetData();
 		//g_Networking->ResetData();
 		nightmode::get().clear_stored_materials();
 		shots::get().clear_stored_data();
@@ -281,7 +281,7 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 
 	if (stage == FRAME_NET_UPDATE_END)
 	{
-		//g_LagCompensation::Instance();
+		//g_LagComp->RunLagComp(stage);
 		//g_AnimationSync::Instance();
 		//g_ctx.globals.updating_animation = g_Globals.m_AnimationData.m_bAnimationUpdate;
 		static auto rain = false;
@@ -332,7 +332,7 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 
 			g_cfg.player_list.players.emplace_back(Player_list_data(i, player_info.szName));
 
-			AimPlayer* data = & g_Ragebot->m_players[i];
+			AimPlayer* data = & g_Ragebot->m_players[i - 1];
 			data->OnNetUpdate(e);
 		}
 
@@ -432,9 +432,9 @@ void __stdcall hooks::hooked_fsn(ClientFrameStage_t stage)
 		
 	
 
-
-	g_Lagcompensation->fsn(stage);
-	//C_LagComp::get().RunLagComp(stage);
+	g_LagComp->FixPvs(stage);
+	//g_Lagcompensation->fsn(stage);
+	g_LagComp->RunLagComp(stage);
 
 	g_Networking->process_interpolation(stage, false);
 	original_fn(stage);

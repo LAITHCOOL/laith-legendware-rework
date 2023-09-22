@@ -1113,7 +1113,7 @@ bool misc::IsFiring()
 	if (!weapon)
 		return false;
 
-	float cur_time = TICKS_TO_TIME(g_ctx.local()->m_nTickBase());
+	float cur_time = TICKS_TO_TIME(g_ctx.globals.fixed_tickbase);
 
 	bool attack = (g_ctx.get_command()->m_buttons & IN_ATTACK) || (g_ctx.get_command()->m_buttons & IN_ATTACK2);
 
@@ -1140,7 +1140,7 @@ void misc::ForceStop()
 	g_ctx.get_command()->m_forwardmove = negated_direction.x;
 	g_ctx.get_command()->m_sidemove = negated_direction.y;
 
-	g_EnginePrediction->RePredict();
+	//g_EnginePrediction->RePredict();
 }
 
 void misc::AutoPeek(CUserCmd* cmd)
@@ -1204,7 +1204,7 @@ void misc::automatic_peek(CUserCmd* cmd, float wish_yaw)
 	{
 		if (g_ctx.globals.start_position.IsZero())
 		{
-			g_ctx.globals.start_position = g_ctx.local()->GetAbsOrigin();
+			g_ctx.globals.start_position = g_EnginePrediction->GetUnpredictedData()->m_vecOrigin;
 
 			if (!(g_EnginePrediction->GetUnpredictedData()->m_nFlags & FL_ONGROUND))
 			{
@@ -1228,7 +1228,7 @@ void misc::automatic_peek(CUserCmd* cmd, float wish_yaw)
 
 			if (g_ctx.globals.fired_shot)
 			{
-				auto& current_position = g_ctx.local()->GetAbsOrigin();
+				auto& current_position = g_EnginePrediction->GetUnpredictedData()->m_vecOrigin;
 				auto difference = current_position - g_ctx.globals.start_position;
 
 				if (difference.Length2D() > 5.0f)
@@ -1259,7 +1259,7 @@ void misc::fix_autopeek(CUserCmd* cmd)
 	if (key_binds::get().get_key_bind_state(18)) 
 	{
 		float wish_yaw = g_ctx.globals.wish_angle.y;
-		auto difference = g_ctx.local()->GetAbsOrigin() - g_ctx.globals.start_position;
+		auto difference = g_EnginePrediction->GetUnpredictedData()->m_vecOrigin - g_ctx.globals.start_position;
 
 		const auto chocked_ticks = (cmd->m_command_number % 2) != 1
 			? (13 - m_clientstate()->iChokedCommands) : m_clientstate()->iChokedCommands;
@@ -1267,7 +1267,7 @@ void misc::fix_autopeek(CUserCmd* cmd)
 		static auto cl_forwardspeed = m_cvar()->FindVar(crypt_str("cl_forwardspeed"));
 		static auto cl_sidespeed = m_cvar()->FindVar(crypt_str("cl_sidespeed"));
 
-		Vector playerloc = g_ctx.local()->GetAbsOrigin();
+		Vector playerloc = g_EnginePrediction->GetUnpredictedData()->m_vecOrigin;
 
 		float yaw = cmd->m_viewangles.y;
 
@@ -1286,7 +1286,7 @@ void misc::fix_autopeek(CUserCmd* cmd)
 				else
 					cmd->m_sidemove = -(cl_forwardspeed->GetFloat() - (1.2f * chocked_ticks));
 			}
-			auto angle = math::calculate_angle(g_ctx.local()->GetAbsOrigin(), g_ctx.globals.start_position);
+			auto angle = math::calculate_angle(g_EnginePrediction->GetUnpredictedData()->m_vecOrigin, g_ctx.globals.start_position);
 			g_ctx.globals.wish_angle.y = angle.y;
 		}
 		else

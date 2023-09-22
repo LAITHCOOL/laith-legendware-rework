@@ -62,6 +62,7 @@ void C_ConfigManager::setup()
 
 	setup_item(&g_cfg.ragebot.enable, false, crypt_str("Ragebot.enable"));
 	setup_item(&g_cfg.ragebot.silent_aim, false, crypt_str("Ragebot.silent_aim"));
+	setup_item(&g_cfg.ragebot.enable_resolver, false, crypt_str("Ragebot.enable_resolver"));
 	setup_item(&g_cfg.ragebot.field_of_view, 1, crypt_str("Ragebot.fov"));
 	setup_item(&g_cfg.ragebot.autowall, false, crypt_str("Ragebot.autowall"));
 	setup_item(&g_cfg.ragebot.zeus_bot, false, crypt_str("Ragebot.zeus_bot"));
@@ -89,6 +90,7 @@ void C_ConfigManager::setup()
 		setup_item(&g_cfg.ragebot.weapon[i].hitchance_amount, 1, std::to_string(i) + crypt_str("Ragebot.hitchance_amount"));
 		setup_item(&g_cfg.ragebot.weapon[i].minimum_visible_damage, 1, std::to_string(i) + crypt_str("Ragebot.minimum_visible_damage"));
 		setup_item(&g_cfg.ragebot.weapon[i].minimum_damage, 1, std::to_string(i) + crypt_str("Ragebot.minimum_damage"));
+		setup_item(&g_cfg.ragebot.weapon[i].damage_override_key, key_bind(HOLD), crypt_str("Ragebot.damage_override_key"));
 		setup_item(&g_cfg.ragebot.weapon[i].minimum_override_damage, 1, std::to_string(i) + crypt_str("Ragebot.minimum_override_damage"));
 		setup_item(&g_cfg.ragebot.weapon[i].hitboxes, 9, std::to_string(i) + crypt_str("Ragebot.hitboxes"));
 		setup_item(&g_cfg.ragebot.weapon[i].multipoint_hitboxes, 5, std::to_string(i) + crypt_str("Ragebot.multipoint_hitboxes"));

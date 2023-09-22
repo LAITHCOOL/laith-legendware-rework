@@ -73,45 +73,7 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 	if (!g_cfg.ragebot.defensive_doubletap)
 		return;
 
-	// predpos
-	Vector predicted_eye_pos = g_ctx.globals.eye_pos + (g_EnginePrediction->GetUnpredictedData()->m_vecVelocity * m_globals()->m_intervalpertick);
-	int shift_amount = math::clamp(math::random_int(1, 4), 0, 15);
-	for (auto i = 1; i <= m_globals()->m_maxclients; i++)
-	{
-		auto e = static_cast<player_t*>(m_entitylist()->GetClientEntity(i));
-		if (!e->valid(true))
-			continue;
-
-		auto records = &player_records[i];
-		if (records->empty())
-			continue;
-
-		auto record = &records->front();
-		if (!record->valid())
-			continue;
-
-		// apply player animated data
-		record->adjust_player();
-
-		// look all ticks for get first hitable
-		for (int next_chock = 1; next_chock <= 8; ++next_chock)
-		{
-			predicted_eye_pos *= next_chock;
-
-			auto fire_data = autowall::get().wall_penetration(predicted_eye_pos, e->hitbox_position_matrix(HITBOX_PELVIS, record->m_Matricies[MiddleMatrix].data()), e);
-
-			if (!fire_data.valid)
-				continue;
-
-			if (fire_data.damage < 1)
-				continue;
-
-			g_ctx.globals.m_Peek.m_bIsPeeking = true;
-			g_ctx.globals.m_Peek.m_ResetTicks = 0;
-		}
-	}
-
-	if (g_ctx.globals.m_Peek.m_bIsPeeking)
+	if (g_Ragebot->is_peeking_enemy(8))
 	{
 		if (g_ctx.globals.m_Peek.m_UpdateLc)
 		{
@@ -126,6 +88,7 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 				g_ctx.globals.tickbase_shift = g_ctx.globals.tocharge;
 			}
 		}
+
 	}
 	else
 	{
@@ -141,23 +104,6 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 			g_ctx.globals.tickbase_shift = g_ctx.local()->m_flOldSimulationTime() - g_ctx.local()->m_flSimulationTime() + 1;
 		}
 	}
-
-	//if (g_ctx.globals.m_Peek.m_bIsPeeking && !g_ctx.globals.isshifting && g_cfg.ragebot.defensive_doubletap && !g_ctx.globals.block_charge) /*we dont want to shift while we're recharching because it will cause our dt and tickbase to break*/
-	//{
-
-	//	int shift_amount = math::clamp(math::random_int(1, 4), 0, 15); /*we dont want to shift more than 14 and it goes as folows*/
-	//	/* (16 ticks in total we can send without byte patching) 1 tick is for simulating our other 15 commands , 1 tick is for desync, 13 for dt, and 1 is enough to break lc*/
-
-
-
-	//	g_ctx.globals.tickbase_shift = shift_amount;
-	//	g_ctx.globals.m_Peek.m_bIsPeeking = false;
-	//	g_ctx.globals.m_shifted_command = cmd->m_command_number;
-
-	//	auto next_command_number = cmd->m_command_number + 1;
-	//	auto user_cmd = m_input()->GetUserCmd(next_command_number);
-	//	shift_silent(cmd, user_cmd, shift_amount);
-	//}
 }
 
 void tickbase::DoubleTap(CUserCmd* m_pcmd)
@@ -226,9 +172,15 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		g_ctx.globals.shifting_command_number = m_pcmd->m_command_number; // used for tickbase fix 
 
 		lastdoubletaptime = m_pcmd->m_command_number;
+
+		g_ctx.globals.tickbase_shift = shiftAmount;
+		//g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift;
 	}
 	else
 		g_ctx.globals.block_charge = false;
+
+	//g_ctx.globals.tickbase_shift = g_ctx.globals.tochargeamount;
+	//g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift;
 
 }
 
@@ -241,7 +193,6 @@ bool tickbase::CanDoubleTap(bool check_charge) {
 		g_ctx.globals.tocharge = 0;
 		g_ctx.globals.tochargeamount = 0;
 		g_ctx.globals.shift_ticks = 0;
-		
 		return false;
 	}
 
@@ -256,7 +207,6 @@ bool tickbase::CanDoubleTap(bool check_charge) {
 		g_ctx.globals.tocharge = 0;
 		g_ctx.globals.tochargeamount = 0;
 		g_ctx.globals.shift_ticks = 0;
-
 		return false;
 	}
 
@@ -285,6 +235,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		hide_shots_key = false;
 		g_ctx.globals.ticks_allowed = 0;
 		g_ctx.globals.tickbase_shift = 0;
+		g_ctx.globals.next_tickbase_shift = 0;
 
 		return;
 	}
@@ -295,6 +246,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		hide_shots_key = false;
 		g_ctx.globals.ticks_allowed = 0;
 		g_ctx.globals.tickbase_shift = 0;
+		g_ctx.globals.next_tickbase_shift = 0;
 
 		return;
 	}
@@ -305,6 +257,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		hide_shots_key = false;
 		g_ctx.globals.ticks_allowed = 0;
 		g_ctx.globals.tickbase_shift = 0;
+		g_ctx.globals.next_tickbase_shift = 0;
 
 		return;
 	}
@@ -322,6 +275,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		hide_shots_enabled = false;
 		g_ctx.globals.ticks_allowed = 0;
 		g_ctx.globals.tickbase_shift = 0;
+		g_ctx.globals.next_tickbase_shift = 0;
 		return;
 	}
 
@@ -332,6 +286,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		hide_shots_enabled = false;
 		g_ctx.globals.ticks_allowed = 0;
 		g_ctx.globals.tickbase_shift = 0;
+		g_ctx.globals.next_tickbase_shift = 0;
 		return;
 	}
 
@@ -340,6 +295,7 @@ void tickbase::HideShots(CUserCmd* m_pcmd)
 		hide_shots_enabled = false;
 		g_ctx.globals.ticks_allowed = 0;
 		g_ctx.globals.tickbase_shift = 0;
+		g_ctx.globals.next_tickbase_shift = 0;
 		return;
 	}
 

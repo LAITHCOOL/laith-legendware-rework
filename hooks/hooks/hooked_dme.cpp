@@ -8,7 +8,7 @@
 // hitchams ../../cheats/visual/hitchams.h
 #include "../../cheats/visuals/hitchams.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
-
+#include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
 
 IMaterial* CreateMaterial(bool lit, const std::string& material_data)
 {
@@ -207,7 +207,8 @@ void __stdcall hooks::hooked_dme(IMatRenderContext* ctx, const DrawModelState_t&
 						{
 							matrix3x4_t matrix[MAXSTUDIOBONES];
 
-							if (util::get_backtrack_matrix(model_entity, matrix))
+							
+							if (g_LagComp->GetBacktrackMatrix(model_entity, matrix))
 							{
 								float backtrack_color[3] =
 								{
@@ -303,7 +304,7 @@ void __stdcall hooks::hooked_dme(IMatRenderContext* ctx, const DrawModelState_t&
 						{
 							matrix3x4_t matrix[MAXSTUDIOBONES];
 
-							if (util::get_backtrack_matrix(model_entity, matrix))
+							if (g_LagComp->GetBacktrackMatrix(model_entity, matrix))
 							{
 								float backtrack_color[3] =
 								{

@@ -42,16 +42,12 @@ void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
 	g_ctx.globals.original_forwardmove = m_pcmd->m_forwardmove;
 	g_ctx.globals.original_sidemove = m_pcmd->m_sidemove;
 
-	g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
-
-	/*if (g_ctx.globals.tickbase_shift)
-		g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase() - g_ctx.globals.tickbase_shift;
-	else*/
+	/*g_ctx.globals.backup_tickbase = g_ctx.local()->m_nTickBase();
 		
 	if (g_ctx.globals.next_tickbase_shift)
 		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.next_tickbase_shift;
 	else
-		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
+		g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;*/
 
 	if (hooks::menu_open)
 	{
@@ -216,86 +212,86 @@ void networking::packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket)
 		m_pcmd->m_buttons &= ~(IN_ATTACK | IN_ATTACK2);
 
 	/*if (m_pcmd->m_command_number == g_ctx.globals.shifting_command_number)
-		g_ctx.local()->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);*/
+		g_ctx.local()->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
 
-	//g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();
+	g_ctx.globals.fixed_tickbase = g_ctx.local()->m_nTickBase();*/
 }
 
 void networking::process_packets(CUserCmd* m_pcmd)
 {
-	static auto previous_ticks_allowed = g_ctx.globals.ticks_allowed;
+	//static auto previous_ticks_allowed = g_ctx.globals.ticks_allowed;
 
-	if (g_ctx.send_packet && m_clientstate()->pNetChannel)//
-	{
-		auto choked_packets = m_clientstate()->pNetChannel->m_nChokedPackets;
+	//if (g_ctx.send_packet && m_clientstate()->pNetChannel)//
+	//{
+	//	auto choked_packets = m_clientstate()->pNetChannel->m_nChokedPackets;
 
-		if (choked_packets >= 0)
-		{
-			auto ticks_allowed = g_ctx.globals.ticks_allowed;
-			auto command_number = m_pcmd->m_command_number - choked_packets;
+	//	if (choked_packets >= 0)
+	//	{
+	//		auto ticks_allowed = g_ctx.globals.ticks_allowed;
+	//		auto command_number = m_pcmd->m_command_number - choked_packets;
 
-			do
-			{
-				auto command = &m_input()->m_pCommands[m_pcmd->m_command_number - MULTIPLAYER_BACKUP * (command_number / MULTIPLAYER_BACKUP) - choked_packets];
+	//		do
+	//		{
+	//			auto command = &m_input()->m_pCommands[m_pcmd->m_command_number - MULTIPLAYER_BACKUP * (command_number / MULTIPLAYER_BACKUP) - choked_packets];
 
-				if (!command || command->m_tickcount > m_globals()->m_tickcount + 72)
-				{
-					if (--ticks_allowed < 0)
-						ticks_allowed = 0;
+	//			if (!command || command->m_tickcount > m_globals()->m_tickcount + 72)
+	//			{
+	//				if (--ticks_allowed < 0)
+	//					ticks_allowed = 0;
 
-					g_ctx.globals.ticks_allowed = ticks_allowed;
-				}
+	//				g_ctx.globals.ticks_allowed = ticks_allowed;
+	//			}
 
-				++command_number;
-				--choked_packets;
-			} while (choked_packets >= 0);
-		}
-	}//
+	//			++command_number;
+	//			--choked_packets;
+	//		} while (choked_packets >= 0);
+	//	}
+	//}//
 
-	if (g_ctx.globals.ticks_allowed > 17)
-		g_ctx.globals.ticks_allowed = math::clamp(g_ctx.globals.ticks_allowed - 1, 0, 17);
+	//if (g_ctx.globals.ticks_allowed > 17)
+	//	g_ctx.globals.ticks_allowed = math::clamp(g_ctx.globals.ticks_allowed - 1, 0, 17);
 
-	if (previous_ticks_allowed && !g_ctx.globals.ticks_allowed)
-		g_ctx.globals.ticks_choke = 16;
+	//if (previous_ticks_allowed && !g_ctx.globals.ticks_allowed)
+	//	g_ctx.globals.ticks_choke = 16;
 
-	previous_ticks_allowed = g_ctx.globals.ticks_allowed;
+	//previous_ticks_allowed = g_ctx.globals.ticks_allowed;
 
-	if (g_ctx.globals.ticks_choke)
-	{
-		g_ctx.send_packet = g_ctx.globals.force_send_packet;
-		--g_ctx.globals.ticks_choke;
-	}
+	//if (g_ctx.globals.ticks_choke)
+	//{
+	//	g_ctx.send_packet = g_ctx.globals.force_send_packet;
+	//	--g_ctx.globals.ticks_choke;
+	//}
 
 
-	if (g_ctx.globals.ticks_choke)
-	{
-		g_ctx.send_packet = g_ctx.globals.force_send_packet;
-		--g_ctx.globals.ticks_choke;
-	}
+	//if (g_ctx.globals.ticks_choke)
+	//{
+	//	g_ctx.send_packet = g_ctx.globals.force_send_packet;
+	//	--g_ctx.globals.ticks_choke;
+	//}
 
-	auto& correct = g_ctx.globals.data.emplace_front();
+	//auto& correct = g_ctx.globals.data.emplace_front();
 
-	correct.command_number = m_pcmd->m_command_number;
-	correct.choked_commands = m_clientstate()->iChokedCommands + 1;
-	correct.tickcount = m_globals()->m_tickcount;
+	//correct.command_number = m_pcmd->m_command_number;
+	//correct.choked_commands = m_clientstate()->iChokedCommands + 1;
+	//correct.tickcount = m_globals()->m_tickcount;
 
-	if (g_ctx.send_packet)
-		g_ctx.globals.choked_number.clear();
-	else
-		g_ctx.globals.choked_number.emplace_back(correct.command_number);
+	//if (g_ctx.send_packet)
+	//	g_ctx.globals.choked_number.clear();
+	//else
+	//	g_ctx.globals.choked_number.emplace_back(correct.command_number);
 
-	while (g_ctx.globals.data.size() > (int)(2.0f / m_globals()->m_intervalpertick))
-		g_ctx.globals.data.pop_back();
+	//while (g_ctx.globals.data.size() > (int)(2.0f / m_globals()->m_intervalpertick))
+	//	g_ctx.globals.data.pop_back();
 
-	auto& out = g_ctx.globals.commands.emplace_back();
+	//auto& out = g_ctx.globals.commands.emplace_back();
 
-	out.is_outgoing = g_ctx.send_packet;
-	out.is_used = false;
-	out.command_number = m_pcmd->m_command_number;
-	out.previous_command_number = 0;
+	//out.is_outgoing = g_ctx.send_packet;
+	//out.is_used = false;
+	//out.command_number = m_pcmd->m_command_number;
+	//out.previous_command_number = 0;
 
-	while (g_ctx.globals.commands.size() > (int)(1.0f / m_globals()->m_intervalpertick))
-		g_ctx.globals.commands.pop_front();
+	//while (g_ctx.globals.commands.size() > (int)(1.0f / m_globals()->m_intervalpertick))
+	//	g_ctx.globals.commands.pop_front();
 
 	if (!g_ctx.send_packet && !m_gamerules()->m_bIsValveDS())//
 	{
@@ -318,8 +314,16 @@ void networking::finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, boo
 {
 	if (shifting)
 	{
-		bSendPacket = g_ctx.globals.tochargeamount == 1;
+		verified->m_cmd = *m_pcmd; // This should be apparently only called if we are not shifting ticks????? 
+		verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
+		//bSendPacket = g_ctx.globals.tochargeamount == 1;
+		bSendPacket = g_ctx.send_packet;
+
+		if (bSendPacket)
+			g_Networking->command_list.emplace_back(m_pcmd->m_command_number);
+
 		g_ctx.globals.in_createmove = false;
+		
 	}
 	else
 	{
@@ -327,8 +331,32 @@ void networking::finish_packet(CUserCmd* m_pcmd, CVerifiedUserCmd* verified, boo
 		verified->m_crc = m_pcmd->GetChecksum();; // This should be apparently only called if we are not shifting ticks?????
 		g_ctx.globals.in_createmove = false;
 		bSendPacket = g_ctx.send_packet;
+		if (bSendPacket)
+			g_Networking->command_list.emplace_back(m_pcmd->m_command_number);
+
 	}
 		
+}
+
+
+bool networking::should_process_packetstart(int outgoing)
+{
+	if (!g_ctx.available())
+		return true;
+
+	if (!g_ctx.local()->is_alive())
+		return true;
+
+	for (auto cmd = this->command_list.begin(); cmd != this->command_list.end(); cmd++)
+	{
+		if (*cmd != outgoing)
+			continue;
+
+		this->command_list.erase(cmd);
+		return true;
+	}
+
+	return false;
 }
 
 bool networking::setup_packet(int sequence_number, bool* pbSendPacket)
@@ -432,7 +460,7 @@ void networking::process_interpolation(ClientFrameStage_t Stage, bool bPostFrame
 		this->final_predicted_tick = g_ctx.local()->m_nFinalPredictedTick();
 		this->interp = m_globals()->m_interpolation_amount;
 
-		g_ctx.local()->m_nFinalPredictedTick() = g_ctx.local()->m_nTickBase();
+		g_ctx.local()->m_nFinalPredictedTick() = g_ctx.globals.fixed_tickbase;
 
 		if (g_ctx.globals.isshifting)
 			m_globals()->m_interpolation_amount = 0.0f;

@@ -11,7 +11,14 @@ struct EntityJobDataStruct
 	ClientFrameStage_t stage;
 };
 
-
+void lagcompensation::apply_interpolation_flags(player_t* e)
+{
+	auto map = e->var_mapping();
+	if (map == nullptr)
+		return;
+	for (auto j = 0; j < map->m_nInterpolatedEntries; j++)
+		map->m_Entries[j].m_bNeedsToInterpolate = false;
+}
 void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 {
 	int i = EntityJobData->index;
@@ -25,25 +32,34 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 	if (!g_Lagcompensation->valid(i, e))
 		return;
 
-	else if (stage == FRAME_RENDER_START)
+	if (stage == FRAME_RENDER_START)
 		g_Lagcompensation->FixPvs(e);
+	else if (stage == FRAME_NET_UPDATE_POSTDATAUPDATE_END)
+		g_Lagcompensation->apply_interpolation_flags(e);
 
 	else if (stage == FRAME_NET_UPDATE_END) {
 
-		auto update = player_records[i].empty() || e->m_flSimulationTime() != e->m_flOldSimulationTime();
+		auto update = e->m_flSimulationTime() != e->m_flOldSimulationTime();
 
 		bool invalid_processing = false;
 		
-		if (update && !player_records[i].empty())
+		if (!player_records[i].empty())
 		{
-			auto layer = &e->get_animlayers()[11];
-			auto previous_layer = &player_records[i].front().layers[11];
-
-			if (layer->m_flCycle == previous_layer->m_flCycle && layer->m_flPlaybackRate == previous_layer->m_flPlaybackRate) //-V550
+			auto server_tick = m_clientstate()->m_iServerTick - i % m_globals()->m_timestamprandomizewindow;
+			auto current_tick = server_tick - server_tick % m_globals()->m_timestampnetworkingbase;
+			if (TIME_TO_TICKS(e->m_flOldSimulationTime()) < current_tick && TIME_TO_TICKS(e->m_flSimulationTime()) == current_tick)
 			{
-				e->m_flSimulationTime() = player_records[i].front().simulation_time;
-				e->m_flOldSimulationTime() = player_records[i].front().old_simtime;
-				update = false;
+				auto layer = &e->get_animlayers()[11];
+				auto previous_layer = &player_records[i].front().layers[11];
+
+				if (layer->m_flCycle == previous_layer->m_flCycle && layer->m_flPlaybackRate == previous_layer->m_flPlaybackRate) //-V550
+				{
+					//e->m_flSimulationTime() = player_records[i].front().simulation_time;
+					//e->m_flOldSimulationTime() = player_records[i].front().old_simtime;
+
+					e->m_flSimulationTime() = e->m_flOldSimulationTime();
+					update = false;
+				}
 			}
 
 			if (e->m_flSimulationTime() < player_records[i].front().m_flLastSimTime
@@ -54,30 +70,42 @@ void ProcessEntityJob(EntityJobDataStruct* EntityJobData)
 			if (player_records[i].front().m_flExploitTime >= e->m_flSimulationTime())
 				invalid_processing = true;
 
-			player_records[i].front().old_simtime = player_records[i].front().simulation_time;
-			player_records[i].front().simulation_time = e->m_flSimulationTime();
+			//player_records[i].front().old_simtime = player_records[i].front().simulation_time;
+			//player_records[i].front().simulation_time = e->m_flSimulationTime();
 
 			if (!invalid_processing)
 				player_records[i].front().m_flLastSimTime = e->m_flSimulationTime();
+
+			player_records[i].front().invalid = invalid_processing;
 
 			if ((e->m_vecOrigin() - player_records[i].front().origin).LengthSqr() > 4096.f)
 			{
 				for (auto& record : player_records[i])
 					record.invalid = true;
+				//player_records[i].front().invalid = true;
+				//player_records[i].clear();
 			}
-
-			player_records[i].front().invalid = invalid_processing;
-			
 		}
+
+
+		if (player_records[i].empty())
+			player_records[i].emplace_front(adjust_data(e));
 
 		if (update)
 		{
 			player_records[i].emplace_front(adjust_data(e));
+			auto records = &player_records[e->EntIndex()]; //-V826
+			adjust_data* record = &records->front();
+
+			adjust_data* previous_record = nullptr;
+
+			if (records->size() >= 2)
+				previous_record = &records->at(1);
 
 			if (!player_records[i].empty())
-				g_Lagcompensation->SimulatePlayerAnimations(e);
+				g_Lagcompensation->SimulatePlayerAnimations(e, record, previous_record);
 
-			while (player_records[i].size() > g_Networking->tickrate())
+			while (player_records[i].size() > 32)
 				player_records[i].pop_back();
 
 		}
@@ -773,6 +801,7 @@ int lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* rec
 
 	if (sim_ticks - 1 > 31 || previous_record->simulation_time == 0.f) {
 		sim_ticks = 1;
+		previous_record = nullptr;
 	}
 	auto cur_cycle = record->layers[11].m_flCycle;
 	auto prev_rate = previous_record->layers[11].m_flPlaybackRate;
@@ -799,90 +828,59 @@ int lagcompensation::DetermineSimulationTicks(player_t* player, adjust_data* rec
 				sim_ticks = last_cmds;
 		}
 	}
-	return std::clamp(sim_ticks, 0, 17);
+	return std::clamp(sim_ticks, 0, 15);
 }
 
-void lagcompensation::SetBones(matrix3x4_t* matrix, player_t* m_pEntity)
-{
-	m_CachedMatrixRetr[m_pEntity->EntIndex()] = m_pEntity->setup_bones_latest(matrix , false);
-	m_pEntity->setup_bones_latest(matrix, false);
-	for (int i = NULL; i < MAXSTUDIOBONES; i++)
-		m_BoneOrigins[m_pEntity->EntIndex()][i] = m_pEntity->GetAbsOrigin() - matrix[i].GetOrigin();
-
-	std::memcpy(m_CachedMatrix[m_pEntity->EntIndex()], matrix, m_pEntity->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-}
-
-void lagcompensation::CopyCachedMatrix(player_t* player, matrix3x4_t* matrix)
-{
-	if (m_CachedMatrixRetr[player->EntIndex()])
-		std::memcpy(matrix, m_CachedMatrix[player->EntIndex()], player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-}
-
-void lagcompensation::OnUpdateClientSideAnimations(player_t* player)
-{
-	for (int i = NULL; i < MAXSTUDIOBONES; i++)
-		m_CachedMatrix[player->EntIndex()][i].SetOrigin(player->GetAbsOrigin() - m_BoneOrigins[player->EntIndex()][i]);
-
-	std::memcpy(player->m_CachedBoneData().Base(),m_CachedMatrix[player->EntIndex()], player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-	std::memcpy(player->m_BoneAccessor().GetBoneArrayForWrite(), m_CachedMatrix[player->EntIndex()], player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-
-	return player->attachment_helper();
-}
-
-void lagcompensation::SimulatePlayerAnimations(player_t* e)
+void lagcompensation::SimulatePlayerAnimations(player_t* e , adjust_data* record, adjust_data* previous_record)
 {
 	auto animstate = e->get_animation_state1();
 
 	if (!animstate)
 		return;
 
-	auto records = &player_records[e->EntIndex()]; //-V826
-	adjust_data* record = &records->front();
+	if (!record)
+		return;
 
-	adjust_data* previous_record = nullptr;
+	//SetupData(e, record, previous_record);
+	record->m_nSimulationTicks = DetermineSimulationTicks(e, record, previous_record);
 
-	if (records->size() >= 2)
-		previous_record = &records->at(1);
+	//if (previous_record) {
+	//	animstate->m_flPrimaryCycle = previous_record->layers[6].m_flCycle;
+	//	animstate->m_flMoveWeight = previous_record->layers[6].m_flWeight;
 
-	if (previous_record) {
-		animstate->m_flPrimaryCycle = previous_record->layers[6].m_flCycle;
-		animstate->m_flMoveWeight = previous_record->layers[6].m_flWeight;
+	//	const auto& layer7 = previous_record->layers[7];
 
-		const auto& layer7 = previous_record->layers[7];
+	//	animstate->m_flStrafeChangeWeight = layer7.m_flWeight;
+	//	animstate->m_nStrafeSequence = layer7.m_nSequence;
+	//	animstate->m_flStrafeChangeCycle = layer7.m_flCycle;
+	//	animstate->m_flAccelerationWeight = previous_record->layers[12].m_flWeight;
 
-		animstate->m_flStrafeChangeWeight = layer7.m_flWeight;
-		animstate->m_nStrafeSequence = layer7.m_nSequence;
-		animstate->m_flStrafeChangeCycle = layer7.m_flCycle;
-		animstate->m_flAccelerationWeight = previous_record->layers[12].m_flWeight;
+	//	memcpy(e->get_animlayers(), previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+	//}
+	//else {
 
-		memcpy(e->get_animlayers(), previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));
-	}
-	else {
-		if (record->flags & FL_ONGROUND) {
-			animstate->m_bOnGround = true;
-			animstate->m_bLanding = false;
-		}
+	//	animstate->m_flDurationInAir = 0.f;
+	//	animstate->m_flPrimaryCycle = record->layers[6].m_flCycle;
+	//	animstate->m_flMoveWeight = record->layers[6].m_flWeight;
+	//	animstate->m_flStrafeChangeWeight = record->layers[7].m_flWeight;
+	//	animstate->m_nStrafeSequence = record->layers[7].m_nSequence;
+	//	animstate->m_flStrafeChangeCycle = record->layers[7].m_flCycle;
+	//	animstate->m_flAccelerationWeight = record->layers[12].m_flWeight;
 
-		animstate->m_flDurationInAir = 0.f;
-		animstate->m_flPrimaryCycle = record->layers[6].m_flCycle;
-		animstate->m_flMoveWeight = record->layers[6].m_flWeight;
-		animstate->m_flStrafeChangeWeight = record->layers[7].m_flWeight;
-		animstate->m_nStrafeSequence = record->layers[7].m_nSequence;
-		animstate->m_flStrafeChangeCycle = record->layers[7].m_flCycle;
-		animstate->m_flAccelerationWeight = record->layers[12].m_flWeight;
+	//	e->m_flPoseParameter()[6] = 0.f;
+	//	memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+	//	animstate->m_flLastUpdateTime = record->simulation_time - m_globals()->m_intervalpertick;
 
-		e->m_flPoseParameter()[6] = 0.f;
-		memcpy(e->get_animlayers(), record->layers, e->animlayer_count() * sizeof(AnimationLayer));
+	//	auto walk_run_transition = record->velocity.Length2D() <= 135.f ? 0.f : 1.f;
 
-		auto walk_run_transition = record->velocity.Length2D() <= 135.f ? 0.f : 1.f;
+	//	animstate->m_flWalkToRunTransition = walk_run_transition;
+	//	animstate->m_flLastUpdateTime = record->simulation_time - m_globals()->m_intervalpertick;
+	//}
 
-		animstate->m_flWalkToRunTransition = walk_run_transition;
-		animstate->m_flLastUpdateTime = record->simulation_time - m_globals()->m_intervalpertick;
-	}
+	C_CSGOPlayerAnimationState BackupState;
+	AnimationLayer AnimLayers[13];
+	memcpy(AnimLayers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
 
-	C_CSGOPlayerAnimationState* BackupState = e->get_animation_state1();
-
-	AnimationLayer* AnimLayers = e->get_animlayers();
 
 	player_info_t player_info;
 
@@ -895,8 +893,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 	m_Globals.CaptureData();
 	m_PlayerGlobals.CaptureData(e);
 
-	//SetupData(e, record, previous_record);
-	record->m_nSimulationTicks = DetermineSimulationTicks(e, record, previous_record);
+	
 
 	/* Determine player's velocity */
     //record->velocity = DeterminePlayerVelocity(e, record, previous_record, animstate);
@@ -913,11 +910,12 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 	/* Invalidate EFlags */
 	e->m_iEFlags() &= ~(EFL_DIRTY_ABSVELOCITY | EFL_DIRTY_ABSTRANSFORM);
 
-	if (e->m_fFlags() & FL_ONGROUND && e->m_vecVelocity().Length() > 0.0f && record->layers[6].m_flWeight <= 0.0f)
-		record->velocity.Zero();
+	/*if (e->m_fFlags() & FL_ONGROUND && e->m_vecVelocity().Length() > 0.0f && record->layers[6].m_flWeight <= 0.0f)
+		record->velocity.Zero();*/
 
 	/* Update collision bounds */
-	SetupCollision(e, record);
+	//SetupCollision(e, record);
+
 
 	/* Simulate legit player */
 	if (record->m_nSimulationTicks <= 1 || !previous_record)
@@ -969,7 +967,7 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 
 
 			// fix retard abobus animation
-			if (auto duck_amount_per_tick = (e->m_flDuckAmount() - previous_record->duck_amount) / record->m_nSimulationTicks)
+			/*if (auto duck_amount_per_tick = (e->m_flDuckAmount() - previous_record->duck_amount) / record->m_nSimulationTicks)
 				e->m_flDuckAmount() = previous_record->duck_amount + duck_amount_per_tick * (float)iSimulationTick;
 
 			auto PreviousLby = previous_record->lby;
@@ -989,10 +987,10 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 					CurrentLby = PreviousLby;
 
 				e->m_flLowerBodyYawTarget() = CurrentLby;
-			}
+			}*/
 
-			//e->m_flDuckAmount() = interpolate(previous_record->duck_amount, record->duck_amount, iSimulationTick, record->m_nSimulationTicks);
-			//e->m_flLowerBodyYawTarget() = previous_record->lby;
+			e->m_flDuckAmount() = interpolate(previous_record->duck_amount, record->duck_amount, iSimulationTick, record->m_nSimulationTicks);
+			e->m_flLowerBodyYawTarget() = previous_record->lby;
 			e->m_angEyeAngles() = previous_record->angles;
 
 			/* Simulate origin */
@@ -1015,8 +1013,6 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 						e->m_flLowerBodyYawTarget() = record->lby;
 					}
 				}
-
-				e->m_angEyeAngles().z = 0.0f;
 
 				if (record->m_nActivityType != EPlayerActivityC::CNoActivity)
 				{
@@ -1060,25 +1056,27 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 			Vector& vecVelocity = e->m_vecVelocity();
 			vecVelocity.x = interpolate(previous_record->velocity.x, record->velocity.x, iSimulationTick, record->m_nSimulationTicks);
 			vecVelocity.y = interpolate(previous_record->velocity.y, record->velocity.y, iSimulationTick, record->m_nSimulationTicks);
+			vecVelocity.z = interpolate(previous_record->velocity.z, record->velocity.z, iSimulationTick, record->m_nSimulationTicks);
 			e->m_vecAbsVelocity() = e->m_vecVelocity() = vecVelocity;
 			 
 
 			/* Update animations */
 			UpdatePlayerAnimations(e, record, animstate);
+			
 		}
 	}
 
-	/* Reset animation layers */
-	std::memcpy(e->get_animlayers(), AnimLayers, sizeof(AnimationLayer) * 13);
+	/* Reset animation layers & state */
+	memcpy(e->get_animlayers(), AnimLayers, 13 * sizeof(AnimationLayer));
+	//memcpy(&BackupState, animstate,  sizeof(C_CSGOPlayerAnimationState));
+	BackupState = *animstate;
 
-	/* Reset player's origin */
-	e->set_abs_origin(m_PlayerGlobals.m_vecAbsOrigin);
+	std::array < float, MAXSTUDIOPOSEPARAM > m_PoseParameters = { };
+	memcpy(m_PoseParameters.data(), e->m_flPoseParameter().data(), sizeof(float)* MAXSTUDIOPOSEPARAM);
 
-	memcpy(BackupState, animstate, sizeof(C_CSGOPlayerAnimationState));
 	previous_goal_feet_yaw[e->EntIndex()] = animstate->m_flFootYaw;
-	
 
-	if (/*!record->bot &&*/ e->m_iTeamNum() != g_ctx.local()->m_iTeamNum() && !g_cfg.legitbot.enabled)
+	if (/*!record->bot &&*/ e->m_iTeamNum() != g_ctx.local()->m_iTeamNum() && g_cfg.ragebot.enable_resolver)
 	{
 		player_resolver[e->EntIndex()].initialize_yaw(e, record, previous_record);
 
@@ -1086,22 +1084,24 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 		const float deltaAngles[] = { 0.0f, -58.0f, 58.0f, -29.0f, 29.0f, 0.0f };
 
 		// Loop through each delta angle
-		for (int i = 1; i <= 5; i++) {
+		for (int i = 1; i < 5; i++) {
 			float deltaAngle = deltaAngles[i];
 
 			// Update animstate for the current delta angle
 			animstate->m_flFootYaw = math::normalize_yaw(e->m_angEyeAngles().y + deltaAngle);
 			UpdatePlayerAnimations(e, record, animstate);
 
-			// copy layer data to use it in in the resolver
-			memcpy(player_resolver[e->EntIndex()].resolver_layers[i], e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
-
 			//setup bones 
 			e->setup_bones_latest(record->m_Matricies[i].data(), true);
 
+			// copy layer data to use it in in the resolver
+			memcpy(player_resolver[e->EntIndex()].resolver_layers[i], e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
+
 			// restore data
 			memcpy(e->get_animlayers(), AnimLayers, e->animlayer_count() * sizeof(AnimationLayer));
-			memcpy(animstate, BackupState, sizeof(C_CSGOPlayerAnimationState));
+			//memcpy(animstate, BackupState, sizeof(C_CSGOPlayerAnimationState));
+			*animstate = BackupState;
+			memcpy(e->m_flPoseParameter().data(), m_PoseParameters.data(), sizeof(float)* MAXSTUDIOPOSEPARAM);
 		}
 
 		player_resolver[e->EntIndex()].initialize(e, record, previous_goal_feet_yaw[e->EntIndex()], e->m_angEyeAngles().x, previous_record);
@@ -1116,9 +1116,15 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e)
 	if (previous_record)
 		memcpy(player_resolver[e->EntIndex()].previous_layers, previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));
 
-	m_PlayerGlobals.AdjustData(e);
-	m_Globals.AdjustData();
+	memcpy(e->get_animlayers(), AnimLayers, e->animlayer_count() * sizeof(AnimationLayer));
+	//m_PlayerGlobals.AdjustData(e);
+	e->m_flLowerBodyYawTarget() = m_PlayerGlobals.m_flLowerBodyYawTarget;
+	e->m_flDuckAmount() = m_PlayerGlobals.m_flDuckAmount;
+	e->m_fFlags() = m_PlayerGlobals.m_fFlags;
+	e->m_iEFlags() = m_PlayerGlobals.m_iEFlags;
 
+	m_Globals.AdjustData();
+	record->store_data(e , false);
 	return e->invalidate_physics_recursive(ANIMATION_CHANGED | ANGLES_CHANGED);
 }
 

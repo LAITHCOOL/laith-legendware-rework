@@ -127,16 +127,21 @@ void playeresp::paint_traverse()
 #if RELEASE
 			draw_skeleton(e, color, e->m_CachedBoneData().Base());
 #else
-			auto records = &player_records[i]; //-V826
+			std::deque < LagRecord_t > m_Records = g_LagComp->GetPlayerRecords(e);
 
-			if (!records->empty() && g_ctx.local()->is_alive() && !e->IsDormant())
+			/* skip players without records */
+			if (m_Records.empty())
+				continue;
+
+			auto record = g_LagComp->FindFirstRecord(e, m_Records);
+
+			if (g_ctx.local()->is_alive() && !e->IsDormant())
 			{
-				auto record = &records->front();
 
-				draw_skeleton(e, color, record->m_Matricies[MatrixBoneSide::MiddleMatrix].data());
-				draw_skeleton(e, Color::Red, record->m_Matricies[MatrixBoneSide::ZeroMatrix].data());
-				draw_skeleton(e, Color::Green, record->m_Matricies[MatrixBoneSide::LeftMatrix].data());
-				draw_skeleton(e, Color::Blue, record->m_Matricies[MatrixBoneSide::RightMatrix].data());
+				draw_skeleton(e, color, record.m_Matricies[MatrixBoneSide::MiddleMatrix].data());
+				draw_skeleton(e, Color::Red, record.m_Matricies[MatrixBoneSide::ZeroMatrix].data());
+				draw_skeleton(e, Color::Green, record.m_Matricies[MatrixBoneSide::LeftMatrix].data());
+				draw_skeleton(e, Color::Blue, record.m_Matricies[MatrixBoneSide::RightMatrix].data());
 			}
 			else
 				draw_skeleton(e, color, e->m_CachedBoneData().Base());
@@ -655,30 +660,34 @@ void playeresp::draw_flags(player_t* e, const Box& box)
 	if (g_cfg.player.show_resolved)
 	{
 
-		auto records = &player_records[e->EntIndex()]; //-V826
+		std::deque < LagRecord_t > m_Records = g_LagComp->GetPlayerRecords(e);
 
-		if (records->empty())
+		/* skip players without records */
+		if (m_Records.empty())
 			return;
 
-		auto record = &records->front();
+		auto record = g_LagComp->FindFirstRecord(e, m_Records);
 
-		if (!record->valid() || record->player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
+		if (record.m_bIsInvalid)
 			return;
 
-		char Desyncbuffer[64];
-		snprintf(Desyncbuffer, sizeof Desyncbuffer, "%.1f", record->desync_amount);
+		if (record.player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
+			return;
+
+		/*char Desyncbuffer[64];
+		snprintf(Desyncbuffer, sizeof Desyncbuffer, "%.1f", record.desync_amount);*/
 
 		char VelocityBuffery[64];
-		snprintf(VelocityBuffery, sizeof VelocityBuffery, "%.1f", record->velocity.y);
+		snprintf(VelocityBuffery, sizeof VelocityBuffery, "%.1f", record.m_vecVelocity.y);
 
 		char VelocityBufferx[64];
-		snprintf(VelocityBufferx, sizeof VelocityBufferx, "%.1f", record->velocity.x);
+		snprintf(VelocityBufferx, sizeof VelocityBufferx, "%.1f", record.m_vecVelocity.x);
 
 		auto color = e->IsDormant() ? Color(130, 130, 130, 130) : Color(163, 49, 93);
 		color.SetAlpha(255.0f * esp_alpha_fade[e->EntIndex()]);
 
-		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, Desyncbuffer);
-		_y += 8;
+		/*render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, Desyncbuffer);
+		_y += 8;*/
 
 		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, VelocityBuffery);
 		_y += 8;
@@ -751,15 +760,18 @@ void playeresp::draw_multi_points(player_t* e)
 	//	}
 
 	//}
-
 	if (g_Ragebot->m_debug_points.empty())
 		return;
 
 	for (auto& point : g_Ragebot->m_debug_points)
 	{
 		Vector screen;
+	/*	bool safe = g_Ragebot->CanSafepoint(g_Ragebot->m_record, g_ctx.globals.eye_pos, point.point, g_Ragebot->m_hitbox);
 
+		auto force_safe_points = key_binds::get().get_key_bind_state(3);
 
+		if (force_safe_points && !safe)
+			continue;*/
 
 		if (!math::world_to_screen(point.point, screen))
 			continue;

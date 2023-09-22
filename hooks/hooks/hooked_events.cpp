@@ -128,7 +128,7 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 		player_t* pPlayer = static_cast<player_t*>(m_entitylist()->GetClientEntity(user_id));
 		
 		if (pPlayer)	
-			C_LagComp::get().CleanPlayer(pPlayer);
+			g_LagComp->CleanPlayer(pPlayer);
 
 		if (g_ctx.local()->is_alive() && attacker_id == m_engine()->GetLocalPlayer() && user_id != m_engine()->GetLocalPlayer())
 		{
@@ -313,7 +313,7 @@ void C_HookedEvents::FireGameEvent(IGameEvent* event)
 			if (!player || player == g_ctx.local())
 				continue;
 
-			AimPlayer* data = & g_Ragebot->m_players[i];
+			AimPlayer* data = & g_Ragebot->m_players[i - 1];
 			data->OnRoundStart(player);
 		}
 

@@ -356,10 +356,10 @@ void CResolver::solve_animes()
 			}
 		}
 		else
-			detect_side();
+			get_side_trace();
 	}
 	else
-		detect_side();
+		get_side_trace();
 }
 
 
@@ -830,29 +830,10 @@ void CResolver::final_detection()
 	}
 }
 
-void CResolver::missed_shots_correction(adjust_data* record, int missed_shots)
-{
-
-	switch (missed_shots)
-	{
-	case 0:
-		restype[record->type].missed_shots_corrected[player->EntIndex()] = 0;
-		break;
-	case 1:
-		restype[record->type].missed_shots_corrected[player->EntIndex()] = 1;
-		break;
-	case 2:
-		restype[record->type].missed_shots_corrected[player->EntIndex()] = 2;
-		break;
-	case 3:
-		restype[record->type].missed_shots_corrected[player->EntIndex()] = 3;
-		break;
-	}
-}
 void CResolver::reset_resolver()
 {
-	g_ctx.globals.missed_shots[player->EntIndex()] = 0;
-	//restype[player_record->type].missed_shots_corrected[player->EntIndex()] = 0;
+	AimPlayer* data = &g_Ragebot->m_players [player->EntIndex()];
+	data->m_missed_shots = 0;
 	player_record->types[player_record->type].ShouldFlip = false;
 	g_cfg.player_list.types[player_record->type].low_delta[player->EntIndex()] = false;
 }
@@ -892,13 +873,14 @@ void CResolver::resolve_desync()
 
 	final_detection();
 
+	AimPlayer* data = &g_Ragebot->m_players[e->EntIndex() - 1];
 
 	float LowDeltaFactor = 0.5f; //testing values :3
 
 	//missed_shots_correction(player_record, g_ctx.globals.missed_shots[player->EntIndex()]); // we brute each type (layers,lby...etc) seperatly :3
 
 	// start bruting if we miss baby :3
-	switch (g_ctx.globals.missed_shots[player->EntIndex()])
+	switch (data->m_missed_shots)
 	{
 	case 0:// skip :3 we resolve bellow with logic
 		break;
@@ -916,7 +898,7 @@ void CResolver::resolve_desync()
 		break;
 	}
 
-	if (g_ctx.globals.missed_shots[player->EntIndex()] > 3)
+	if (data->m_missed_shots > 3)
 		reset_resolver();//
 
 	if (player_record->curSide == LEFT)

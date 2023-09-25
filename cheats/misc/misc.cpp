@@ -11,7 +11,7 @@
 #include "../menu_alpha.h"
 #include "../tickbase shift/tickbase_shift.h"
 #include "../prediction/EnginePrediction.h"
-
+#include "../lagcompensation/LocalAnimFix.hpp"
 #define ALPHA (ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar| ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_Float)
 #define NOALPHA (ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_Float)
 
@@ -397,7 +397,7 @@ void misc::PovArrows(player_t* e, Color color)
 	m_engine()->GetScreenSize(width, height);
 
 	auto screenCenter = Vector2D(width * 0.5f, height * 0.5f);
-	auto angleYawRad = DEG2RAD(viewAngles.y - math::calculate_angle(g_ctx.globals.eye_pos, e->GetAbsOrigin()).y - 90.0f);
+	auto angleYawRad = DEG2RAD(viewAngles.y - math::calculate_angle(g_LocalAnimations->GetShootPosition(), e->GetAbsOrigin()).y - 90.0f);
 
 	auto radius = g_cfg.player.distance;
 	auto size = g_cfg.player.size;
@@ -412,7 +412,7 @@ void misc::PovArrows(player_t* e, Color color)
 		Vector2D(newPointX - size, newPointY + size)
 	};
 
-	math::rotate_triangle(points, viewAngles.y - math::calculate_angle(g_ctx.globals.eye_pos, e->GetAbsOrigin()).y - 90.0f);
+	math::rotate_triangle(points, viewAngles.y - math::calculate_angle(g_LocalAnimations->GetShootPosition(), e->GetAbsOrigin()).y - 90.0f);
 	render::get().triangle(points.at(0), points.at(1), points.at(2), color);
 }
 
@@ -445,7 +445,7 @@ void misc::zeus_range()
 
 	float circle_range = weapon_info->flRange / 3;
 
-	auto draw_pos = g_ctx.globals.eye_pos;
+	auto draw_pos = g_LocalAnimations->GetShootPosition();
 
 	draw_pos.z -= 54;
 	render::get().Draw3DCircle(draw_pos, circle_range, Color(g_cfg.esp.zeus_color.r(), g_cfg.esp.zeus_color.g(), g_cfg.esp.zeus_color.b(), 255));

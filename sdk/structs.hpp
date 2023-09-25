@@ -273,6 +273,7 @@ public:
     NETVAR(int, body, crypt_str("CBaseAnimating"), crypt_str("m_nBody"));
     NETVAR(int, m_nModelIndex, crypt_str("CBaseEntity"), crypt_str("m_nModelIndex"));
     NETVAR(int, m_iTeamNum, crypt_str("CBaseEntity"), crypt_str("m_iTeamNum"));
+    NETVAR(int, m_nSurvivalTeam, crypt_str("CBaseEntity"), crypt_str("m_nSurvivalTeam"));
     NETVAR(Vector, m_vecOrigin, crypt_str("CBaseEntity"), crypt_str("m_vecOrigin"));
     NETVAR(CHandle <player_t>, m_hOwnerEntity, crypt_str("CBaseEntity"), crypt_str("m_hOwnerEntity"));
     NETVAR(int, m_CollisionGroup, crypt_str("CBaseEntity"), crypt_str("m_CollisionGroup"));
@@ -355,6 +356,7 @@ public:
     datamap_t* GetPredDescMap();
     std::array <float, 24>& m_flPoseParameter();
     bool is_player();
+    bool IsFriend();
     void set_model_index(int index);
     bool IsBreakableEntity();
     void set_abs_angles(const Vector& angle);
@@ -857,7 +859,7 @@ public:
     int& m_afButtonPressed();
     int& m_afButtonReleased();
     Vector GetEyePosition();
-    bool CanSeePlayer(player_t* player, const Vector& pos);
+    bool CanSeePlayer(const Vector& pos, Vector& eye_pos);
     CUserCmd*& m_pCurrentCommand();
     void RunPreThink();
     void RunThink();

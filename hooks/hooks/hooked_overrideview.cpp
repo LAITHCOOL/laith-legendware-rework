@@ -13,7 +13,7 @@ void thirdperson(bool fakeducking);
 void __stdcall hooks::hooked_overrideview(CViewSetup* viewsetup)
 {
 	static auto original_fn = clientmode_hook->get_func_address <OverrideView_t> (18);
-	g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true);
+    g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true);
 
 	if (!viewsetup)
 		return original_fn(viewsetup);

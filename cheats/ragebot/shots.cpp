@@ -60,54 +60,6 @@ void shots::on_fsn()
 	if (!data)
 		return;
 
-
-	static auto get_resolver_type = [](resolver_type type) -> std::string
-	{
-		switch (type)
-		{
-		case ORIGINAL:
-			return ("original ");
-		case LBY:
-			return ("lby ");
-		case TRACE:
-			return ("trace ");
-		case DIRECTIONAL:
-			return ("directional ");
-		case LAYERS:
-			return ("layers ");
-		case ENGINE:
-			return ("engine ");
-		case FREESTAND:
-			return ("freestand ");
-		case HURT:
-			return ("hurt ");
-		}
-	};
-
-	static auto get_resolver_mode = [](modes mode) -> std::string
-	{
-		switch (mode)
-		{
-		case AIR:
-			return ("-AIR- ");
-		case SLOW_WALKING:
-			return ("-SLOW_WALKING- ");
-		case MOVING:
-			return ("-MOVING- ");
-		case STANDING:
-			return ("-STANDING- ");
-		case FREESTANDING:
-			return ("-FREESTANDING- ");
-		case NO_MODE:
-			return ("-NO MODE- ");
-		}
-
-	};
-
-	std::string resolver_debug = "";
-	if (current_shot->record)
-		resolver_debug = " [ " + std::to_string((int)current_shot->record->m_flDesyncDelta) + " ] ";
-
 	if (!current_shot->latency)
 	{
 		current_shot->shot_info.should_log = true;
@@ -120,9 +72,9 @@ void shots::on_fsn()
 				if (g_cfg.misc.events_to_log[EVENTLOG_HIT])
 				{
 					if (current_shot->record->m_fDidBacktrack)
-						eventlogs::get().add(crypt_str("missed shot due to backtrack" + resolver_debug), true, Color(100, 100, 255));
+						eventlogs::get().add(crypt_str("missed shot due to backtrack | " + std::to_string((float)current_shot->record->m_flDesyncDelta)), true, Color(100, 100, 255));
 					else
-						eventlogs::get().add(crypt_str("missed shot due to resolver" + resolver_debug), true, Color(255, 100, 100));
+						eventlogs::get().add(crypt_str("missed shot due to resolver | " + std::to_string((float)current_shot->record->m_flDesyncDelta)), true, Color(255, 100, 100));
 				}
 					
 			}
@@ -187,7 +139,7 @@ void shots::on_impact(Vector impactpos)
 
 	auto hit = trace.hit_entity == current_shot->target;
 
-	if (!current_shot->record->m_bIsFakePlayer && current_shot->shot_info.safe)
+	if (current_shot->shot_info.safe)
 		hit = hit && trace_zero.hit_entity == current_shot->target && trace_first.hit_entity == current_shot->target && trace_second.hit_entity == current_shot->target;
 
 	if (hit)
@@ -270,25 +222,27 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 	if (weapon_is_aim(weapon) && current_shot->record)
 	{
 
-		otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
-		otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data());		
-		Color result;
+		//otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
+		////otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data());	
+		//otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == g_Ragebot->m_target ? g_Ragebot->m_record->m_Matricies[Visual].data() : entity->m_CachedBoneData().Base());
+		//Color result;
 
-		if (hitgroup == HITGROUP_HEAD)
-			result = Color::Red;
-		else if (hitgroup == HITGROUP_CHEST)
-			result = Color::Yellow;
-		else
-			result = Color::White;
+		//if (hitgroup == HITGROUP_HEAD)
+		//	result = Color::Red;
+		//else if (hitgroup == HITGROUP_CHEST)
+		//	result = Color::Yellow;
+		//else
+		//	result = Color::White;
 
-		otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
-		{
-			entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data()),
-			m_globals()->m_curtime,
-			result,
-			damage,
-			hitgroup
-		};
+		//otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
+		//{
+		//	//entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data()),
+		//	entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == g_Ragebot->m_target ? g_Ragebot->m_record->m_Matricies[Visual].data() : entity->m_CachedBoneData().Base()),
+		//	m_globals()->m_curtime,
+		//	result,
+		//	damage,
+		//	hitgroup
+		//};
 
 	}
 	

@@ -1,5 +1,5 @@
 #include "penetration.h"
-
+#include "../lagcompensation/LocalAnimFix.hpp"
 void UTIL_ClipTraceToPlayers(const Vector& start, const Vector& end, uint32_t mask, ITraceFilter* filter, CGameTrace* tr, float range) {
 
 	static auto clip_trace_to_players  = util::FindSignature(crypt_str("client.dll"), crypt_str("53 8B DC 83 EC 08 83 E4 F0 83 C4 04 55 8B 6B 04 89 6C 24 04 8B EC 81 EC D8 ? ? ? 0F 57 C9"));
@@ -245,7 +245,7 @@ bool penetration::run(PenetrationInput_t* in, PenetrationOutput_t* out, bool use
 	if (in->m_from == g_ctx.local()) {
 		weapon = g_ctx.globals.weapon;
 		weapon_info = g_ctx.globals.weapon->get_csweapon_info();
-		start = use_custom_shoot_pos ? in->m_custom_shoot_pos : g_ctx.globals.eye_pos;
+		start = use_custom_shoot_pos ? in->m_custom_shoot_pos : g_LocalAnimations->GetShootPosition();
 	}
 
 	// not local player.

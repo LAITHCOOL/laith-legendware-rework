@@ -18,6 +18,8 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 	/* Determine player's velocity */
 	record->m_vecVelocity = DeterminePlayerVelocity(e, record, m_PrevRecord, animstate);
 
+
+
 	if (record->m_bFirstAfterDormant)
 		HandleDormancyLeaving(e, record, animstate);
 
@@ -159,6 +161,8 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 			UpdatePlayerAnimations(e, record, animstate);
 		}
 	}
+	e->invalidate_physics_recursive(VELOCITY_CHANGED);
+
 	/* Reset animation layers */
 	std::memcpy(e->get_animlayers(), record->m_Layers.data(), sizeof(AnimationLayer) * 13);
 
@@ -167,31 +171,33 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 
 	/* Save additional record data */
 	record->m_angAbsAngles = Vector(0.0f, animstate->m_flFootYaw, 0.0f);
-	//{
-	//	float flAimMatrixWidthRange = math::lerp(std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfWalkTopSpeed, 0.0f, 1.0f), 1.0f, math::lerp(e->GetAnimState()->m_flWalkToRunTransition, 0.8f, 0.5f)); //-V807
-	//	if (e->GetAnimState()->m_flAnimDuckAmount > 0)
-	//		flAimMatrixWidthRange = math::lerp(e->GetAnimState()->m_flAnimDuckAmount * std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
+	{
+		float flAimMatrixWidthRange = math::lerp(std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfWalkTopSpeed, 0.0f, 1.0f), 1.0f, math::lerp(e->GetAnimState()->m_flWalkToRunTransition, 0.8f, 0.5f)); //-V807
+		if (e->GetAnimState()->m_flAnimDuckAmount > 0)
+			flAimMatrixWidthRange = math::lerp(e->GetAnimState()->m_flAnimDuckAmount * std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
 
-	//	record->m_flDesyncDelta = flAimMatrixWidthRange * e->GetAnimState()->m_flAimYawMax;
-	//}
+		record->m_flDesyncDelta = math::clamp(flAimMatrixWidthRange * e->GetAnimState()->m_flAimYawMax, -58.0f, 58.0f);
+	}
 
 	/* Save record's poses */
 	std::memcpy(record->m_PoseParameters.data(), e->m_flPoseParameter().data(), sizeof(float) * record->m_PoseParameters.size());
+
+	/* Generate safe aimbot points */
+	GenerateSafePoints(e, record);
 
 	if (g_cfg.ragebot.enable_resolver)
 	{
 		/*simple temporary resolver*/
 		AimPlayer* data = &g_Ragebot->m_players[e->EntIndex() - 1];
 
-		record->m_flDesyncDelta = e->get_max_desync_delta();
-
 		if (data->m_missed_shots > 0)
-			record->m_flDesyncDelta = -(e->get_max_desync_delta());
+			record->m_flDesyncDelta = -(record->m_flDesyncDelta);
 
 		if (data->m_missed_shots > 1)
 			data->m_missed_shots = 0;
 
 		e->GetAnimState()->m_flFootYaw = math::normalize_yaw(record->m_flEyeYaw + record->m_flDesyncDelta);
+		UpdatePlayerAnimations(e, record, e->GetAnimState());
 	}
 
 	/* Setup bones on this record */
@@ -203,17 +209,18 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 		/* Setup rage matrix */
 		if (g_cfg.ragebot.enable)
 			SetupPlayerMatrix(e, record, record->m_Matricies[MiddleMatrix].data(), EMatrixFlags::BoneUsedByHitbox);
-
-		/* Generate safe aimbot points */
-		GenerateSafePoints(e, record);
 	}
 
 	m_PlayerGlobals.AdjustData(e);
 	m_Globals.AdjustData();
+
+	return e->invalidate_physics_recursive(ANIMATION_CHANGED | ANGLES_CHANGED);
 }
 bool C_PlayerAnimations::CopyCachedMatrix(player_t* pPlayer, matrix3x4_t* aMatrix, int nBoneCount)
 {
 	PlayerData_t* m_PlayerData = &g_LagComp->GetPlayerData(pPlayer);
+	if (!pPlayer->is_alive())
+		return false;
 
 	std::memcpy(aMatrix, m_PlayerData->m_aCachedMatrix.data(), sizeof(matrix3x4_t) * nBoneCount);
 	return true;
@@ -260,40 +267,29 @@ void C_PlayerAnimations::TransformateMatrix(player_t* pPlayer, PlayerData_t* m_P
 	}
 	m_PlayerData->m_vecLastOrigin = pPlayer->GetAbsOrigin();
 }
+
 Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PrevRecord, AnimState_s* m_AnimationState)
 {
-
-	auto pCombatWeapon = pPlayer->m_hActiveWeapon();
-	auto pCombatWeaponData = pCombatWeapon->get_csweapon_info();
-
-	auto m_flMaxSpeed = pCombatWeapon && pCombatWeaponData ? std::max<float>((pPlayer->m_bIsScoped() ? pCombatWeaponData->flMaxPlayerSpeedAlt : pCombatWeaponData->flMaxPlayerSpeed), 0.001f) : 260.0f;;
-
 	/* Prepare data once */
 	if (!m_PrevRecord)
 	{
 		const float flVelLength = m_LagRecord->m_vecVelocity.Length();
-		if (flVelLength > m_flMaxSpeed)
-			m_LagRecord->m_vecVelocity *= m_flMaxSpeed / flVelLength;
+		if (flVelLength > m_LagRecord->m_flMaxSpeed)
+			m_LagRecord->m_vecVelocity *= m_LagRecord->m_flMaxSpeed / flVelLength;
 
 		return m_LagRecord->m_vecVelocity;
 	}
 
-	/* Define const */
-	//const float flMaxSpeed = SDK::EngineData::m_ConvarList[CheatConvarList::MaxSpeed]->GetFloat();
-
-
 	/* Get animation layers */
 	const AnimationLayer* m_AliveLoop = &m_LagRecord->m_Layers[ANIMATION_LAYER_ALIVELOOP];
 	const AnimationLayer* m_PrevAliveLoop = &m_PrevRecord->m_Layers[ANIMATION_LAYER_ALIVELOOP];
-
 	const AnimationLayer* m_Movement = &m_LagRecord->m_Layers[ANIMATION_LAYER_MOVEMENT_MOVE];
 	const AnimationLayer* m_PrevMovement = &m_PrevRecord->m_Layers[ANIMATION_LAYER_MOVEMENT_MOVE];
 	const AnimationLayer* m_Landing = &m_LagRecord->m_Layers[ANIMATION_LAYER_MOVEMENT_LAND_OR_CLIMB];
 	const AnimationLayer* m_PrevLanding = &m_PrevRecord->m_Layers[ANIMATION_LAYER_MOVEMENT_LAND_OR_CLIMB];
 
 	/* Recalculate velocity using origin delta */
-	m_LagRecord->m_vecVelocity = (m_LagRecord->m_vecOrigin - m_PrevRecord->m_vecOrigin) * (1.0f / TICKS_TO_TIME(m_LagRecord->m_flSimulationTime));
-
+	m_LagRecord->m_vecVelocity = (m_LagRecord->m_vecOrigin - m_PrevRecord->m_vecOrigin) * (1.0f /TICKS_TO_TIME(m_LagRecord->m_nSimulationTicks));
 
 	/* Check PlaybackRate */
 	if (m_Movement->m_flPlaybackRate < 0.00001f)
@@ -304,14 +300,12 @@ Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_
 		float flWeight = m_AliveLoop->m_flWeight;
 		if (flWeight < 1.0f)
 		{
-
 			/* Check PlaybackRate */
 			if (m_AliveLoop->m_flPlaybackRate == m_PrevAliveLoop->m_flPlaybackRate)
 			{
 				/* Check Sequence */
 				if (m_AliveLoop->m_nSequence == m_PrevAliveLoop->m_nSequence)
 				{
-
 					/* Very important cycle check */
 					if (m_AliveLoop->m_flCycle > m_PrevAliveLoop->m_flCycle)
 					{
@@ -321,20 +315,15 @@ Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_
 							/* Get m_flSpeedAsPortionOfRunTopSpeed */
 							float m_flSpeedAsPortionOfRunTopSpeed = ((1.0f - flWeight) / 2.8571432f) + 0.55f;
 
-
 							/* Check m_flSpeedAsPortionOfRunTopSpeed bounds ( from 55% to 90% from the speed ) */
 							if (m_flSpeedAsPortionOfRunTopSpeed > 0.55f && m_flSpeedAsPortionOfRunTopSpeed < 0.9f)
 							{
-
 								/* Compute velocity */
-								m_LagRecord->m_flAnimationVelocity = m_flSpeedAsPortionOfRunTopSpeed * m_flMaxSpeed;
+								m_LagRecord->m_flAnimationVelocity = m_flSpeedAsPortionOfRunTopSpeed * m_LagRecord->m_flMaxSpeed;
 								m_LagRecord->m_nVelocityMode = EFixedVelocity::AliveLoopLayer;
 							}
 							else if (m_flSpeedAsPortionOfRunTopSpeed > 0.9f)
 							{
-
-
-
 								/* Compute velocity */
 								m_LagRecord->m_flAnimationVelocity = m_LagRecord->m_vecVelocity.Length2D();
 							}
@@ -347,9 +336,6 @@ Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_
 		/* Compute velocity using Movement ( 6 ) weight  */
 		if (m_LagRecord->m_flAnimationVelocity <= 0.0f)
 		{
-
-
-
 			/* Check Weight bounds from 10% to 90% from the speed */
 			float flWeight = m_Movement->m_flWeight;
 			if (flWeight > 0.1f && flWeight < 0.9f)
@@ -357,50 +343,34 @@ Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_
 				/* Skip on land */
 				if (m_Landing->m_flWeight <= 0.0f)
 				{
-
-
-
 					/* Check Accelerate */
 					if (flWeight > m_PrevMovement->m_flWeight)
 					{
 						/* Skip on direction switch */
 						if (m_LagRecord->m_Layers[ANIMATION_LAYER_MOVEMENT_STRAFECHANGE].m_nSequence == m_PrevRecord->m_Layers[ANIMATION_LAYER_MOVEMENT_STRAFECHANGE].m_nSequence)
 						{
-
-
-
 							/* Check move sequence */
 							if (m_Movement->m_nSequence == m_PrevMovement->m_nSequence)
 							{
 								/* Check land sequence */
 								if (m_Landing->m_nSequence == m_PrevLanding->m_nSequence)
 								{
-
-
-
 									/* Check stand sequence */
 									if (m_LagRecord->m_Layers[ANIMATION_LAYER_ADJUST].m_nSequence == m_PrevRecord->m_Layers[ANIMATION_LAYER_ADJUST].m_nSequence)
 									{
 										/* Check Flags */
 										if (m_LagRecord->m_nFlags & FL_ONGROUND)
 										{
-
-
-
 											/* Compute MaxSpeed modifier */
 											float flSpeedModifier = 1.0f;
-											if (pPlayer->m_flDuckAmount() >= 1.f)
+											if (m_LagRecord->m_nFlags & FL_DUCKING)
 												flSpeedModifier = 0.34f;
-											else if (pPlayer->m_bIsWalking())
+											else if (m_LagRecord->m_bIsWalking)
 												flSpeedModifier = 0.52f;
-
-
-
-
 											/* Compute Velocity ( THIS CODE ONLY WORKS IN DUCK AND WALK ) */
 											if (flSpeedModifier < 1.0f)
 											{
-												m_LagRecord->m_flAnimationVelocity = (flWeight * (m_flMaxSpeed * flSpeedModifier));
+												m_LagRecord->m_flAnimationVelocity = (flWeight * (m_LagRecord->m_flMaxSpeed * flSpeedModifier));
 												m_LagRecord->m_nVelocityMode = EFixedVelocity::MovementLayer;
 											}
 										}
@@ -419,26 +389,18 @@ Vector C_PlayerAnimations::DeterminePlayerVelocity(player_t* pPlayer, LagRecord_
 	{
 		const float flModifier = m_LagRecord->m_flAnimationVelocity / m_LagRecord->m_vecVelocity.Length2D();
 		m_LagRecord->m_vecVelocity.x *= flModifier;
-
-
-
 		m_LagRecord->m_vecVelocity.y *= flModifier;
 	}
 
 	/* Prepare data once */
 	const float flVelLength = m_LagRecord->m_vecVelocity.Length();
 
-
-
-
 	/* Clamp velocity if its out bounds */
-	if (flVelLength > m_flMaxSpeed)
-		m_LagRecord->m_vecVelocity *= m_flMaxSpeed / flVelLength;
+	if (flVelLength > m_LagRecord->m_flMaxSpeed)
+		m_LagRecord->m_vecVelocity *= m_LagRecord->m_flMaxSpeed / flVelLength;
 
 	return m_LagRecord->m_vecVelocity;
 }
-
-
 
 void C_PlayerAnimations::CopyRecordData(player_t* pPlayer, LagRecord_t* m_LagRecord, LagRecord_t* m_PrevRecord, AnimState_s* m_AnimationState)
 {
@@ -590,10 +552,7 @@ void C_PlayerAnimations::UpdatePlayerAnimations(player_t* pPlayer, LagRecord_t* 
 
 	bool bClientSideAnimation = pPlayer->m_bClientSideAnimation();
 	pPlayer->m_bClientSideAnimation() = true;
-
-	g_ctx.globals.updating_animation = true;
 	pPlayer->update_clientside_animation();
-	g_ctx.globals.updating_animation = false;
 	pPlayer->m_bClientSideAnimation() = bClientSideAnimation;
 }
 
@@ -826,7 +785,8 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 		}
 
 		// generate foot yaw
-		float flFootYaw = BuildFootYaw(pPlayer, m_LagRecord);
+		//float flFootYaw = BuildFootYaw(pPlayer, m_LagRecord);
+		float flFootYaw = m_LagRecord->m_flEyeYaw;
 
 		// restore eye yaw                                   
 		m_LagRecord->m_flEyeYaw = flOldEyeYaw;
@@ -853,16 +813,7 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 		UpdatePlayerAnimations(pPlayer, m_LagRecord, pPlayer->GetAnimState());
 
 		// get matrix
-		matrix3x4_t* aMatrix = nullptr;
-		switch (ESafeSied)
-		{
-		case LeftMatrix: aMatrix = m_LagRecord->m_Matricies[LeftMatrix].data(); break;
-		case ZeroMatrix: aMatrix = m_LagRecord->m_Matricies[ZeroMatrix].data(); break;
-		case RightMatrix: aMatrix = m_LagRecord->m_Matricies[RightMatrix].data(); break;
-		case LowLeftMatrix: aMatrix = m_LagRecord->m_Matricies[LowLeftMatrix].data(); break;
-		case LowRightMatrix: aMatrix = m_LagRecord->m_Matricies[LowRightMatrix].data(); break;
-		}
-
+		matrix3x4_t* aMatrix = m_LagRecord->m_Matricies[ESafeSied].data();
 		// setup bones
 		SetupPlayerMatrix(pPlayer, m_LagRecord, aMatrix, EMatrixFlags::BoneUsedByHitbox);
 
@@ -878,7 +829,7 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 	// build safe points
 	BuildSafePoint(LeftMatrix);
 	BuildSafePoint(RightMatrix);
-	//BuildSafePoint(3);
-	//BuildSafePoint(4);
+	//BuildSafePoint(LowLeftMatrix);
+	//BuildSafePoint(LowRightMatrix);
 	BuildSafePoint(ZeroMatrix);
 }

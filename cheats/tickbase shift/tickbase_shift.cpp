@@ -73,7 +73,7 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 	if (!g_cfg.ragebot.defensive_doubletap)
 		return;
 
-	if (g_Ragebot->is_peeking_enemy(8))
+	if (g_Ragebot->ShouldScanPlayer(8, g_Ragebot->m_record, g_Ragebot->m_target))
 	{
 		if (g_ctx.globals.m_Peek.m_UpdateLc)
 		{

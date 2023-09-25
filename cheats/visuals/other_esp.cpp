@@ -6,7 +6,7 @@
 #include "..\lagcompensation\local_animations.h"
 #include "../menu_alpha.h"
 #include "../tickbase shift/tickbase_shift.h"
-
+#include "../lagcompensation/LocalAnimFix.hpp"
 bool can_penetrate(weapon_t* weapon)
 {
 	auto weapon_info = weapon->get_csweapon_info();
@@ -24,12 +24,12 @@ bool can_penetrate(weapon_t* weapon)
 	filter.pSkip = g_ctx.local();
 
 	trace_t trace;
-	util::trace_line(g_ctx.globals.eye_pos, g_ctx.globals.eye_pos + direction * weapon_info->flRange, MASK_SHOT_HULL | CONTENTS_HITBOX, &filter, &trace);
+	util::trace_line(g_LocalAnimations->GetShootPosition(), g_LocalAnimations->GetShootPosition() + direction * weapon_info->flRange, MASK_SHOT_HULL | CONTENTS_HITBOX, &filter, &trace);
 
 	if (trace.fraction == 1.0f) //-V550
 		return false;
 
-	auto eye_pos = g_ctx.globals.eye_pos;
+	auto eye_pos = g_LocalAnimations->GetShootPosition();
 	auto hits = 1;
 	auto damage = (float)weapon_info->iDamage;
 	auto penetration_power = weapon_info->flPenetration;

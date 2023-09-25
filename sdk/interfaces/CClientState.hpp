@@ -128,6 +128,7 @@ public:
 	int                nLastOutgoingCommand;    //0x4D38
 	int                iChokedCommands;        //0x4D30
 	int                nLastCommandAck;        //0x4D2C
+	int                m_nPacketEndTickUpdate;
 	int                iCommandAck;            //0x4D30
 	int                iSoundSequence;            //0x4D34
 	std::byte        pad8[0x50];                //0x4D38

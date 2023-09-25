@@ -2,7 +2,7 @@
 // PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
 
 #include "GrenadePrediction.h"
-
+#include "../lagcompensation/LocalAnimFix.hpp"
 void GrenadePrediction::Tick(int buttons)
 {
 	act = ACT_NONE;
@@ -201,7 +201,7 @@ void GrenadePrediction::Setup(Vector& vecSrc, Vector& vecThrow, const Vector& vi
 	Vector vForward, vRight, vUp;
 	math::angle_vectors(angThrow, &vForward, &vRight, &vUp);
 
-	vecSrc = g_ctx.globals.eye_pos;
+	vecSrc = g_LocalAnimations->GetShootPosition();
 	float off = power[act] * 12.0f - 12.0f;
 	vecSrc.z += off;
 

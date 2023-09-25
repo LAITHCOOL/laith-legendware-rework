@@ -642,17 +642,17 @@ Vector player_t::GetEyePosition()
 	return GetOrigin() + m_vecViewOffset();
 }
 
-bool player_t::CanSeePlayer(player_t* player, const Vector& pos)
+bool player_t::CanSeePlayer(const Vector& pos, Vector& eye_pos)
 {
 	CGameTrace tr;
 	Ray_t ray;
 	CTraceFilter filter;
 	filter.pSkip = this;
 
-	ray.Init(get_shoot_position(), pos);
-	m_trace()->TraceRay(ray, MASK_SHOT | CONTENTS_GRATE, &filter, &tr);
+	ray.Init(eye_pos, pos);
+	m_trace()->TraceRay(ray, MASK_SHOT_HULL | CONTENTS_HITBOX | CONTENTS_GRATE, &filter, &tr);
 
-	return tr.hit_entity == player || tr.fraction > 0.97f;
+	return tr.hit_entity == this || tr.fraction > 0.75f;
 }
 CUserCmd*& player_t::m_pCurrentCommand()
 {
@@ -717,6 +717,18 @@ bool entity_t::is_player()
 		return false;
 
 	return client_class->m_ClassID == CCSPlayer;
+}
+
+
+bool entity_t::IsFriend()
+{
+	if (this == g_ctx.local())
+		return false;
+
+	if (this->m_iTeamNum() != g_ctx.local()->m_iTeamNum())
+		return false;
+
+	return true;
 }
 
 void entity_t::set_model_index(int index)
@@ -1590,11 +1602,10 @@ void player_t::update_clientside_animation()
 {
 	if (!this || !get_animation_state1()) //check
 		return;// Repeat
+	using Fn = void(__thiscall*)(void*);
 
 	g_ctx.globals.updating_animation = true; // include update player animation
-	using Fn = void(__thiscall*)(void*);
 	call_virtual<Fn>(this, g_ctx.indexes.at(13))(this); // call to index
-
 	g_ctx.globals.updating_animation = false; //turn off
 }
 
@@ -1707,7 +1718,7 @@ bool player_t::valid(bool check_team, bool check_dormant)
 	if (IsDormant() && check_dormant)
 		return false;
 
-	if (check_team && g_ctx.local()->m_iTeamNum() == m_iTeamNum())
+	if (check_team && this->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
 		return false;
 
 	return true;
@@ -2201,25 +2212,16 @@ float player_t::get_max_desync_delta()
 	if (!this) //-V704
 		return 0.0f;
 
-	auto animstate = get_animation_state();
+	auto m_AnimationState = GetAnimState();
 
-	if (!animstate)
+	if (!m_AnimationState)
 		return 0.0f;
 
-	auto speedfactor = math::clamp(animstate->m_flFeetSpeedForwardsOrSideWays, 0.0f, 1.0f);
-	auto avg_speedfactor = (animstate->m_flStopToFullRunningFraction * -0.3f - 0.2f) * speedfactor + 1.0f;
+	float flAimMatrixWidthRange = math::lerp(std::clamp(m_AnimationState->m_flSpeedAsPortionOfWalkTopSpeed, 0.f, 1.f), 1.0f, math::lerp(m_AnimationState->m_flWalkToRunTransition, 0.8f, 0.5f));
+	if (m_AnimationState->m_flAnimDuckAmount > 0)
+		flAimMatrixWidthRange = math::lerp(m_AnimationState->m_flAnimDuckAmount * std::clamp(m_AnimationState->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
 
-	auto duck_amount = animstate->m_fDuckAmount;
-
-	if (duck_amount) //-V550
-	{
-		auto max_velocity = math::clamp(animstate->m_flFeetSpeedUnknownForwardOrSideways, 0.0f, 1.0f);
-		auto duck_speed = duck_amount * max_velocity;
-
-		avg_speedfactor += duck_speed * (0.5f - avg_speedfactor);
-	}
-
-	return animstate->yaw_desync_adjustment() * avg_speedfactor;
+	return m_AnimationState->m_flAimYawMax * flAimMatrixWidthRange;
 }
 
 

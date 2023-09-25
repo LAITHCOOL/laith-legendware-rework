@@ -143,6 +143,7 @@ void __cdecl hooks::Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTi
 	{
 		for (g_ctx.globals.shift_ticks = min(g_ctx.globals.tocharge, g_ctx.globals.shift_ticks); g_ctx.globals.shift_ticks > 0; g_ctx.globals.shift_ticks--, g_ctx.globals.tocharge--)
 		{
+			g_EnginePrediction->UpdatePrediction();
 			g_ctx.globals.block_charge = true;
 			(clMove_fn(hooks::original_clmove)(flAccumulatedExtraSamples, bFinalTick));
 		}
@@ -151,39 +152,6 @@ void __cdecl hooks::Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTi
 	}
 	g_ctx.globals.isshifting = false;
 	g_ctx.globals.block_charge = false;
-
-	/*if (g_ctx.local()->is_alive() && g_Exploits->recharging(g_ctx.get_command())) {
-		g_EnginePrediction->UpdatePrediction();
-		return;
-	}*/
-
-	//(clMove_fn(hooks::original_clmove)(flAccumulatedExtraSamples, bFinalTick));
-
-	//if (!g_ctx.local()->is_alive())
-	//	return;
-
-	//if (!g_Exploits->cl_move.shift)
-	//	return;
-
-	//if (m_clientstate()->iChokedCommands == 0) {
-	//	g_ctx.send_packet = false;
-	//	return;
-	//}
-
-	//while (g_Exploits->cl_move.amount >= 0) {
-	//	if (g_Exploits->cl_move.amount >= g_Exploits->amounts.dt_shift)
-	//		g_ctx.send_packet = false;
-
-	//	g_EnginePrediction->UpdatePrediction();
-
-	//	g_Exploits->cl_move.shifting = true;
-	//	(clMove_fn(hooks::original_clmove)(0.f, g_Exploits->cl_move.amount <= 0));
-
-	//	g_Exploits->cl_move.amount--;
-	//}
-
-	//g_Exploits->cl_move.shift = false;
-	//g_Exploits->cl_move.shifting = false;
 }
 
 

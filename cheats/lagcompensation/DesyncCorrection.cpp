@@ -1,4 +1,5 @@
 #include "animation_system.h"
+#include "LocalAnimFix.hpp"
 
 void DesyncCorrection::Run(adjust_data* Record, player_t* Player)
 {
@@ -128,8 +129,8 @@ void DesyncCorrection::GetSide(adjust_data* Record, player_t* Player)
 		auto trace = false;
 		if (m_globals()->m_curtime - LockSide > 2.0f)
 		{
-			auto first_visible = util::visible(g_ctx.globals.eye_pos, Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[LeftMatrix].data()), Player, g_ctx.local());
-			auto second_visible = util::visible(g_ctx.globals.eye_pos, Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[RightMatrix].data()), Player, g_ctx.local());
+			auto first_visible = util::visible(g_LocalAnimations->GetShootPosition(), Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[LeftMatrix].data()), Player, g_ctx.local());
+			auto second_visible = util::visible(g_LocalAnimations->GetShootPosition(), Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[RightMatrix].data()), Player, g_ctx.local());
 
 			if (first_visible != second_visible)
 			{
@@ -139,8 +140,8 @@ void DesyncCorrection::GetSide(adjust_data* Record, player_t* Player)
 			}
 			else
 			{
-				auto first_position = g_ctx.globals.eye_pos.DistTo(Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[LeftMatrix].data()));
-				auto second_position = g_ctx.globals.eye_pos.DistTo(Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[RightMatrix].data()));
+				auto first_position = g_LocalAnimations->GetShootPosition().DistTo(Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[LeftMatrix].data()));
+				auto second_position = g_LocalAnimations->GetShootPosition().DistTo(Player->hitbox_position_matrix(HITBOX_HEAD, Record->m_Matricies[RightMatrix].data()));
 
 				if (fabsf(first_position - second_position) > 1.0f)
 					m_side = first_position > second_position;

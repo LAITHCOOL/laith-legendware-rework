@@ -53,7 +53,7 @@ void C_LocalAnimations::OnCreateMove()
 	/* copy data */
 	g_LocalAnimations->CopyPlayerAnimationData(false);
 
-	
+
 	/* UpdatePlayerAnimations */
 	for (int nSimulationTick = 1; nSimulationTick <= m_LocalData.m_nSimulationTicks; nSimulationTick++)
 	{
@@ -520,8 +520,8 @@ void C_LocalAnimations::SetupShootPosition()
 	g_ctx.local()->set_abs_origin(std::get < 0 >(m_Backup));
 	g_ctx.local()->m_angEyeAngles() = std::get < 1 >(m_Backup);
 
-	g_ctx.globals.eye_pos = m_LocalData.m_vecShootPosition;
-	//g_ctx.globals.eye_pos = g_ctx.local()->get_shoot_position();
+	g_LocalAnimations->GetShootPosition() = m_LocalData.m_vecShootPosition;
+	//g_LocalAnimations->GetShootPosition() = g_ctx.local()->get_shoot_position();
 }
 
 bool C_LocalAnimations::SetupPlayerBones(matrix3x4_t* aMatrix, int nMask)
@@ -683,6 +683,9 @@ void C_LocalAnimations::TransformateMatricies()
 }
 bool C_LocalAnimations::CopyCachedMatrix(matrix3x4_t* aInMatrix, int nBoneCount)
 {
+	if (!g_ctx.local()->is_alive())
+		return false;
+
 	std::memcpy(aInMatrix, m_LocalData.m_Real.m_Matrix.data(), sizeof(matrix3x4_t) * nBoneCount);
 	return true;
 }

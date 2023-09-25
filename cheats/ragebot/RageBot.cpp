@@ -21,8 +21,8 @@
 #include "ray_tracer.hpp"
 #include "../visuals/hitchams.h"
 #include "shots.h"
-
-
+#include "../MultiThread/Multithread.hpp"
+#include "../lagcompensation/LocalAnimFix.hpp"
 
 void aimbot::AutoStop(CUserCmd* m_pcmd)
 {
@@ -295,20 +295,18 @@ void AimPlayer::SetupHitboxes(LagRecord_t* record, bool history) {
 	}
 
 	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(1))
+	{
 		m_hitboxes.push_back({ HITBOX_UPPER_CHEST, HitscanMode::NORMAL, false });
-
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(2))
 		m_hitboxes.push_back({ HITBOX_CHEST, HitscanMode::NORMAL, false });
-
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(3)) {
 		if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].prefer_safe_points) {
 			m_hitboxes.push_back({ HITBOX_LOWER_CHEST, HitscanMode::PREFER_SAFEPOINT, true });
 		}
-
 		m_hitboxes.push_back({ HITBOX_LOWER_CHEST, HitscanMode::NORMAL, true });
 	}
+		
 
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(4)) {
+	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(2))
+	{
 		if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].prefer_safe_points) {
 			m_hitboxes.push_back({ HITBOX_STOMACH, HitscanMode::PREFER_SAFEPOINT, true });
 		}
@@ -316,7 +314,7 @@ void AimPlayer::SetupHitboxes(LagRecord_t* record, bool history) {
 		m_hitboxes.push_back({ HITBOX_STOMACH, g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].preferred_hitbox == 3 ? HitscanMode::PREFER : HitscanMode::NORMAL, false });
 	}
 
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(5)) {
+	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(3)) {
 		if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].prefer_safe_points) {
 			m_hitboxes.push_back({ HITBOX_PELVIS, HitscanMode::PREFER_SAFEPOINT, true });
 		}
@@ -324,14 +322,14 @@ void AimPlayer::SetupHitboxes(LagRecord_t* record, bool history) {
 		m_hitboxes.push_back({ HITBOX_PELVIS, g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].preferred_hitbox == 2 ? HitscanMode::PREFER : HitscanMode::NORMAL, false });
 	}
 
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(6) && !ignore_limbs)
-	{
+	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(4) && !ignore_limbs) {
 		m_hitboxes.push_back({ HITBOX_RIGHT_UPPER_ARM, HitscanMode::NORMAL, false });
 		m_hitboxes.push_back({ HITBOX_LEFT_UPPER_ARM, HitscanMode::NORMAL, false });
+		m_hitboxes.push_back({ HITBOX_LEFT_HAND, HitscanMode::NORMAL, false });
+		m_hitboxes.push_back({ HITBOX_RIGHT_HAND, HitscanMode::NORMAL, false });
 	}
 
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(7))
-	{
+	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(5)) {
 		m_hitboxes.push_back({ HITBOX_RIGHT_THIGH, HitscanMode::NORMAL, false });
 		m_hitboxes.push_back({ HITBOX_LEFT_THIGH, HitscanMode::NORMAL, false });
 
@@ -339,7 +337,7 @@ void AimPlayer::SetupHitboxes(LagRecord_t* record, bool history) {
 		m_hitboxes.push_back({ HITBOX_LEFT_CALF, HitscanMode::NORMAL, false });
 	}
 
-	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(8) && !ignore_limbs)
+	if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitboxes.at(6) && !ignore_limbs)
 	{
 		m_hitboxes.push_back({ HITBOX_RIGHT_FOOT, HitscanMode::NORMAL, false });
 		m_hitboxes.push_back({ HITBOX_LEFT_FOOT, HitscanMode::NORMAL, false });
@@ -379,83 +377,41 @@ void aimbot::init() {
 	this->m_current_matrix = nullptr;
 }
 
-bool aimbot::is_peeking_enemy(float ticks_to_stop, bool aim)
+bool aimbot::ShouldScanPlayer(float ticks_to_stop, LagRecord_t* record, player_t* player)
 {
-	// data to be used later.
-	bool done = false;
-
-	// this is the code if we can run it on our aimbot. (autostop on peek).
-	if (aim)
-	{
-		if (g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER)
-			return done;
-
-		if (!g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_EARLY])
-			return done;
-	}
-
-	// there are no target, don't run the code.
-	if (this->m_targets.empty())
-		return done;
+	if (!player || !record)
+		return false;
 
 	// this is our predicted eye pos to see if we can hit our enemy in our next tick.
-	auto predicted_eye_pos = g_ctx.globals.eye_pos + g_EnginePrediction->GetUnpredictedData()->m_vecVelocity * m_globals()->m_intervalpertick * ticks_to_stop;
+	Vector predicted_eye_pos = g_LocalAnimations->GetShootPosition() + g_EnginePrediction->GetUnpredictedData()->m_vecVelocity * m_globals()->m_intervalpertick * ticks_to_stop;
+	std::vector<int> hitboxesToScan = { HITBOX_HEAD, HITBOX_RIGHT_HAND, HITBOX_LEFT_HAND, HITBOX_LEFT_FOOT, HITBOX_RIGHT_FOOT, HITBOX_STOMACH };
 
-	for (const auto& t : this->m_targets)
+	for (int CurrentHbox : hitboxesToScan)
 	{
-		if (!t->m_player)
-			continue;
-
-		// reset uh?.
-		done = false;
-
-		std::deque < LagRecord_t > m_Records = g_LagComp->GetPlayerRecords(t->m_player);
-
-		/* skip players without records */
-		if (m_Records.empty())
-			continue;
-
-		auto first_record = g_LagComp->FindFirstRecord(t->m_player, m_Records);
-
-
+		Vector m_pos = player->hitbox_position_matrix(CurrentHbox, record->m_Matricies[MiddleMatrix].data());
 		penetration::PenetrationInput_t in;
 
-		// this is the input.
 		in.m_damage = 1.f;
 		in.m_damage_pen = 1.f;
 		in.m_can_pen = true;
-		in.m_target = first_record.player;
+		in.m_target = player;
 		in.m_from = g_ctx.local();
-		in.m_pos = first_record.player->hitbox_position_matrix(HITBOX_STOMACH, first_record.m_Matricies[MiddleMatrix].data());
+		in.m_pos = m_pos;
 		in.m_custom_shoot_pos = predicted_eye_pos;
 
 		penetration::PenetrationOutput_t out;
 
-
-		/* set record */
-		if (!first_record.m_bIsInvalid)
-			g_LagComp->ForcePlayerRecord(t->m_player, &first_record);
-
-		// run our p100 penetration code.
-		if (penetration::get().run(&in, &out, true)) {
-			// restore things back.
-		
-
-			// no damage :(
-			if (out.m_damage < 1)
-				continue;
-
-			// damn, we done.
-			done = true;
+		if (penetration::get().run(&in, &out))
+		{
+			if (out.m_damage > 0)
+				return true;
 		}
-
-		// we found a target we can shoot at and deal damage? fuck yeah.
-		if (done)
-			break;
 	}
 
-	return done;
+	return false;
 }
+
+
 
 void aimbot::think(CUserCmd* m_pcmd) {
 	// do all startup routines.
@@ -467,6 +423,9 @@ void aimbot::think(CUserCmd* m_pcmd) {
 
 	// no grenades or bomb.
 	if (g_ctx.globals.weapon->is_non_aim(false))
+		return;
+
+	if (g_ctx.globals.isshifting)
 		return;
 
 	// no point in aimbotting if we cannot fire this tick.
@@ -504,101 +463,97 @@ void aimbot::think(CUserCmd* m_pcmd) {
 
 	g_Ragebot->AutoRevolver(m_pcmd);
 
-	// auto-stop if we about to peek this guy.
-	if (!this->m_stop && this->is_peeking_enemy(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), true)) {
-		this->m_stop = true;
-	}
+	
 
 
 	// scan available targets... if we even have any.
 	this->find(m_pcmd);
 
+	// auto-stop if we about to peek this guy.
+	if (!this->m_stop && this->ShouldScanPlayer(math::clamp(g_EnginePrediction->GetUnpredictedData()->m_vecVelocity.Length2D() / g_ctx.local()->GetMaxPlayerSpeed() * 3.0f, 0.0f, 4.0f), g_Ragebot->m_record, g_Ragebot->m_target)) {
+		this->m_stop = true;
+	}
 	// finally set data when shooting.
 	this->apply(m_pcmd);
 }
+struct ThreadedScan
+{
+	BestTarget_t&  best;
+	AimPlayer* const& CurrentTarget;
+};
 
-void aimbot::find(CUserCmd* m_pcmd) {
-	struct BestTarget_t { player_t* player; AimPlayer* target; HitscanPoint_t point; float damage; float min_damage; LagRecord_t* record; int hitbox; bool safe; float damage_compare; };
-
+void ThreadedScanFunction(ThreadedScan* data)
+{
 	HitscanPoint_t       tmp_point;
 	float        tmp_damage;
 	float		 tmp_min_damage;
-	BestTarget_t best;
-	best.player = nullptr;
-	best.target = nullptr;
-	best.damage = -1.f;
-	best.point = HitscanPoint_t{};
-	best.record = nullptr;
-	best.hitbox = -1;
-	best.safe = false;
-	best.damage_compare = -1;
 
-	LagRecord_t* best_record = nullptr;
+	std::deque < LagRecord_t > m_Records = g_LagComp->GetPlayerRecords(data->CurrentTarget->m_player);
 
+	/* skip players without records */
+	if (m_Records.empty())
+		return;
+	int nLocalPriority = 0;
+	int nTrackPriority = 0;
+
+	LagRecord_t First = g_LagComp->FindFirstRecord(data->CurrentTarget->m_player, m_Records);
+	LagRecord_t Last = g_LagComp->FindBestRecord(data->CurrentTarget->m_player, m_Records, nTrackPriority, First.m_flSimulationTime);
+	LagRecord_t Final;
+
+	if (!First.m_bIsInvalid)
+		nLocalPriority = g_LagComp->GetRecordPriority(&First);
+
+	if (nTrackPriority > nLocalPriority)
+	{
+		Final = Last;
+		Final.m_fDidBacktrack = true;
+	}
+	else
+	{
+		Final = First;
+		Final.m_fDidBacktrack = false;
+	}
+
+	if (g_LagComp->IsRecordValid(data->CurrentTarget->m_player, &Final))
+	{
+		data->CurrentTarget->SetupHitboxes(&Final, false);
+		if (!data->CurrentTarget->m_hitboxes.empty())
+		{
+			// try to select best record as target.
+			if (data->CurrentTarget->GetBestAimPosition(tmp_point, tmp_damage, data->best.hitbox, data->best.safe, &Final,tmp_min_damage, data->CurrentTarget->m_player)) {
+				if (g_Ragebot->SelectTarget(&Final, tmp_point, tmp_damage)) {
+
+					// if we made it so far, set shit. 
+					data->best.player = data->CurrentTarget->m_player;
+					data->best.point = tmp_point;
+					data->best.damage = tmp_damage;
+					data->best.record = &Final;
+					data->best.min_damage = tmp_min_damage;
+					data->best.target = data->CurrentTarget;
+				}
+			}
+		}
+	}
+}
+
+void aimbot::find(CUserCmd* m_pcmd) {
+	BestTarget_t  best;
 	if (this->m_targets.empty())
 		return;
 
 	// iterate all targets.
-	for (const auto& t : this->m_targets) {
-		if (!t->m_player)
+	for (size_t i = 0; i < this->m_targets.size(); ++i) {
+		AimPlayer* const& CurrentTarget = this->m_targets[i];
+
+		if (!CurrentTarget->m_player)
 			continue;
-
-
-		std::deque < LagRecord_t > m_Records = g_LagComp->GetPlayerRecords(t->m_player);
-
-		/* skip players without records */
-		if (m_Records.empty())
-			continue;
-		int nLocalPriority = 0;
-		int nTrackPriority = 0;
-
-		LagRecord_t First = g_LagComp->FindFirstRecord(t->m_player, m_Records);
-		LagRecord_t Last = g_LagComp->FindBestRecord(t->m_player, m_Records , nTrackPriority, First.m_flSimulationTime);
-		LagRecord_t Final;
-
-		if (!First.m_bIsInvalid)
-			nLocalPriority = g_LagComp->GetRecordPriority(&First);
-
-		if (nTrackPriority > nLocalPriority && !Last.m_bIsInvalid)
-		{
-			Final = Last;
-			Final.m_fDidBacktrack = true;
-		}
-		else
-		{
-			Final = First;
-			Final.m_fDidBacktrack = false;
-		}
-		
-
-		if (!Final.m_bIsInvalid)
-		{
-			t->SetupHitboxes(&Final, false);
-			if (!t->m_hitboxes.empty())
-			{
-				// try to select best record as target.
-				if (t->GetBestAimPosition(tmp_point, tmp_damage, best.hitbox, best.safe, &Final, tmp_min_damage, t->m_player)) {
-					if (SelectTarget(&Final, tmp_point, tmp_damage)) {
-						
-						// if we made it so far, set shit. 
-						best.player = t->m_player;
-						best.point = tmp_point;
-						best.damage = tmp_damage;
-						best.record = &Final;
-						best.min_damage = tmp_min_damage;
-						best.target = t;
-						
-
-					}
-				}
-			}
-		}
-
-		// we found a target we can shoot at and deal damage? fuck yeah. (THIS IS TEMPORARY TILL WE REPLACE THE TARGET SELECTION)
-		if (best.damage > 0.f && best.player && best.record && best.target) {
-			break;
-		}
+		ThreadedScan JobData{ best , CurrentTarget };
+		Threading::QueueJob(ThreadedScanFunction, JobData);
 	}
+	Threading::FinishQueue();
+
+	// Wait for all the jobs to finish 
+	
 
 	// verify our target and set needed data.
 	if (best.player && best.record && best.target)
@@ -606,7 +561,7 @@ void aimbot::find(CUserCmd* m_pcmd) {
 		if (!best.record->m_bIsInvalid)
 		{
 			// calculate aim angle.
-			math::vector_angles(best.point.point - g_ctx.globals.eye_pos, m_angle);
+			math::vector_angles(best.point.point - g_LocalAnimations->GetShootPosition(), m_angle);
 
 			// set member vars.
 			m_target = best.player;
@@ -618,14 +573,9 @@ void aimbot::find(CUserCmd* m_pcmd) {
 
 			m_current_matrix = best.record->m_Matricies[MiddleMatrix].data();
 
-			if (!m_current_matrix || !m_damage || !(m_damage >= best.min_damage || (m_damage <= best.min_damage && m_damage >= m_target->m_iHealth())))
+			if (!m_target || m_target->IsDormant()||!m_current_matrix || !m_damage || !(m_damage >= best.min_damage || (m_damage <= best.min_damage && m_damage >= m_target->m_iHealth())))
 				return;
 
-
-
-			/*int nHitChance = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER ? 50 : g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
-			float flCalculatedHitchance = this->CheckHitchance(m_target, m_angle, m_record, best.hitbox);
-			bool flHitchanceValid = flCalculatedHitchance >= nHitChance;*/
 			bool flHitchanceValid = g_hit_chance->can_hit(m_record, g_ctx.globals.weapon, m_angle, best.hitbox);
 
 			// autostop between shot (default).
@@ -636,8 +586,6 @@ void aimbot::find(CUserCmd* m_pcmd) {
 				// autostop hitchance fail.
 				else if (g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_HITCHANCE_FAIL] && !flHitchanceValid)
 					this->m_stop = true;
-
-
 			}
 
 			this->AutoStop(m_pcmd);
@@ -657,7 +605,6 @@ void aimbot::find(CUserCmd* m_pcmd) {
 
 			if (flHitchanceValid)
 			{
-
 				if (g_cfg.ragebot.autoshoot)
 				{
 					m_pcmd->m_buttons |= IN_ATTACK;
@@ -696,7 +643,7 @@ float aimbot::CheckHitchance(player_t* player, const Vector& angle, LagRecord_t*
 
 	constexpr int   SEED_MAX = 255;
 
-	Vector start = g_ctx.globals.eye_pos, end, fwd, right, up, dir, wep_spread;
+	Vector start = g_LocalAnimations->GetShootPosition(), end, fwd, right, up, dir, wep_spread;
 	float inaccuracy = g_ctx.globals.inaccuracy;
 	float spread = g_ctx.globals.spread;
 	float hitchance = g_ctx.globals.weapon->m_iItemDefinitionIndex() == WEAPON_TASER ? 50 : g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
@@ -731,7 +678,7 @@ float aimbot::CheckHitchance(player_t* player, const Vector& angle, LagRecord_t*
 	return total_hits / 2.55f;
 }
 
-bool AimPlayer::SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points) {
+bool aimbot::SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points) {
 	// reset points.
 	if (!points.empty())
 		points.clear();
@@ -771,7 +718,7 @@ bool AimPlayer::SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int i
 	if (!g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].static_point_scale)
 	{
 		float spread = g_ctx.globals.inaccuracy + g_ctx.globals.spread;
-		float distance = transformed_center.DistTo(g_ctx.globals.eye_pos);
+		float distance = transformed_center.DistTo(g_LocalAnimations->GetShootPosition());
 
 		distance /= math::fast_sin(DEG2RAD(90.f - RAD2DEG(spread)));
 		spread = math::fast_sin(spread);
@@ -877,7 +824,7 @@ bool AimPlayer::SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int i
 		RayTracer::Hitbox box(min, max, bbox->radius);
 		RayTracer::Trace trace;
 
-		Vector delta = (transformed_center - g_ctx.globals.eye_pos).Normalized();
+		Vector delta = (transformed_center - g_LocalAnimations->GetShootPosition()).Normalized();
 		Vector max_min = (max - min).Normalized();
 		Vector cr = max_min.Cross(delta);
 
@@ -902,23 +849,23 @@ bool AimPlayer::SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int i
 			Vector middle = (right.Normalized() + up.Normalized()) * 0.5f;
 			Vector middle2 = (right.Normalized() - up.Normalized()) * 0.5f;
 
-			RayTracer::TraceFromCenter(RayTracer::Ray(g_ctx.globals.eye_pos, transformed_center + (middle * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
+			RayTracer::TraceFromCenter(RayTracer::Ray(g_LocalAnimations->GetShootPosition(), transformed_center + (middle * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
 			points.push_back(HitscanPoint_t{ trace.m_traceEnd, index, true });
 
-			RayTracer::TraceFromCenter(RayTracer::Ray(g_ctx.globals.eye_pos, transformed_center - (middle2 * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
+			RayTracer::TraceFromCenter(RayTracer::Ray(g_LocalAnimations->GetShootPosition(), transformed_center - (middle2 * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
 			points.push_back(HitscanPoint_t{ trace.m_traceEnd, index, true });
 
-			RayTracer::TraceFromCenter(RayTracer::Ray(g_ctx.globals.eye_pos, transformed_center + (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
+			RayTracer::TraceFromCenter(RayTracer::Ray(g_LocalAnimations->GetShootPosition(), transformed_center + (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
 			points.push_back(HitscanPoint_t{ trace.m_traceEnd, index, false });
 
-			RayTracer::TraceFromCenter(RayTracer::Ray(g_ctx.globals.eye_pos, transformed_center - (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
+			RayTracer::TraceFromCenter(RayTracer::Ray(g_LocalAnimations->GetShootPosition(), transformed_center - (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
 			points.push_back(HitscanPoint_t{ trace.m_traceEnd, index, false });
 		}
 		else {
-			RayTracer::TraceFromCenter(RayTracer::Ray(g_ctx.globals.eye_pos, transformed_center + (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
+			RayTracer::TraceFromCenter(RayTracer::Ray(g_LocalAnimations->GetShootPosition(), transformed_center + (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
 			points.push_back(HitscanPoint_t{ trace.m_traceEnd, index, false });
 
-			RayTracer::TraceFromCenter(RayTracer::Ray(g_ctx.globals.eye_pos, transformed_center - (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
+			RayTracer::TraceFromCenter(RayTracer::Ray(g_LocalAnimations->GetShootPosition(), transformed_center - (up * 1000.f)), box, trace, RayTracer::Flags_RETURNEND);
 			points.push_back(HitscanPoint_t{ trace.m_traceEnd, index, false });
 		}
 
@@ -935,16 +882,6 @@ bool AimPlayer::SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int i
 	return true;
 }
 
-bool aimbot::IsSafePoint(LagRecord_t* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox)
-{
-	if (!this->CanHit(vecStartPosition, vecEndPosition, LagRecord, iHitbox, true, LagRecord->m_Matricies[LeftMatrix].data()))
-		return false;
-
-	if (!this->CanHit(vecStartPosition, vecEndPosition, LagRecord, iHitbox, true, LagRecord->m_Matricies[RightMatrix].data()))
-		return false;
-
-	return true;
-}
 bool aimbot::bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, LagRecord_t* pRecord)
 {
 	// Initialize our trace data & information
@@ -958,14 +895,150 @@ bool aimbot::bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& ve
 	// example: aiming for head -> its behind his chest -> return chest == head
 	return traceData.hitbox == iHitbox;
 }
+
+struct ThreadedHitboxScan {
+    const HitscanBox_t& it;
+	LagRecord_t& record;
+	float& dmg;
+	float& pendmg;
+	bool& pen;
+	bool& force_safe_points;
+	HitscanData_t& scan;
+	matrix3x4_t& m_matrix;
+	std::vector<HitscanPoint_t>& points;
+	bool& done;
+	float& tmp_min_damage;
+};
+
+bool ProcessHitboxes(ThreadedHitboxScan& scanData) {
+	const HitscanBox_t& it = scanData.it;
+	LagRecord_t& record = scanData.record;
+	float& dmg = scanData.dmg;
+	float& pendmg = scanData.pendmg;
+	bool& pen = scanData.pen;
+	bool& force_safe_points = scanData.force_safe_points;
+	HitscanData_t& scan = scanData.scan;
+	matrix3x4_t& m_matrix = scanData.m_matrix;
+	std::vector<HitscanPoint_t>& points = scanData.points;
+	bool& done = scanData.done;
+	float& tmp_min_damage = scanData.tmp_min_damage;
+
+	// iterate points on hitbox.
+	for (const auto& point : points) {
+		penetration::PenetrationInput_t in;
+
+		in.m_damage = dmg;
+		in.m_damage_pen = pendmg;
+		in.m_can_pen = pen;
+		in.m_target = record.player;
+		in.m_from = g_ctx.local();
+		in.m_pos = point.point;
+		in.m_custom_shoot_pos = g_LocalAnimations->GetShootPosition();
+
+		penetration::PenetrationOutput_t out;
+
+		//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
+		/*if (!g_Ragebot->bTraceMeantForHitbox(g_LocalAnimations->GetShootPosition(), point.point, it.m_index, &record))
+			continue;*/
+
+		// code for safepoint matrix, the point should (!) be a safe point.
+		HitboxData_t Data = g_Ragebot->GetHitboxData(record.player, &m_matrix, it.m_index);
+		bool safe = g_Ragebot->IsSafePoint(record.player,&record,g_LocalAnimations->GetShootPosition(),point.point, Data);
+
+		// don't run the code if our user want to force the safepoint and the target is not safe to hit.
+		if (force_safe_points && !safe)
+			continue;
+
+		if (g_cfg.player.show_multi_points)
+			g_Ragebot->m_debug_points.emplace_back(point);
+
+		// we can hit p!
+		if (penetration::get().run(&in, &out)) {
+			tmp_min_damage = dmg;
+
+
+			if (out.m_damage < 1)
+				continue;
+
+			// nope we did not hit head..
+			if (it.m_index == HITBOX_HEAD && out.m_hitgroup != HITGROUP_HEAD)
+				continue;
+
+			// prefered hitbox, just stop now.
+			if (it.m_mode == HitscanMode::PREFER)
+				done = true;
+
+			// this hitbox requires lethality to get selected, if that is the case.
+			// we are done, stop now.
+			else if (it.m_mode == HitscanMode::LETHAL && out.m_damage >= record.player->m_iHealth())
+				done = true;
+
+			// always prefer safe points if we want to.
+			else if (it.m_mode == HitscanMode::PREFER_SAFEPOINT && safe)
+				done = true;
+
+			// this hitbox has normal selection, it needs to have more damage.
+			else if (it.m_mode == HitscanMode::NORMAL) {
+				// we did more damage.
+				if (out.m_damage > scan.m_damage) {
+					if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER)
+					{
+						if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
+							g_Ragebot->m_stop = true;
+						else if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record.player->m_iHealth())
+							g_Ragebot->m_stop = true;
+					}
+
+					// save new best data.
+					scan.m_damage = out.m_damage;
+					scan.m_point = point;
+					scan.m_hitbox = it.m_index;
+					scan.m_safepoint = safe;
+					// if the first point is lethal
+					// screw the other ones.
+					if (point.point == points.front().point && out.m_damage >= record.player->m_iHealth())
+						break;
+				}
+			}
+
+			// we found a preferred / lethal hitbox.
+			if (done) {
+				if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
+					g_Ragebot->m_stop = true;
+				if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record.player->m_iHealth())
+					g_Ragebot->m_stop = true;
+
+				// save new best data.
+				scan.m_damage = out.m_damage;
+				scan.m_point = point;
+				scan.m_hitbox = it.m_index;
+				scan.m_safepoint = safe;
+				scan.m_mode = it.m_mode;
+
+				break;
+			}
+
+		}
+	}
+
+	return done;
+
+}
+
 bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, LagRecord_t* record, float& tmp_min_damage, player_t* player) {
 	bool                  done, pen;
 	float                 dmg, pendmg;
 	HitscanData_t         scan;
 	std::vector< HitscanPoint_t > points;
 
+	/* set record */
+	g_LagComp->ForcePlayerRecord(player, record);
+
+	if (!g_Ragebot->ShouldScanPlayer(8, record, player))
+		return false;
+
 	// get player hp.
-	int hp = min(100, record->player->m_iHealth());
+	int hp = min(100, player->m_iHealth());
 	auto force_safe_points = key_binds::get().get_key_bind_state(3);
 
 	m_matrix = record->m_Matricies[MiddleMatrix].data();
@@ -999,120 +1072,17 @@ bool AimPlayer::GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hi
 		pen = g_cfg.ragebot.autowall;
 	}
 
-	// iterate hitboxes.
-	for (const auto& it : m_hitboxes) {
+	for (const auto& CurrentHitbox : m_hitboxes)
+	{
 		done = false;
-
 		// setup points on hitbox.
-		if (!SetupHitboxPoints(record, m_matrix, it.m_index, points))
+		if (!g_Ragebot->SetupHitboxPoints(record, m_matrix, CurrentHitbox.m_index, points))
 			continue;
 
+		ThreadedHitboxScan ThreadData{ CurrentHitbox, *record, dmg, pendmg, pen, force_safe_points, scan, *m_matrix, points, done, tmp_min_damage };
+		bool result = ProcessHitboxes(ThreadData);
 
-
-		// iterate points on hitbox.
-		for (const auto& point : points) {
-
-			if (g_cfg.player.show_multi_points)
-				g_Ragebot->m_debug_points.emplace_back(point);
-
-			penetration::PenetrationInput_t in;
-
-			in.m_damage = dmg;
-			in.m_damage_pen = pendmg;
-			in.m_can_pen = pen;
-			in.m_target = record->player;
-			in.m_from = g_ctx.local();
-			in.m_pos = point.point;
-
-			penetration::PenetrationOutput_t out;
-
-			/* set record */
-			g_LagComp->ForcePlayerRecord(record->player, record);
-
-			//credits:- https://www.unknowncheats.me/forum/counterstrike-global-offensive/596435-prevent-bodyaim-head.html
-			if (!g_Ragebot->bTraceMeantForHitbox(g_ctx.globals.eye_pos, point.point, it.m_index, record))
-				continue;
-
-			// code for safepoint matrix, the point should (!) be a safe point.
-			bool safe = g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, it.m_index);
-
-			// don't run the code if our user want to force the safepoint and the target is not safe to hit.
-			if (force_safe_points && !safe)
-				continue;
-
-			//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, in.m_pos, record->player);
-
-			// we can hit p!
-			if (penetration::get().run(&in, &out)) {
-				tmp_min_damage = dmg;
-
-
-				// nope we did not hit head..
-				if (it.m_index == HITBOX_HEAD && out.m_hitgroup != HITGROUP_HEAD)
-					continue;
-
-				if (it.m_index == HITBOX_HEAD && safe)
-					done = true;
-
-				// prefered hitbox, just stop now.
-				if (it.m_mode == HitscanMode::PREFER)
-					done = true;
-
-				// this hitbox requires lethality to get selected, if that is the case.
-				// we are done, stop now.
-				else if (it.m_mode == HitscanMode::LETHAL && out.m_damage >= record->player->m_iHealth())
-					done = true;
-
-				// always prefer safe points if we want to.
-				else if (it.m_mode == HitscanMode::PREFER_SAFEPOINT && safe)
-					done = true;
-
-				// this hitbox has normal selection, it needs to have more damage.
-				else if (it.m_mode == HitscanMode::NORMAL) {
-					// we did more damage.
-					if (out.m_damage > scan.m_damage) {
-						if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER)
-						{
-							if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
-								g_Ragebot->m_stop = true;
-							else if (g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
-								g_Ragebot->m_stop = true;
-						}
-
-						// save new best data.
-						scan.m_damage = out.m_damage;
-						scan.m_point = point;
-						scan.m_hitbox = it.m_index;
-						scan.m_safepoint = safe;
-						// if the first point is lethal
-						// screw the other ones.
-						if (point.point == points.front().point && out.m_damage >= record->player->m_iHealth())
-							break;
-					}
-				}
-
-				// we found a preferred / lethal hitbox.
-				if (done) {
-					if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_CENTER] && point.center)
-						g_Ragebot->m_stop = true;
-					if (!g_Ragebot->m_stop && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_TASER && g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].autostop_modifiers[AUTOSTOP_LETHAL] && out.m_damage < record->player->m_iHealth())
-						g_Ragebot->m_stop = true;
-
-					// save new best data.
-					scan.m_damage = out.m_damage;
-					scan.m_point = point;
-					scan.m_hitbox = it.m_index;
-					scan.m_safepoint = safe;
-					scan.m_mode = it.m_mode;
-
-					break;
-				}
-
-			}
-		}
-
-		// ghetto break out of outer loop.
-		if (done)
+		if (result)
 			break;
 	}
 
@@ -1143,7 +1113,7 @@ bool aimbot::SelectTarget(LagRecord_t* record, const HitscanPoint_t& point, floa
 	if (g_cfg.ragebot.field_of_view > 0) {
 		// if out of fov, retn false.
 
-		if (math::get_fov(engine_angles, math::calculate_angle(g_ctx.globals.eye_pos, point.point)) > g_cfg.ragebot.field_of_view)
+		if (math::get_fov(engine_angles, math::calculate_angle(g_LocalAnimations->GetShootPosition(), point.point)) > g_cfg.ragebot.field_of_view)
 			return false;
 	}
 
@@ -1151,7 +1121,7 @@ bool aimbot::SelectTarget(LagRecord_t* record, const HitscanPoint_t& point, floa
 
 		// distance.
 	case 0:
-		dist = g_ctx.globals.eye_pos.DistTo(record->m_vecOrigin);
+		dist = g_LocalAnimations->GetShootPosition().DistTo(record->m_vecOrigin);
 
 		if (dist < m_best_dist) {
 			m_best_dist = dist;
@@ -1162,7 +1132,7 @@ bool aimbot::SelectTarget(LagRecord_t* record, const HitscanPoint_t& point, floa
 
 		// crosshair.
 	case 1:
-		fov = math::get_fov(engine_angles, math::calculate_angle(g_ctx.globals.eye_pos, point.point));
+		fov = math::get_fov(engine_angles, math::calculate_angle(g_LocalAnimations->GetShootPosition(), point.point));
 
 		if (fov < m_best_fov) {
 			m_best_fov = fov;
@@ -1236,7 +1206,7 @@ void aimbot::apply(CUserCmd* m_pcmd) {
 		//if (g_cfg.player.lag_hitbox && this->m_record)
 			//hit_chams::get().add_matrix(this->m_record);
 
-		shots::get().register_shot(this->m_target, g_ctx.globals.eye_pos, this->m_record, m_globals()->m_tickcount, this->m_point, this->m_safe);
+		shots::get().register_shot(this->m_target, g_LocalAnimations->GetShootPosition(), this->m_record, m_globals()->m_tickcount, this->m_point, this->m_safe);
 	}
 	if (g_Misc->IsFiring())
 		g_ctx.globals.aimbot_shooting = true;
@@ -1529,8 +1499,8 @@ bool hit_chance::can_intersect_hitbox(const Vector start, const Vector end, Vect
 
 bool hit_chance::can_hit(LagRecord_t* log, weapon_t* weapon, Vector angles, int hitbox) {
 
-	if (g_Ragebot->HasMaximumAccuracy())
-		return true;
+	/*if (g_Ragebot->HasMaximumAccuracy())
+		return true;*/
 
 	auto target = static_cast<player_t*>(m_entitylist()->GetClientEntity(log->player->EntIndex()));
 
@@ -1542,9 +1512,6 @@ bool hit_chance::can_hit(LagRecord_t* log, weapon_t* weapon, Vector angles, int 
 	if (!weapon_info)
 		return false;
 
-	if (g_ctx.globals.isshifting)
-		return true;
-
 	build_seed_table();
 
 	if ((weapon->m_iItemDefinitionIndex() == WEAPON_SSG08 || weapon->m_iItemDefinitionIndex() == WEAPON_REVOLVER) && !(g_ctx.local()->m_fFlags() & FL_ONGROUND)) {
@@ -1554,7 +1521,7 @@ bool hit_chance::can_hit(LagRecord_t* log, weapon_t* weapon, Vector angles, int 
 	}
 
 	//const Vector eye_pos = g_ctx.local()->GetEyePosition();
-    const Vector eye_pos = g_ctx.globals.eye_pos;
+    const Vector eye_pos = g_LocalAnimations->GetShootPosition();
 	Vector start_scaled = { };
 	const auto hitchance_cfg = g_cfg.ragebot.weapon[g_ctx.globals.current_weapon].hitchance_amount;
 	const int hits_needed = (hitchance_cfg * 256) / 100;
@@ -1573,4 +1540,102 @@ bool hit_chance::can_hit(LagRecord_t* log, weapon_t* weapon, Vector angles, int 
 	}
 
 	return false;
+}
+
+HitboxData_t aimbot::GetHitboxData(player_t* Player, matrix3x4_t* aMatrix, int nHitbox)
+{
+	studiohdr_t* pStudioHdr = (studiohdr_t*)(m_modelinfo()->GetStudioModel(Player->GetModel()));
+	if (!pStudioHdr)
+		return HitboxData_t();
+
+	mstudiohitboxset_t* pHitset = pStudioHdr->pHitboxSet(Player->m_nHitboxSet());
+	if (!pHitset)
+		return HitboxData_t();
+
+	mstudiobbox_t* pHitbox = pHitset->pHitbox(nHitbox);
+	if (!pHitbox)
+		return HitboxData_t();
+
+	/* Capture hitbox data */
+	HitboxData_t Hitbox;
+	Hitbox.m_nHitbox = nHitbox;
+	Hitbox.m_pHitbox = pHitbox;
+	Hitbox.m_vecBBMin = pHitbox->bbmin;
+	Hitbox.m_vecBBMax = pHitbox->bbmax;
+	Hitbox.m_flRadius = pHitbox->radius;
+	Hitbox.m_bIsCapsule = pHitbox->radius != -1.f;
+
+	//if (Hitbox.m_bIsCapsule) {
+	//	/* Compute vecMins/vecMaxs */
+	//	math::vector_transform(pHitbox->bbmin, aMatrix[pHitbox->bone], Hitbox.m_vecMins);
+	//	math::vector_transform(pHitbox->bbmax, aMatrix[pHitbox->bone], Hitbox.m_vecMaxs);
+	//}
+	//else {
+	//	math::vector_transform(math::vector_rotate(pHitbox->bbmin, pHitbox->rotation), aMatrix[pHitbox->bone], Hitbox.m_vecMins);
+	//	math::vector_transform(math::vector_rotate(pHitbox->bbmax, pHitbox->rotation), aMatrix[pHitbox->bone], Hitbox.m_vecMaxs);
+	//	Hitbox.m_flRadius = Hitbox.m_vecMins.DistTo(Hitbox.m_vecMaxs);
+	//}
+
+	/* Compute vecMins/vecMaxs */
+	math::vector_transform(pHitbox->bbmin, aMatrix[pHitbox->bone], Hitbox.m_vecMins);
+	math::vector_transform(pHitbox->bbmax, aMatrix[pHitbox->bone], Hitbox.m_vecMaxs);
+
+	/* Return result */
+	return Hitbox;
+}
+/* ragebot safepoints part */
+bool aimbot::CollidePoint(const Vector& vecStart, const Vector& vecEnd, mstudiobbox_t* pHitbox, matrix3x4_t* aMatrix)
+{
+	if (!pHitbox || !aMatrix)
+		return false;
+
+	Ray_t Ray;
+	Ray.Init(vecStart, vecEnd);
+
+	CGameTrace Trace;
+	Trace.fraction = 1.0f;
+	Trace.startsolid = false;
+	static auto ClipRayToHitbox = (void*)((DWORD)(util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 E4 F8 F3 0F 10 42"))));
+	typedef int(__fastcall* ClipRayToHitbox_t)(const Ray_t&, mstudiobbox_t*, matrix3x4_t&, trace_t&);
+	return ((ClipRayToHitbox_t)(ClipRayToHitbox))(Ray, pHitbox, aMatrix[pHitbox->bone], Trace) >= 0;
+}
+void aimbot::ThreadedCollisionFunc(CollisionData_t* m_Collision)
+{
+	m_Collision->m_bResult = g_Ragebot->CollidePoint(m_Collision->m_vecStart, m_Collision->m_vecForward, m_Collision->m_Hitbox.m_pHitbox, m_Collision->aMatrix);
+}
+bool aimbot::IsSafePoint(player_t* Player, LagRecord_t* m_Record, const Vector& vecStart, const Vector& vecEnd, HitboxData_t HitboxData)
+{
+	// alloc data
+	CollisionData_t m_Left;
+	CollisionData_t m_Center;
+	CollisionData_t m_Right;
+
+	// setup base
+	CollisionData_t m_Base = CollisionData_t();
+	m_Base.m_vecStart = vecStart;
+	m_Base.m_vecForward = vecStart + ((vecEnd - vecStart) * 8192.0f);
+	m_Base.m_Hitbox = HitboxData;
+
+	// copy
+	std::memcpy(&m_Left, &m_Base, sizeof(CollisionData_t));
+	std::memcpy(&m_Right, &m_Base, sizeof(CollisionData_t));
+	std::memcpy(&m_Center, &m_Base, sizeof(CollisionData_t));
+
+	// setup matricies
+	m_Left.aMatrix = m_Record->m_Matricies[LeftMatrix].data();
+	m_Right.aMatrix = m_Record->m_Matricies[RightMatrix].data();
+	m_Center.aMatrix = m_Record->m_Matricies[ZeroMatrix].data();
+
+	g_Ragebot->ThreadedCollisionFunc(&m_Left);
+	g_Ragebot->ThreadedCollisionFunc(&m_Right);
+	g_Ragebot->ThreadedCollisionFunc(&m_Center);
+
+	// calc collision count
+	int nCollisionCount = 0;
+	if (m_Left.m_bResult) nCollisionCount++;
+	if (m_Right.m_bResult) nCollisionCount++;
+	if (m_Center.m_bResult) nCollisionCount++;
+
+	// return safe status
+	return nCollisionCount >= 3;
 }

@@ -6,6 +6,7 @@
 #include "..\ragebot\aim.h"
 #include "../tickbase shift/tickbase_shift.h"
 #include "../prediction/EnginePrediction.h"
+#include "../lagcompensation/LocalAnimFix.hpp"
 #define M_PI 3.14159265358979323846f
 #define M_PI_2 M_PI * 2
 void networking::start_move(CUserCmd* m_pcmd, bool& bSendPacket)
@@ -182,7 +183,7 @@ void networking::packet_cycle(CUserCmd* m_pcmd, bool& bSendPacket)
 				g_Fakelag->started_peeking = false;
 			}
 
-			g_ctx.globals.last_eye_pos = g_ctx.globals.eye_pos;
+			g_ctx.globals.last_eye_pos = g_LocalAnimations->GetShootPosition();
 			g_ctx.globals.shot_command = cmd->m_command_number;
 
 			if (!double_tap_aim_check)

@@ -14,6 +14,26 @@ enum
 	ALWAYS_BAIM_HEATH_BELOW,
 	ALWAYS_BAIM_AIR
 };
+struct HitboxData_t
+{
+	HitboxData_t() = default;
+
+	mstudiobbox_t* m_pHitbox = nullptr;
+	Vector m_vecMins = Vector(0, 0, 0), m_vecMaxs = Vector(0, 0, 0), m_vecCenter = Vector(0, 0, 0);
+	Vector m_vecBBMin, m_vecBBMax;
+	int m_nHitbox = 0;
+	float m_flRadius = 0.0f;
+	bool m_bIsCapsule;
+};
+struct CollisionData_t
+{
+	Vector m_vecStart, m_vecForward;
+	HitboxData_t m_Hitbox;
+	matrix3x4_t* aMatrix = nullptr;
+	bool m_bResult = false;
+};
+
+
 namespace stdpp {
 	// unique_vector
 	// goal; only unique elements in a vector while preserving original order
@@ -154,7 +174,7 @@ public:
 	void OnNetUpdate(player_t* player);
 	void OnRoundStart(player_t* player);
 	void SetupHitboxes(LagRecord_t* record, bool history);
-	bool SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points);
+	
 	bool GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, LagRecord_t* record, float& min_damage, player_t* player);
 
 public:
@@ -172,6 +192,29 @@ public:
 		m_last_resolve_strenght_hit = 0.f;
 
 		m_hitboxes.clear();
+	}
+};
+struct BestTarget_t
+{
+	player_t* player;
+	AimPlayer* target;
+	HitscanPoint_t point;
+	float damage;
+	float min_damage;
+	LagRecord_t* record;
+	int hitbox;
+	bool safe;
+	float damage_compare;
+
+	BestTarget_t() {
+		player = nullptr;
+		target = nullptr;
+		damage = -1.f;
+		point = HitscanPoint_t{};
+		record = nullptr;
+		hitbox = -1;
+		safe = false;
+		damage_compare = -1.f;
 	}
 };
 
@@ -261,7 +304,9 @@ public:
 public:
 	// aimbot.
 	void init();
-	bool is_peeking_enemy(float ticks_to_stop, bool aim = false);
+	bool SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points);
+	
+	bool ShouldScanPlayer(float ticks_to_stop, LagRecord_t* record, player_t* player);
 	void think(CUserCmd* m_pcmd);
 	void find(CUserCmd* m_pcmd);
 	bool HasMaximumAccuracy();
@@ -271,12 +316,16 @@ public:
 	void AutoStop(CUserCmd* m_pcmd);
 	void AutoRevolver(CUserCmd* m_pcmd);
 	void AdjustRevolverData(int commandnumber, int buttons);
-	bool IsSafePoint(LagRecord_t* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox);
+	//bool IsSafePoint(LagRecord_t* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox);
 	bool bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, LagRecord_t* pRecord);
-	LagRecord_t* get_record(std::deque <LagRecord_t>* records);
-	LagRecord_t* get_record_history(std::deque <LagRecord_t>* records);
-	LagRecord_t* get_oldest_record(std::deque<LagRecord_t>* records);
-	LagRecord_t* get_first_record(std::deque<LagRecord_t>* records);
+
+
+	HitboxData_t GetHitboxData(player_t* Player, matrix3x4_t* aMatrix, int nHitbox);
+
+	bool CollidePoint(const Vector& vecStart, const Vector& vecEnd, mstudiobbox_t* pHitbox, matrix3x4_t* aMatrix);
+	void ThreadedCollisionFunc(CollisionData_t* m_Collision);
+	bool IsSafePoint(player_t* Player, LagRecord_t* m_Record, const Vector& vecStart, const Vector& vecEnd, HitboxData_t HitboxData);
+
 	// knifebot.
 	void knife(CUserCmd* m_pcmd);
 	bool CanKnife(LagRecord_t* record, Vector angle, bool& stab);

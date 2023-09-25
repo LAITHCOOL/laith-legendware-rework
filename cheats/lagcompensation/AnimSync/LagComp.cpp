@@ -1,5 +1,6 @@
 #include "LagComp.hpp"
 #include "../../MultiThread/Multithread.hpp"
+#include "../../cheats/prediction/EnginePrediction.h"
 struct LagCompThreadData
 {
 	int index;
@@ -19,7 +20,7 @@ void ThreadedLagComp(LagCompThreadData* Data)
 
 	/* Get player and check its data */
 	player_t* pPlayer = static_cast<player_t*>(m_entitylist()->GetClientEntity(nPlayerID));
-	if (!pPlayer || !pPlayer->is_player() || !pPlayer->is_alive() || pPlayer->m_iTeamNum() == g_ctx.local()->m_iTeamNum() || pPlayer == g_ctx.local())
+	if (!pPlayer || !pPlayer->is_player() || !pPlayer->is_alive() || pPlayer == g_ctx.local() || pPlayer->IsFriend())
 	{
 		m_PlayerData->m_bLeftDormancy = true;
 		return;
@@ -85,7 +86,7 @@ void ThreadedLagComp(LagCompThreadData* Data)
 		if ((m_Record.m_vecOrigin - m_PreviousRecord.m_vecOrigin).Length2DSqr() > 4096.0f)
 		{
 			m_Record.m_bHasBrokenLC = true;
-			g_LagComp->CleanPlayer(pPlayer);
+			//g_LagComp->CleanPlayer(pPlayer);
 		}
 	}
 
@@ -230,7 +231,6 @@ void C_LagComp::StartLagCompensation()
 		Data->m_angAbsAngles = pPlayer->get_abs_angles();
 		Data->m_vecAbsOrigin = pPlayer->get_abs_origin();
 		Data->m_angEyeAngles = pPlayer->m_angEyeAngles();
-		Data->m_flEyeYaw = pPlayer->GetAnimState()->m_flEyeYaw;
 		Data->m_vecOrigin = pPlayer->m_vecOrigin();
 		Data->m_flSimulationTime = pPlayer->m_flSimulationTime();
 		Data->m_nFlags = pPlayer->m_fFlags();
@@ -394,7 +394,7 @@ bool C_LagComp::GetBacktrackMatrix(player_t* pPlayer, matrix3x4_t* aMatrix)
 }
 bool C_LagComp::IsRecordValid(player_t* pPlayer, LagRecord_t* m_LagRecord)
 {
-	if (!m_LagRecord || !pPlayer || ((m_LagRecord->m_bIsInvalid || m_LagRecord->m_bHasBrokenLC) && !g_cfg.ragebot.anti_exploit))
+	if (!m_LagRecord || !pPlayer || m_LagRecord->m_bIsInvalid || m_LagRecord->m_bHasBrokenLC)
 		return false;
 
 	return this->IsTimeValid(m_LagRecord->m_flSimulationTime, g_ctx.globals.fixed_tickbase);

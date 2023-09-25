@@ -9,7 +9,7 @@
 #include "..\misc\misc.h"
 #include "..\lagcompensation\local_animations.h"
 #include "../prediction/EnginePrediction.h"
-
+#include "../lagcompensation/LocalAnimFix.hpp"
 void antiaim::create_move(CUserCmd* m_pcmd)
 {
 	auto velocity = g_ctx.local()->m_vecVelocity().Length();
@@ -444,7 +444,7 @@ float antiaim::at_targets()
 		Vector angles;
 		m_engine()->GetViewAngles(angles);
 
-		auto fov = math::get_fov(angles, math::calculate_angle(g_ctx.globals.eye_pos, e->GetAbsOrigin()));
+		auto fov = math::get_fov(angles, math::calculate_angle(g_LocalAnimations->GetShootPosition(), e->GetAbsOrigin()));
 
 		if (fov < best_fov)
 		{
@@ -463,7 +463,7 @@ float antiaim::at_targets()
 	if (!target)
 		return g_ctx.get_command()->m_viewangles.y + angle;
 
-	return math::calculate_angle(g_ctx.globals.eye_pos, target->GetAbsOrigin()).y + angle;
+	return math::calculate_angle(g_LocalAnimations->GetShootPosition(), target->GetAbsOrigin()).y + angle;
 }
 
 bool antiaim::automatic_direction()
@@ -481,7 +481,7 @@ bool antiaim::automatic_direction()
 	math::angle_vectors(engineViewAngles, &forward, &right, &up);
 
 	filter.pSkip = g_ctx.local();
-	src3D = g_ctx.globals.eye_pos;
+	src3D = g_LocalAnimations->GetShootPosition();
 	dst3D = src3D + forward * 100.0f;
 
 	ray_right.Init(src3D + right * 35.0f, dst3D + right * 35.0f);
@@ -537,7 +537,7 @@ void antiaim::freestanding(CUserCmd* m_pcmd)
 	math::angle_vectors(engineViewAngles, &forward, &right, &up);
 
 	filter.pSkip = g_ctx.local();
-	src3D = g_ctx.globals.eye_pos;
+	src3D = g_LocalAnimations->GetShootPosition();
 	dst3D = src3D + forward * 100.0f;
 
 	ray_right.Init(src3D + right * 35.0f, dst3D + right * 35.0f);
@@ -624,7 +624,7 @@ void antiaim::do_fr(CUserCmd* cmd)
 	freestanding(cmd);
 	//////////////////////////////***/////////////////////////////
 	float best_rotation = 0.f;
-	auto local_eyeposition = g_ctx.globals.eye_pos;
+	auto local_eyeposition = g_LocalAnimations->GetShootPosition();
 	auto head_position = g_ctx.local()->hitbox_position(HITBOX_HEAD);
 	auto origin = g_ctx.local()->m_vecOrigin();
 	float thickest = -1.f;
@@ -654,7 +654,7 @@ void antiaim::do_fr(CUserCmd* cmd)
 		Vector angles;
 		m_engine()->GetViewAngles(angles);
 
-		auto fov = math::get_fov(angles, math::calculate_angle(g_ctx.globals.eye_pos, e->GetAbsOrigin()));
+		auto fov = math::get_fov(angles, math::calculate_angle(g_LocalAnimations->GetShootPosition(), e->GetAbsOrigin()));
 
 		if (fov < best_fov)
 		{
@@ -710,7 +710,7 @@ bool antiaim::freestand_nix(float& ang)
 	static float hold = 0.f;
 	Vector besthead;
 
-	auto leyepos = g_ctx.globals.eye_pos;
+	auto leyepos = g_LocalAnimations->GetShootPosition();
 	auto headpos = local->hitbox_position(0); //GetHitboxPosition(local_player, 0);
 	auto origin = local->m_vecOrigin();
 
@@ -831,7 +831,7 @@ int antiaim::GetNearestPlayerToCrosshair()
 		}
 
 
-		auto CFov = math::get_fov(MyAng, math::calculate_angle(g_ctx.globals.eye_pos, entity->GetAbsOrigin()));
+		auto CFov = math::get_fov(MyAng, math::calculate_angle(g_LocalAnimations->GetShootPosition(), entity->GetAbsOrigin()));
 
 		if (CFov < BestFov)
 		{

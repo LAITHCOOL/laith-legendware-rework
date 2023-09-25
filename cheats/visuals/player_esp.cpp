@@ -674,8 +674,8 @@ void playeresp::draw_flags(player_t* e, const Box& box)
 		if (record.player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
 			return;
 
-		/*char Desyncbuffer[64];
-		snprintf(Desyncbuffer, sizeof Desyncbuffer, "%.1f", record.desync_amount);*/
+		char Desyncbuffer[64];
+		snprintf(Desyncbuffer, sizeof Desyncbuffer, "%.1f", record.m_flDesyncDelta);
 
 		char VelocityBuffery[64];
 		snprintf(VelocityBuffery, sizeof VelocityBuffery, "%.1f", record.m_vecVelocity.y);
@@ -686,8 +686,8 @@ void playeresp::draw_flags(player_t* e, const Box& box)
 		auto color = e->IsDormant() ? Color(130, 130, 130, 130) : Color(163, 49, 93);
 		color.SetAlpha(255.0f * esp_alpha_fade[e->EntIndex()]);
 
-		/*render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, Desyncbuffer);
-		_y += 8;*/
+		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, Desyncbuffer);
+		_y += 8;
 
 		render::get().text(fonts[ESP], _x, _y, color, HFONT_CENTERED_NONE, VelocityBuffery);
 		_y += 8;
@@ -751,7 +751,7 @@ void playeresp::draw_multi_points(player_t* e)
 
 	//	for (auto& point : current_points)
 	//	{
-	//		point.safe = g_Ragebot->IsSafePoint(record, g_ctx.globals.eye_pos, point.point, hitbox);
+	//		point.safe = g_Ragebot->IsSafePoint(record, g_LocalAnimations->GetShootPosition(), point.point, hitbox);
 
 	//		if (force_safe_points && !point.safe)
 	//			continue;
@@ -766,7 +766,7 @@ void playeresp::draw_multi_points(player_t* e)
 	for (auto& point : g_Ragebot->m_debug_points)
 	{
 		Vector screen;
-	/*	bool safe = g_Ragebot->CanSafepoint(g_Ragebot->m_record, g_ctx.globals.eye_pos, point.point, g_Ragebot->m_hitbox);
+	/*	bool safe = g_Ragebot->CanSafepoint(g_Ragebot->m_record, g_LocalAnimations->GetShootPosition(), point.point, g_Ragebot->m_hitbox);
 
 		auto force_safe_points = key_binds::get().get_key_bind_state(3);
 

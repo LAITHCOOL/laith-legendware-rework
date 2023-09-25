@@ -8,85 +8,81 @@
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"
 #include "../../cheats/lagcompensation/animation_system.h"
 #include "../../cheats/lagcompensation/AnimSync/LagComp.hpp"
-//_declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
-//{
-//    player_t* Player = (player_t*)((DWORD)(ecx)-0x4);
-//    if (!Player || !Player->is_player() || !Player->is_alive() || Player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
-//        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-//
-//    bool bResult = true;
-//    if (g_ctx.globals.setuping_bones)
-//        bResult = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-//    else  if (!Player->valid(false))
-//        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-//    else if (!Player->m_CachedBoneData().Count()) //-V807
-//        bResult = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-//    else if (bone_world_out && max_bones != -1)
-//        memcpy(bone_world_out, Player->m_CachedBoneData().Base(), Player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-//
-//    else if (bone_world_out)
-//    {
-//        if (Player->EntIndex() == g_ctx.local()->EntIndex())
-//            bResult = g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
-//        else
-//            bResult = g_PlayerAnimations->CopyCachedMatrix(Player, bone_world_out, max_bones);
-//
-//    }
-//
-//    return bResult;
-//
-//}
 _declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
 {
-    auto result = true;
+    player_t* Player = (player_t*)((DWORD)(ecx)-0x4);
+    if (!Player || !Player->is_player() || !Player->is_alive() || Player->IsFriend() || Player->IsDormant())
+        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+    
+  /*  if (!Player->valid(false))
+        return ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);*/
 
-    static auto r_jiggle_bones = m_cvar()->FindVar(crypt_str("r_jiggle_bones"));
-    auto r_jiggle_bones_backup = r_jiggle_bones->GetInt();
-
-    r_jiggle_bones->SetValue(0);
-
-    if (!ecx)
-        result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-    else if (!g_cfg.ragebot.enable)
-        result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-    else
+    bool bResult = true;
+    if (g_ctx.globals.setuping_bones)
+        bResult = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+    else if (bone_world_out && max_bones != -1)
     {
-        auto player = reinterpret_cast<player_t*>(uintptr_t(ecx) - 0x4);
-
-        if (!player->valid(false, false))
-            result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+        if (Player == g_ctx.local())
+            bResult = g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
         else
-        {
-            auto animstate = player->get_animation_state();
-            auto previous_weapon = animstate ? animstate->m_pLastBoneSetupWeapon : nullptr;
-
-            if (previous_weapon)
-                animstate->m_pLastBoneSetupWeapon = animstate->m_pActiveWeapon; //-V1004
-
-            if (g_ctx.globals.setuping_bones)
-                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-            else if (g_cfg.legitbot.enabled && player != g_ctx.local())
-                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-            else if (!g_ctx.local()->is_alive())
-                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-            else if (player == g_ctx.local() && bone_world_out)
-                result = g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
-            else if (player->m_iTeamNum() == g_ctx.local()->m_iTeamNum())
-                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-            else if (!player->m_CachedBoneData().Count()) //-V807
-                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
-            else if (bone_world_out && max_bones != -1)
-                result = g_PlayerAnimations->CopyCachedMatrix(player, bone_world_out, max_bones);
-                //memcpy(bone_world_out, player->m_CachedBoneData().Base(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
-
-            if (previous_weapon)
-                animstate->m_pLastBoneSetupWeapon = previous_weapon;
-        }
+            bResult = g_PlayerAnimations->CopyCachedMatrix(Player, bone_world_out, max_bones);
     }
 
-    r_jiggle_bones->SetValue(r_jiggle_bones_backup);
-    return result;
+    return bResult;
+
 }
+
+
+//_declspec(noinline)bool hooks::setupbones_detour(void* ecx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
+//{
+//    auto result = true;
+//
+//    static auto r_jiggle_bones = m_cvar()->FindVar(crypt_str("r_jiggle_bones"));
+//    auto r_jiggle_bones_backup = r_jiggle_bones->GetInt();
+//
+//    r_jiggle_bones->SetValue(0);
+//
+//    if (!ecx)
+//        result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//    else if (!g_cfg.ragebot.enable)
+//        result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//    else
+//    {
+//        auto player = (player_t*)((uintptr_t)ecx - 0x4);
+//
+//        if (!player->valid(false) || player->IsFriend())
+//            result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//        else
+//        {
+//            auto animstate = player->get_animation_state();
+//            auto previous_weapon = animstate ? animstate->m_pLastBoneSetupWeapon : nullptr;
+//
+//            if (previous_weapon)
+//                animstate->m_pLastBoneSetupWeapon = animstate->m_pActiveWeapon; //-V1004
+//
+//            if (g_ctx.globals.setuping_bones)
+//                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//            else if (g_cfg.legitbot.enabled && player != g_ctx.local())
+//                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//            else if (!g_ctx.local()->is_alive())
+//                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//            else if (player == g_ctx.local() && bone_world_out && max_bones != -1)
+//                result = g_LocalAnimations->CopyCachedMatrix(bone_world_out, max_bones);
+//            else if (!player->m_CachedBoneData().Count()) //-V807
+//                result = ((SetupBonesFn)original_setupbones)(ecx, bone_world_out, max_bones, bone_mask, current_time);
+//            else if (bone_world_out && max_bones != -1 && player != g_ctx.local())
+//                result = g_PlayerAnimations->CopyCachedMatrix(player, bone_world_out, max_bones);
+//
+//            if (previous_weapon)
+//                animstate->m_pLastBoneSetupWeapon = previous_weapon;
+//        }
+//    }
+//
+//    r_jiggle_bones->SetValue(r_jiggle_bones_backup);
+//    return result;
+//}
+
+
 
 bool __fastcall hooks::hooked_setupbones(void* ecx, void* edx, matrix3x4_t* bone_world_out, int max_bones, int bone_mask, float current_time)
 {

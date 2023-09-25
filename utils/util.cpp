@@ -819,10 +819,11 @@ namespace util
 
 	bool is_valid_hitgroup(int index)
 	{
-		if ((index >= HITGROUP_HEAD && index <= HITGROUP_RIGHTLEG) || index == HITGROUP_GEAR)
+		/*if ((index >= HITGROUP_HEAD && index <= HITGROUP_RIGHTLEG) || index == HITGROUP_GEAR)
 			return true;
 
-		return false;
+		return false;*/
+		return true;
 	}
 
 	bool is_breakable_entity(IClientEntity* e)

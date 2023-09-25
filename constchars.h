@@ -172,9 +172,9 @@ const char* force_bodyaim_options[] =
 const char* hitboxes[] =
 {
 	"Head",
-	"Neck",
 	"Chest",
 	"Stomach",
+	"Pelvis",
 	"Arms",
 	"Legs",
 	"Feet"

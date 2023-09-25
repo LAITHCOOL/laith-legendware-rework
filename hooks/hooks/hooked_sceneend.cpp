@@ -34,7 +34,7 @@ using SceneEnd_t = void(__thiscall*)(void*);
 void __fastcall hooks::hooked_sceneend(void* ecx, void* edx)
 {
     static auto original_fn = renderview_hook->get_func_address <SceneEnd_t>(9);
-    g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true); //-V807
+    g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true);
 
     if (!g_ctx.local())
         return original_fn(ecx);

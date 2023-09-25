@@ -1,7 +1,7 @@
 #include "animation_system.h"
 #include "..\ragebot\aim.h"
 #include "../visuals/player_esp.h"
-
+#include "LocalAnimFix.hpp"
 /*RESOLVER BY LAITH*/
 void CResolver::initialize(player_t* e, adjust_data* record, const float& goal_feet_yaw, const float& pitch, adjust_data* previous_record)
 {
@@ -561,8 +561,8 @@ void CResolver::get_side_standing()
 	//const auto right_pos = player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::RightMatrix].data());
 	//FireBulletData_t left_info;
 	//FireBulletData_t right_info;
-	//const auto left_damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), left_pos, &left_info);
-	//const auto right_damage = CAutoWall::GetDamage(g_ctx.globals.eye_pos, g_ctx.local(), right_pos, &right_info);
+	//const auto left_damage = CAutoWall::GetDamage(g_LocalAnimations->GetShootPosition(), g_ctx.local(), left_pos, &left_info);
+	//const auto right_damage = CAutoWall::GetDamage(g_LocalAnimations->GetShootPosition(), g_ctx.local(), right_pos, &right_info);
 
 	//if ((left_damage < 10 && right_damage < 10)
 	//	|| (right_info.visible && !left_info.visible)
@@ -606,7 +606,7 @@ void CResolver::detect_side()
 
 	/* filtering */
 	filter.pSkip = player;
-	src3D = g_ctx.globals.eye_pos;
+	src3D = g_LocalAnimations->GetShootPosition();
 	dst3D = src3D + (forward * 384);
 
 	/* back engine tracers */
@@ -638,8 +638,8 @@ void CResolver::get_side_trace()
 	auto trace = false;
 	if (m_globals()->m_curtime - lock_side > 2.0f)
 	{
-		auto first_visible = util::visible(g_ctx.globals.eye_pos, player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::LeftMatrix].data()), player, g_ctx.local());
-		auto second_visible = util::visible(g_ctx.globals.eye_pos, player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::RightMatrix].data()), player, g_ctx.local());
+		auto first_visible = util::visible(g_LocalAnimations->GetShootPosition(), player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::LeftMatrix].data()), player, g_ctx.local());
+		auto second_visible = util::visible(g_LocalAnimations->GetShootPosition(), player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::RightMatrix].data()), player, g_ctx.local());
 
 		if (first_visible != second_visible)
 		{
@@ -649,8 +649,8 @@ void CResolver::get_side_trace()
 		}
 		else
 		{
-			auto first_position = g_ctx.globals.eye_pos.DistTo(player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::LeftMatrix].data()));
-			auto second_position = g_ctx.globals.eye_pos.DistTo(player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::RightMatrix].data()));
+			auto first_position = g_LocalAnimations->GetShootPosition().DistTo(player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::LeftMatrix].data()));
+			auto second_position = g_LocalAnimations->GetShootPosition().DistTo(player->hitbox_position_matrix(HITBOX_HEAD, player_record->m_Matricies[MatrixBoneSide::RightMatrix].data()));
 
 			if (fabs(first_position - second_position) > 1.0f)
 				m_side = first_position > second_position;

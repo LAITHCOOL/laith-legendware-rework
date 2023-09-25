@@ -40,7 +40,7 @@ bool reload_fonts()
 void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL panel, bool force_repaint, bool allow_force)
 {
 	static auto original_fn = panel_hook->get_func_address <PaintTraverse_t>(41);
-	g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true); //-V807
+	g_ctx.local((player_t*)m_entitylist()->GetClientEntity(m_engine()->GetLocalPlayer()), true);
 
 	static auto set_console = true;
 

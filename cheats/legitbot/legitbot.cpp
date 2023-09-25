@@ -4,7 +4,7 @@
 #include "legitbot.h"
 #include "..\lagcompensation\animation_system.h"
 #include "..\autowall\autowall.h"
-
+#include "../lagcompensation/LocalAnimFix.hpp"
 bool IsNotTarget(player_t* e)
 {
 	if (!e)
@@ -196,7 +196,7 @@ void legit_bot::createmove(CUserCmd* cmd)
 	}
 
 	// is enemy in smoke?
-	if (!g_cfg.legitbot.do_if_enemy_in_smoke && in_smoke(g_ctx.globals.eye_pos, target->hitbox_position(0)))
+	if (!g_cfg.legitbot.do_if_enemy_in_smoke && in_smoke(g_LocalAnimations->GetShootPosition(), target->hitbox_position(0)))
 	{
 		autofire_delay = 0;
 
@@ -265,7 +265,7 @@ void legit_bot::createmove(CUserCmd* cmd)
 	if (g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].auto_stop)
 		cmd->m_forwardmove = cmd->m_sidemove = 0;
 
-	aim_angle = math::calculate_angle(g_ctx.globals.eye_pos, point).Clamp();
+	aim_angle = math::calculate_angle(g_LocalAnimations->GetShootPosition(), point).Clamp();
 
 	if (!is_silent_s)
 		do_smooth(cmd->m_viewangles, aim_angle, aim_angle);
@@ -381,9 +381,9 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 			Vector ang = Vector(0, 0, 0);
 
 			auto bone_pos = target->hitbox_position(bone);
-			math::vector_angles(bone_pos - g_ctx.globals.eye_pos, ang);
+			math::vector_angles(bone_pos - g_LocalAnimations->GetShootPosition(), ang);
 			math::normalize_angles(ang);
-			distance = g_ctx.globals.eye_pos.DistTo(bone_pos);
+			distance = g_LocalAnimations->GetShootPosition().DistTo(bone_pos);
 
 			if (g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].fov_type == 1)
 				fov = dynamic_fov_to(distance, ang, cmd->m_viewangles + aim_punch);
@@ -393,8 +393,8 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 			if (fov > best_fov)
 				continue;
 
-			auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
-			//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
+			auto fire_data = autowall::get().wall_penetration(g_LocalAnimations->GetShootPosition(), bone_pos, target);
+			//auto fire_data = autowall::get().wall_penetration(g_LocalAnimations->GetShootPosition(), bone_pos, target);
 
 			if (!fire_data.visible && !g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].awall_dmg)
 				continue;
@@ -415,9 +415,9 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 		Vector ang = Vector(0, 0, 0);
 
 		auto bone_pos = target->hitbox_position(0);
-		math::vector_angles(bone_pos - g_ctx.globals.eye_pos, ang);
+		math::vector_angles(bone_pos - g_LocalAnimations->GetShootPosition(), ang);
 		math::normalize_angles(ang);
-		distance = g_ctx.globals.eye_pos.DistTo(bone_pos);
+		distance = g_LocalAnimations->GetShootPosition().DistTo(bone_pos);
 
 		if (g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].fov_type == 1)
 			fov = dynamic_fov_to(distance, ang, cmd->m_viewangles + aim_punch);
@@ -427,9 +427,9 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 		if (fov > best_fov)
 			return;
 
-		auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
+		auto fire_data = autowall::get().wall_penetration(g_LocalAnimations->GetShootPosition(), bone_pos, target);
 
-		//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
+		//auto fire_data = autowall::get().wall_penetration(g_LocalAnimations->GetShootPosition(), bone_pos, target);
 
 		if (!fire_data.visible && !g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].awall_dmg)
 			return;
@@ -450,9 +450,9 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 			Vector ang = Vector(0, 0, 0);
 
 			auto bone_pos = target->hitbox_position(bone);
-			math::vector_angles(bone_pos - g_ctx.globals.eye_pos, ang);
+			math::vector_angles(bone_pos - g_LocalAnimations->GetShootPosition(), ang);
 			math::normalize_angles(ang);
-			distance = g_ctx.globals.eye_pos.DistTo(bone_pos);
+			distance = g_LocalAnimations->GetShootPosition().DistTo(bone_pos);
 
 			if (g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].fov_type == 1)
 				fov = dynamic_fov_to(distance, ang, cmd->m_viewangles + aim_punch);
@@ -462,9 +462,9 @@ void legit_bot::find_best_point(CUserCmd* cmd, float fov_v)
 			if (fov > best_fov)
 				continue;
 
-			auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
+			auto fire_data = autowall::get().wall_penetration(g_LocalAnimations->GetShootPosition(), bone_pos, target);
 
-			//auto fire_data = autowall::get().wall_penetration(g_ctx.globals.eye_pos, bone_pos, target);
+			//auto fire_data = autowall::get().wall_penetration(g_LocalAnimations->GetShootPosition(), bone_pos, target);
 
 			if (!fire_data.visible && !g_cfg.legitbot.weapon[g_ctx.globals.current_weapon].awall_dmg)
 				continue;
@@ -502,7 +502,7 @@ void legit_bot::find_target()
 
 		Vector engine_angles;
 		m_engine()->GetViewAngles(engine_angles);
-		targets[i].fov = math::get_fov(engine_angles, math::calculate_angle(g_ctx.globals.eye_pos, e->hitbox_position(HITBOX_CHEST)));
+		targets[i].fov = math::get_fov(engine_angles, math::calculate_angle(g_LocalAnimations->GetShootPosition(), e->hitbox_position(HITBOX_CHEST)));
 
 		if (targets[i].fov < best_fov)
 		{
@@ -521,7 +521,7 @@ int legit_bot::hitchance(player_t* target, const Vector& aim_angle, const Vector
 	if (!weapon_info)
 		return final_hitchance;
 
-	if ((g_ctx.globals.eye_pos - point).Length() > weapon_info->flRange)
+	if ((g_LocalAnimations->GetShootPosition() - point).Length() > weapon_info->flRange)
 		return final_hitchance;
 
 	auto forward = ZERO;
@@ -599,9 +599,9 @@ int legit_bot::hitchance(player_t* target, const Vector& aim_angle, const Vector
 			direction.y = forward.y + right.y * spread_x + up.y * spread_y;
 			direction.z = forward.z + right.z * spread_x + up.z * spread_y; //-V778
 
-			auto end = g_ctx.globals.eye_pos + direction * weapon_info->flRange;
+			auto end = g_LocalAnimations->GetShootPosition() + direction * weapon_info->flRange;
 
-			if (hitbox_intersection(target, target->m_CachedBoneData().Base(), hitbox, g_ctx.globals.eye_pos, end))
+			if (hitbox_intersection(target, target->m_CachedBoneData().Base(), hitbox, g_LocalAnimations->GetShootPosition(), end))
 				++hits;
 		}
 

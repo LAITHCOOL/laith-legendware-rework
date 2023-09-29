@@ -84,8 +84,8 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			g_Lagcompensation->is_dormant[i] = false;
 			g_LagComp->ResetData();
 			g_LocalAnimations->ResetData();
-			playeresp::get().esp_alpha_fade[i] = 0.0f;
-			playeresp::get().health[i] = 100;
+			g_PlayEresp->esp_alpha_fade[i] = 0.0f;
+			g_PlayEresp->health[i] = 100;
 			c_dormant_esp::get().m_cSoundPlayers[i].reset();
 			otheresp::get().damage_marker[i].reset();
 		}
@@ -208,7 +208,7 @@ void __fastcall hooks::hooked_painttraverse(void* ecx, void* edx, vgui::VPANEL p
 			if (g_cfg.player.enable)
 			{
 				worldesp::get().paint_traverse();
-				playeresp::get().paint_traverse();
+				g_PlayEresp->paint_traverse();
 			}
 
 			if (g_cfg.esp.local_trail)

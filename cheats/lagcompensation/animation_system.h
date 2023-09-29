@@ -82,12 +82,12 @@ enum EMatrixFlags
 
 enum MatrixBoneSide
 {
-	MiddleMatrix,
+	AimbotMatrix,
 	LeftMatrix,
 	RightMatrix,
 	LowLeftMatrix,
 	LowRightMatrix,
-	ZeroMatrix,
+	CenterMatrix,
 	VisualMatrix,
 };
 enum ADVANCED_ACTIVITY : int
@@ -389,7 +389,7 @@ public:
 		if (store)
 		{
 			memcpy(layers, e->get_animlayers(), e->animlayer_count() * sizeof(AnimationLayer));
-			memcpy(m_Matricies[MatrixBoneSide::MiddleMatrix].data(), player->m_CachedBoneData().Base(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
+			memcpy(m_Matricies[MatrixBoneSide::AimbotMatrix].data(), player->m_CachedBoneData().Base(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 		}
 
 		immune = player->m_bGunGameImmunity() || player->m_fFlags() & FL_FROZEN;
@@ -459,7 +459,7 @@ public:
 			return;
 
 		memcpy(player->get_animlayers(), layers, player->animlayer_count() * sizeof(AnimationLayer));
-		memcpy(player->m_CachedBoneData().Base(), m_Matricies[MatrixBoneSide::MiddleMatrix].data(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
+		memcpy(player->m_CachedBoneData().Base(), m_Matricies[MatrixBoneSide::AimbotMatrix].data(), player->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
 		player->m_fFlags() = flags;
 		player->m_CachedBoneData().m_Size = bone_count;

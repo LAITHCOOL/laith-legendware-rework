@@ -131,7 +131,7 @@ void shots::on_impact(Vector impactpos)
 		std::memcpy(current_shot->target->m_CachedBoneData().Base(), current_shot->record->m_Matricies[RightMatrix].data(), current_shot->target->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
 		m_trace()->ClipRayToEntity(Ray_t(current_shot->eye_pos, impactpos), MASK_SHOT_HULL | CONTENTS_HITBOX, current_shot->target, &trace_second);
 
-		std::memcpy(current_shot->target->m_CachedBoneData().Base(), current_shot->record->m_Matricies[ZeroMatrix].data(), current_shot->target->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
+		std::memcpy(current_shot->target->m_CachedBoneData().Base(), current_shot->record->m_Matricies[CenterMatrix].data(), current_shot->target->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
 		m_trace()->ClipRayToEntity(Ray_t(current_shot->eye_pos, impactpos), MASK_SHOT_HULL | CONTENTS_HITBOX, current_shot->target, &trace_zero);
 
 		std::memcpy(current_shot->target->m_CachedBoneData().Base(), backup_bone_cache, current_shot->target->m_CachedBoneData().Count() * sizeof(matrix3x4_t)); //-V807
@@ -223,7 +223,7 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 	{
 
 		//otheresp::get().hitmarker.hurt_time = m_globals()->m_curtime;
-		////otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data());	
+		////otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[AimbotMatrix].data());	
 		//otheresp::get().hitmarker.point = entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == g_Ragebot->m_target ? g_Ragebot->m_record->m_Matricies[Visual].data() : entity->m_CachedBoneData().Base());
 		//Color result;
 
@@ -236,7 +236,7 @@ void shots::on_player_hurt(IGameEvent* event, int user_id)
 
 		//otheresp::get().damage_marker[user_id] = otheresp::Damage_marker
 		//{
-		//	//entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[MiddleMatrix].data()),
+		//	//entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot->record->m_Matricies[AimbotMatrix].data()),
 		//	entity->hitbox_position_matrix(util::get_hitbox_by_hitgroup(hitgroup), current_shot && entity == g_Ragebot->m_target ? g_Ragebot->m_record->m_Matricies[Visual].data() : entity->m_CachedBoneData().Base()),
 		//	m_globals()->m_curtime,
 		//	result,

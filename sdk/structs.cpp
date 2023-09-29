@@ -1600,7 +1600,7 @@ Vector player_t::m_aimPunchAngleScaled()
 }
 void player_t::update_clientside_animation()
 {
-	if (!this || !get_animation_state1()) //check
+	if (!this || !GetAnimState()) //check
 		return;// Repeat
 	using Fn = void(__thiscall*)(void*);
 

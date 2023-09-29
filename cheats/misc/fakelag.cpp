@@ -92,7 +92,7 @@ void fakelag::Fakelag(CUserCmd* m_pcmd)
 	{
 		if (g_cfg.ragebot.enable && g_ctx.globals.current_weapon != -1 && !g_ctx.globals.exploits && g_cfg.antiaim.fakelag && g_cfg.antiaim.fakelag_enablers[FAKELAG_ON_PEEK] && g_cfg.antiaim.triggers_fakelag_amount > 6 && !this->started_peeking && velocity >= 5.0f)
 		{
-			if (g_Ragebot->ShouldScanPlayer((float)g_cfg.antiaim.triggers_fakelag_amount * 0.5f, g_Ragebot->m_record, g_Ragebot->m_target))
+			if (g_Ragebot->ShouldScanPlayer((float)g_cfg.antiaim.triggers_fakelag_amount * 0.5f, g_Ragebot->m_record))
 			{
 				random_factor = min(rand() % 16 + 1, g_cfg.antiaim.triggers_fakelag_amount);
 				switch_ticks = !switch_ticks;

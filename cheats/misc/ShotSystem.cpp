@@ -208,7 +208,7 @@ bool ShotHandling::TraceShot(ShotEvents_t* shot) {
 	if (!shot->m_ShotData.m_pRecord.player || shot->m_ShotData.m_pRecord.player == nullptr)
 		return false;
 
-	const auto pMatrix = shot->m_ShotData.m_pRecord.m_Matricies[MatrixBoneSide::MiddleMatrix].data();
+	const auto pMatrix = shot->m_ShotData.m_pRecord.m_Matricies[MatrixBoneSide::AimbotMatrix].data();
 	if (!pMatrix)
 		return false;
 

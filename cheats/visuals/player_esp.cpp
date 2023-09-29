@@ -138,8 +138,8 @@ void playeresp::paint_traverse()
 			if (g_ctx.local()->is_alive() && !e->IsDormant())
 			{
 
-				draw_skeleton(e, color, record.m_Matricies[MatrixBoneSide::MiddleMatrix].data());
-				draw_skeleton(e, Color::Red, record.m_Matricies[MatrixBoneSide::ZeroMatrix].data());
+				draw_skeleton(e, color, record.m_Matricies[MatrixBoneSide::AimbotMatrix].data());
+				draw_skeleton(e, Color::Red, record.m_Matricies[MatrixBoneSide::CenterMatrix].data());
 				draw_skeleton(e, Color::Green, record.m_Matricies[MatrixBoneSide::LeftMatrix].data());
 				draw_skeleton(e, Color::Blue, record.m_Matricies[MatrixBoneSide::RightMatrix].data());
 			}

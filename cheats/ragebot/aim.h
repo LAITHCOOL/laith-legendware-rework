@@ -33,7 +33,6 @@ struct CollisionData_t
 	bool m_bResult = false;
 };
 
-
 namespace stdpp {
 	// unique_vector
 	// goal; only unique elements in a vector while preserving original order
@@ -175,7 +174,7 @@ public:
 	void OnRoundStart(player_t* player);
 	void SetupHitboxes(LagRecord_t* record, bool history);
 	
-	bool GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, LagRecord_t* record, float& min_damage, player_t* player);
+	bool GetBestAimPosition(HitscanPoint_t& point, float& damage, int& hitbox, bool& safe, LagRecord_t* record, float& min_damage);
 
 public:
 	void reset() {
@@ -300,31 +299,28 @@ public:
 		return true;
 	}
 
-	bool CanHit(Vector start, Vector end, LagRecord_t* record, int box, bool in_shot = false, matrix3x4_t* bones = nullptr);
+	
 public:
 	// aimbot.
 	void init();
 	bool SetupHitboxPoints(LagRecord_t* record, matrix3x4_t* bones, int index, std::vector< HitscanPoint_t >& points);
-	
-	bool ShouldScanPlayer(float ticks_to_stop, LagRecord_t* record, player_t* player);
+	bool ShouldScanPlayer(float ticks_to_stop, LagRecord_t* record);
 	void think(CUserCmd* m_pcmd);
 	void find(CUserCmd* m_pcmd);
 	bool HasMaximumAccuracy();
-	float CheckHitchance(player_t* player, const Vector& angle, LagRecord_t* record, int hitbox);
 	bool SelectTarget(LagRecord_t* record, const HitscanPoint_t& point, float damage);
 	void apply(CUserCmd* m_pcmd);
 	void AutoStop(CUserCmd* m_pcmd);
 	void AutoRevolver(CUserCmd* m_pcmd);
 	void AdjustRevolverData(int commandnumber, int buttons);
-	//bool IsSafePoint(LagRecord_t* LagRecord, Vector vecStartPosition, Vector vecEndPosition, int iHitbox);
 	bool bTraceMeantForHitbox(const Vector& vecEyePosition, const Vector& vecEnd, int iHitbox, LagRecord_t* pRecord);
 
-
 	HitboxData_t GetHitboxData(player_t* Player, matrix3x4_t* aMatrix, int nHitbox);
-
 	bool CollidePoint(const Vector& vecStart, const Vector& vecEnd, mstudiobbox_t* pHitbox, matrix3x4_t* aMatrix);
 	void ThreadedCollisionFunc(CollisionData_t* m_Collision);
 	bool IsSafePoint(player_t* Player, LagRecord_t* m_Record, const Vector& vecStart, const Vector& vecEnd, HitboxData_t HitboxData);
+
+	bool CanHitHitbox(const Vector& start, const Vector& end, int hitbox, matrix3x4_t* matrix, LagRecord_t* record);
 
 	// knifebot.
 	void knife(CUserCmd* m_pcmd);

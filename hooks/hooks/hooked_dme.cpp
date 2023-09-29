@@ -3,7 +3,6 @@
 
 #include "..\hooks.hpp"
 #include "..\..\cheats\misc\fakelag.h"
-#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "..\..\cheats\visuals\player_esp.h"
 // hitchams ../../cheats/visual/hitchams.h
 #include "../../cheats/visuals/hitchams.h"
@@ -188,7 +187,7 @@ void __stdcall hooks::hooked_dme(IMatRenderContext* ctx, const DrawModelState_t&
 
 		if (type == ENEMY)
 		{
-			auto alpha_modifier = playeresp::get().esp_alpha_fade[model_entity->EntIndex()];
+			auto alpha_modifier = g_PlayEresp->esp_alpha_fade[model_entity->EntIndex()];
 
 			auto material = materials[g_cfg.player.type[ENEMY].chams_type];
 			auto double_material = materials[6];

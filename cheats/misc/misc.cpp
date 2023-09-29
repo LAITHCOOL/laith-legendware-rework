@@ -592,7 +592,7 @@ void misc::aimbot_hitboxes()
 	if (!hitbox_set)
 		return;
 
-	//hit_chams::get().add_matrix(player, g_Ragebot->m_target[g_Ragebot->last_target_index].record.m_Matricies[MatrixBoneSide::MiddleMatrix].data());
+	//hit_chams::get().add_matrix(player, g_Ragebot->m_target[g_Ragebot->last_target_index].record.m_Matricies[MatrixBoneSide::AimbotMatrix].data());
 	//hit_chams::get().add_matrix(player, C_RageBot::get().last_target[g_Ragebot->last_target_index].record.m_Matricies[1].data());
 	//hit_chams::get().add_matrix(player, C_RageBot::get().last_target[g_Ragebot->last_target_index].record.m_Matricies[3].data());
 }

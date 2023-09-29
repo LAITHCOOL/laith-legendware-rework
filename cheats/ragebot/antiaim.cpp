@@ -7,7 +7,6 @@
 #include "..\misc\fakelag.h"
 #include "..\misc\prediction_system.h"
 #include "..\misc\misc.h"
-#include "..\lagcompensation\local_animations.h"
 #include "../prediction/EnginePrediction.h"
 #include "../lagcompensation/LocalAnimFix.hpp"
 void antiaim::create_move(CUserCmd* m_pcmd)

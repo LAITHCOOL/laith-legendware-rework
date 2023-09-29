@@ -100,6 +100,7 @@ public:
 		int tickbase_shift = 0;
 		int defensive_shift_ticks;
 		int shifting_command_number;
+		int finished_shifting_command = 0;
 		int shift_timer = 0;
 		int shift_time = 0;
 		int tickbase_shifted_command = 0;

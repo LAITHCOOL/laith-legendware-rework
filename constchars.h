@@ -216,6 +216,13 @@ const char* dt_type[] =
 "Custome",
 };
 
+const char* Records_types[] =
+{
+"Auto",
+"Prioritize BackTrack",
+"Only Latest Record",
+};
+
 
 const char* yaw[] =
 {

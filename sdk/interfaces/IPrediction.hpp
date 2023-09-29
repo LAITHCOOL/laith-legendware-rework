@@ -51,6 +51,39 @@ public:
 	virtual player_t* GetMovingPlayer(void) const = 0;
 	virtual void		      UnblockPusher(player_t* pPlayer, player_t* pPusher) = 0;
 	virtual void			  SetupMovementBounds(CMoveData* pMove) = 0;
+
+	inline player_t*& m_Player()
+	{
+		return *(player_t**)((DWORD)(this) + 0x4);
+	}
+	inline CMoveData*& m_MoveData()
+	{
+		return *(CMoveData**)((DWORD)(this) + 0x8);
+	}
+	inline Vector& m_vecForward()
+	{
+		return *(Vector*)((DWORD)(this) + 0x18);
+	}
+	inline Vector& m_vecRight()
+	{
+		return *(Vector*)((DWORD)(this) + 0x24);
+	}
+	inline Vector& m_vecUp()
+	{
+		return *(Vector*)((DWORD)(this) + 0x30);
+	}
+	inline int& m_nTraceCount()
+	{
+		return *(int*)((DWORD)(this) + 0xE50);
+	}
+	inline int& m_iSpeedCropped()
+	{
+		return *(int*)((DWORD)(this) + 0xC3C);
+	}
+	inline bool& m_bProcessingMovement()
+	{
+		return *(bool*)((DWORD)(this) + 0xC40);
+	}
 };
 
 class CGameMovement

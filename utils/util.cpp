@@ -654,11 +654,11 @@ namespace util
 			auto lerp = math::lerp(next, record->origin, math::clamp(delta * mul, 0.0f, 1.0f));
 
 			matrix3x4_t result[MAXSTUDIOBONES];
-			memcpy(result, record->m_Matricies[MatrixBoneSide::MiddleMatrix].data(), MAXSTUDIOBONES * sizeof(matrix3x4_t));
+			memcpy(result, record->m_Matricies[MatrixBoneSide::AimbotMatrix].data(), MAXSTUDIOBONES * sizeof(matrix3x4_t));
 
 			for (auto j = 0; j < MAXSTUDIOBONES; j++)
 			{
-				auto matrix_delta = math::matrix_get_origin(record->m_Matricies[MatrixBoneSide::MiddleMatrix].data()[j]) - record->origin;
+				auto matrix_delta = math::matrix_get_origin(record->m_Matricies[MatrixBoneSide::AimbotMatrix].data()[j]) - record->origin;
 				math::matrix_set_origin(matrix_delta + lerp, result[j]);
 			}
 
@@ -676,7 +676,13 @@ namespace util
 
 		fn(state, e);
 	}
+	void CreateState(AnimState_s* state, player_t* e)
+	{
+		using Fn = void(__thiscall*)(AnimState_s*, player_t*);
+		static auto fn = reinterpret_cast <Fn> (util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 56 8B F1 B9 ? ? ? ? C7 46")));
 
+		fn(state, e);
+	}
 	void create_state1(C_CSGOPlayerAnimationState* state, player_t* e)
 	{
 		using Fn = void(__thiscall*)(C_CSGOPlayerAnimationState*, player_t*);
@@ -694,6 +700,13 @@ namespace util
 	}
 
 	void update_state1(C_CSGOPlayerAnimationState* state, const Vector& angles)
+	{
+		using Fn = void(__vectorcall*)(void*, void*, float, float, float, void*);
+		static auto fn = reinterpret_cast <Fn> (util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 E4 F8 83 EC 18 56 57 8B F9 F3 0F 11 54 24")));
+
+		fn(state, nullptr, 0.0f, angles[1], angles[0], nullptr);
+	}
+	void UpdateState(AnimState_s* state, const Vector& angles)
 	{
 		using Fn = void(__vectorcall*)(void*, void*, float, float, float, void*);
 		static auto fn = reinterpret_cast <Fn> (util::FindSignature(crypt_str("client.dll"), crypt_str("55 8B EC 83 E4 F8 83 EC 18 56 57 8B F9 F3 0F 11 54 24")));
@@ -819,11 +832,10 @@ namespace util
 
 	bool is_valid_hitgroup(int index)
 	{
-		/*if ((index >= HITGROUP_HEAD && index <= HITGROUP_RIGHTLEG) || index == HITGROUP_GEAR)
+		if ((index >= HITGROUP_HEAD && index <= HITGROUP_RIGHTLEG) || index == HITGROUP_GEAR)
 			return true;
 
-		return false;*/
-		return true;
+		return false;
 	}
 
 	bool is_breakable_entity(IClientEntity* e)

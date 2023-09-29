@@ -17,7 +17,6 @@
 #include "..\..\cheats\visuals\GrenadePrediction.h"
 #include "..\..\cheats\ragebot\knifebot.h"
 #include "..\..\cheats\ragebot\zeusbot.h"
-#include "..\..\cheats\lagcompensation\local_animations.h"
 #include "..\..\cheats\lagcompensation\animation_system.h"
 #include "..\..\cheats\tickbase shift\tickbase_shift.h"
 #include "../../cheats/lagcompensation/LocalAnimFix.hpp"

@@ -70,6 +70,7 @@ void C_ConfigManager::setup()
 	setup_item(&g_cfg.ragebot.autoshoot, false, crypt_str("Ragebot.autoshoot"));
 	setup_item(&g_cfg.ragebot.double_tap, false, crypt_str("Ragebot.double_tap"));
 	setup_item(&g_cfg.ragebot.dt_types, 0, crypt_str("Ragebot.dt_types"));
+	setup_item(&g_cfg.ragebot.record_selection_type, 0, crypt_str("Ragebot.record_selection_type"));
 
 	//setup_item(&g_cfg.ragebot.resolver, false, crypt_str("Ragebot.resolver"));
 	//setup_item(&g_cfg.ragebot.teleport_speed, 0, crypt_str("Ragebot.teleport_speed"));

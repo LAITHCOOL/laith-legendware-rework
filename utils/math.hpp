@@ -17,12 +17,16 @@ namespace math {
 	void normalize_angle(float& angle);
 	float NormalizedAngle(float angle);
 	void normalize_vector(Vector& vector);
+	template< class T >
+	void Normalize3(T& vec);
+
 	float normalize_yaw(float f);
 	float normalize_pitch(float pitch);
 	float normalize_diff(float srcAngle, float distAngle);
 	float vector_normalize(Vector& v);
 	void clamp_angles(Vector& angles);
 	void vector_transform(const Vector& in1, const matrix3x4_t& in2, Vector& out);
+	void VectorTransform(const Vector& in1, const matrix3x4_t& in2, Vector& out);
 	void vector_i_transform(const Vector& in1, const matrix3x4_t& in2, Vector& out);
 	Vector calculate_angle(const Vector& src, const Vector& dst);
 	float get_fov(const Vector& viewangles, const Vector& aim_angle);
@@ -48,7 +52,7 @@ namespace math {
 	float SegmentToSegment(const Vector s1, const Vector s2, const Vector k1, const Vector k2);
 	bool IntersectionBoundingBox(Vector ray_start, mstudiobbox_t* hitbox, Vector direction, matrix3x4_t& matrix);
 	bool IntersectRayWithAABB(Vector& origin, Vector& dir, Vector& min, Vector& max);
-	float segment_to_segment(const Vector& s1, const Vector& s2, const Vector& k1, const Vector& k2);
+	float segment_to_segment(const Vector& s1, const Vector& s2, Vector& k1, Vector& k2);
 	bool intersect_line_with_bb(Vector& start, Vector& end, Vector& min, Vector& max);
 	Vector vector_rotate(const Vector& in1, const matrix3x4_t& in2);
 	Vector vector_rotate(const Vector& in1, const Vector& in2);
@@ -109,7 +113,7 @@ namespace math {
 	void angle_vectors_deg(const QAngle& angles, Vector* forward, Vector* right = nullptr, Vector* up = nullptr);
 	void angle_vectors_deg_vec(const Vector& angles, Vector* forward, Vector* right = nullptr, Vector* up = nullptr);
 
-	void AngleVectorsAnims(QAngle angles, Vector& forward, Vector& right, Vector& up);
+	void AngleVectorsAnims(Vector angles, Vector& forward, Vector& right, Vector& up);
 
 	bool IsNearEqual(float v1, float v2, float Tolerance);
 

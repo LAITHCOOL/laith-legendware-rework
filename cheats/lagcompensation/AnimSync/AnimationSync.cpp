@@ -18,8 +18,6 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 	/* Determine player's velocity */
 	record->m_vecVelocity = DeterminePlayerVelocity(e, record, m_PrevRecord, animstate);
 
-
-
 	if (record->m_bFirstAfterDormant)
 		HandleDormancyLeaving(e, record, animstate);
 
@@ -176,7 +174,7 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 		if (e->GetAnimState()->m_flAnimDuckAmount > 0)
 			flAimMatrixWidthRange = math::lerp(e->GetAnimState()->m_flAnimDuckAmount * std::clamp(e->GetAnimState()->m_flSpeedAsPortionOfCrouchTopSpeed, 0.0f, 1.0f), flAimMatrixWidthRange, 0.5f);
 
-		record->m_flDesyncDelta = math::clamp(flAimMatrixWidthRange * e->GetAnimState()->m_flAimYawMax, -58.0f, 58.0f);
+		record->m_flDesyncDelta = flAimMatrixWidthRange * 58.0f;
 	}
 
 	/* Save record's poses */
@@ -185,15 +183,16 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 	/* Generate safe aimbot points */
 	GenerateSafePoints(e, record);
 
+	/*simple temporary resolver*/
 	if (g_cfg.ragebot.enable_resolver)
 	{
-		/*simple temporary resolver*/
 		AimPlayer* data = &g_Ragebot->m_players[e->EntIndex() - 1];
 
 		if (data->m_missed_shots > 0)
 			record->m_flDesyncDelta = -(record->m_flDesyncDelta);
-
-		if (data->m_missed_shots > 1)
+		else if (data->m_missed_shots > 1)
+			record->m_flDesyncDelta = 0.0f;
+		else if (data->m_missed_shots > 2)
 			data->m_missed_shots = 0;
 
 		e->GetAnimState()->m_flFootYaw = math::normalize_yaw(record->m_flEyeYaw + record->m_flDesyncDelta);
@@ -208,7 +207,7 @@ void C_PlayerAnimations::SimulatePlayerAnimations(player_t* e, LagRecord_t* reco
 
 		/* Setup rage matrix */
 		if (g_cfg.ragebot.enable)
-			SetupPlayerMatrix(e, record, record->m_Matricies[MiddleMatrix].data(), EMatrixFlags::BoneUsedByHitbox);
+			SetupPlayerMatrix(e, record, record->m_Matricies[AimbotMatrix].data(), EMatrixFlags::BoneUsedByHitbox);
 	}
 
 	m_PlayerGlobals.AdjustData(e);
@@ -778,7 +777,7 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 		switch (ESafeSied)
 		{
 		case LeftMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation - 58.0f); break;
-		case ZeroMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation); break;
+		case CenterMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation); break;
 		case RightMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation + 58.0f); break;
 		case LowLeftMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation - 29.0f); break;
 		case LowRightMatrix: m_LagRecord->m_flEyeYaw = math::normalize_yaw(flEyeRotation + 29.0f); break;
@@ -831,5 +830,5 @@ void C_PlayerAnimations::GenerateSafePoints(player_t* pPlayer, LagRecord_t* m_La
 	BuildSafePoint(RightMatrix);
 	//BuildSafePoint(LowLeftMatrix);
 	//BuildSafePoint(LowRightMatrix);
-	BuildSafePoint(ZeroMatrix);
+	BuildSafePoint(CenterMatrix);
 }

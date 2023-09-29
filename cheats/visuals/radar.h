@@ -207,7 +207,7 @@ private:
 				EntityPos = Radar::WorldToMap(EntityPos);
 
 				ImColor clr = bIsEnemy ? ImColor(255, 50, 50) : (team_num == 3 ? ImColor(95, 185, 245) : ImColor(245, 205, 65));
-				ImColor clr_dormant = bIsEnemy ? ImColor(255, 50, 50, (int)(playeresp::get().esp_alpha_fade[i] * 255.0f)) : (team_num == 2 ? ImColor(95, 185, 245) : ImColor(245, 205, 65));
+				ImColor clr_dormant = bIsEnemy ? ImColor(255, 50, 50, (int)(g_PlayEresp->esp_alpha_fade[i] * 255.0f)) : (team_num == 2 ? ImColor(95, 185, 245) : ImColor(245, 205, 65));
 
 				ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(EntityPos.x, EntityPos.y), 5, e->IsDormant() ? clr_dormant : clr, 30);
 

@@ -5,7 +5,7 @@
 
 struct Box;
 
-class playeresp : public singleton <playeresp>
+class playeresp
 {
 public:
 	int type = ENEMY;
@@ -26,3 +26,5 @@ public:
 	void draw_multi_points(player_t* e);
 	void infobar();
 };
+
+inline playeresp* g_PlayEresp = new playeresp();

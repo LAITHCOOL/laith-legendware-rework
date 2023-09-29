@@ -73,7 +73,7 @@ void tickbase::double_tap_deffensive(CUserCmd* cmd)
 	if (!g_cfg.ragebot.defensive_doubletap)
 		return;
 
-	if (g_Ragebot->ShouldScanPlayer(8, g_Ragebot->m_record, g_Ragebot->m_target))
+	if (g_Ragebot->ShouldScanPlayer(8, g_Ragebot->m_record))
 	{
 		if (g_ctx.globals.m_Peek.m_UpdateLc)
 		{
@@ -128,7 +128,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		g_ctx.globals.dt_shots = 0;
 	}
 
-	//g_ctx.globals.tickbase_shift = shiftAmount;
+	
 
 	//Recharge
 	if (!g_Ragebot->m_stop && !(m_pcmd->m_buttons & IN_ATTACK || m_pcmd->m_buttons & IN_ATTACK2 && g_ctx.globals.weapon->is_knife())
@@ -139,7 +139,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 		g_ctx.globals.tochargeamount = shiftAmount;
 		g_ctx.globals.dt_shots = 0;
 		g_ctx.globals.block_charge = true;
-		
+		g_ctx.globals.tickbase_shift = shiftAmount;
 		
 	}
 	else
@@ -173,7 +173,7 @@ void tickbase::DoubleTap(CUserCmd* m_pcmd)
 
 		lastdoubletaptime = m_pcmd->m_command_number;
 
-		g_ctx.globals.tickbase_shift = shiftAmount;
+		//g_ctx.globals.tickbase_shift = shiftAmount;
 		//g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase - g_ctx.globals.tickbase_shift;
 	}
 	else

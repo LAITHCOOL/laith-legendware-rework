@@ -1055,6 +1055,7 @@ void c_menu::draw(bool is_open)
 						ImGui::Checkbox(crypt_str("Automatic awall"), &g_cfg.ragebot.autowall);
 						ImGui::Checkbox(crypt_str("Automatic fire"), &g_cfg.ragebot.autoshoot);
 						ImGui::Checkbox(crypt_str("Automatic scope"), &g_cfg.ragebot.autoscope);
+						draw_combo(crypt_str("Record Selection"), g_cfg.ragebot.record_selection_type, Records_types, ARRAYSIZE(Records_types));
 					}
 					tab_end();
 
@@ -1076,6 +1077,8 @@ void c_menu::draw(bool is_open)
 						{
 							if (&g_cfg.ragebot.double_tap_key)
 							{
+
+
 
 								if (g_cfg.ragebot.double_tap)
 									draw_combo(crypt_str("DoubleTap Type"), g_cfg.ragebot.dt_types, dt_type, ARRAYSIZE(dt_type));
@@ -1120,6 +1123,7 @@ void c_menu::draw(bool is_open)
 
 									ImGui::SliderInt(crypt_str("Ticks To Shift"), &g_cfg.ragebot.shift_amount, 1, 17);
 									ImGui::SliderFloat(crypt_str("Recharge Time"), &g_cfg.ragebot.recharge_time, 0.00f, 3.00f, crypt_str("%.2f"));
+									//ImGui::SliderInt(crypt_str("Debug Command Number"), &g_cfg.ragebot.debug_var, -17, 17);
 								}
 							}
 						}

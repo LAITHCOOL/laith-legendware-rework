@@ -301,7 +301,7 @@ void C_LagComp::ForcePlayerRecord(player_t* Player, LagRecord_t* m_LagRecord)
 	Player->SetCollisionBounds(m_LagRecord->m_vecMins, m_LagRecord->m_vecMaxs);
 	m_globals()->m_curtime = flCurTime;
 
-	std::memcpy(Player->m_CachedBoneData().Base(), m_LagRecord->m_Matricies[MiddleMatrix].data(), sizeof(matrix3x4_t) * Player->m_CachedBoneData().Count());
+	std::memcpy(Player->m_CachedBoneData().Base(), m_LagRecord->m_Matricies[AimbotMatrix].data(), sizeof(matrix3x4_t) * Player->m_CachedBoneData().Count());
 	return Player->invalidate_bone_cache();
 }
 

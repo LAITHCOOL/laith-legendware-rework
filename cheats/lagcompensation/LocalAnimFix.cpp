@@ -8,8 +8,10 @@ void C_LocalAnimations::OnCreateMove()
 		return;
 
 	g_LocalAnimations->StoreAnimationRecord();
+
 	if (!g_ctx.send_packet)
 		return;
+
 
 	std::tuple < float, float, float, float, float, int, int > m_Globals = std::make_tuple
 	(
@@ -134,6 +136,8 @@ void C_LocalAnimations::OnCreateMove()
 	m_LocalData.m_Real.m_nBonesRet = g_LocalAnimations->SetupPlayerBones(m_LocalData.m_Real.m_Matrix.data(), BONE_USED_BY_ANYTHING);
 
 	g_LocalAnimations->UpdateDesyncAnimations();
+		
+	//g_LocalAnimations->UpdateDesyncAnimations();
 
 	/* restore globals */
 	m_globals()->m_curtime = std::get < 0 >(m_Globals);
@@ -187,6 +191,7 @@ void C_LocalAnimations::CopyPlayerAnimationData(bool bFake)
 void C_LocalAnimations::UpdateDesyncAnimations()
 {
 	AnimState_s m_AnimationState;
+
 	std::memcpy(&m_AnimationState, g_ctx.local()->GetAnimState(), sizeof(AnimState_s));
 
 	std::memcpy
@@ -242,6 +247,8 @@ void C_LocalAnimations::UpdateDesyncAnimations()
 			g_ctx.local()->m_angEyeAngles() = m_Record->m_angFakeAngles;
 			g_ctx.local()->m_fFlags() = m_Record->m_nFlags;
 			g_ctx.local()->GetMoveType() = m_Record->m_nMoveType;
+
+
 
 			/* fix localplayer strafe and sequences */
 			g_LocalAnimations->SimulateStrafe(m_Record->m_nButtons);
@@ -320,7 +327,7 @@ void C_LocalAnimations::SimulateStrafe(int nButtons)
 	Vector vecRight;
 	Vector vecUp;
 
-	math::AngleVectorsAnims(QAngle(0, g_ctx.local()->GetAnimState()->m_flFootYaw, 0), vecForward, vecRight, vecUp);
+	math::AngleVectorsAnims(Vector(0, g_ctx.local()->GetAnimState()->m_flFootYaw, 0), vecForward, vecRight, vecUp);
 	vecRight.NormalizeInPlace();
 
 	float flVelToRightDot = math::dot_product(g_ctx.local()->GetAnimState()->m_vecVelocityNormalizedNonZero, vecRight);

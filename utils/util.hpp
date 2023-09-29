@@ -14,7 +14,7 @@ class IMaterial;
 class CTraceFilter;
 class c_baseplayeranimationstate;
 class C_CSGOPlayerAnimationState;
-
+class AnimState_s;
 class Address {
 protected:
 	uintptr_t m_addr;
@@ -249,9 +249,11 @@ namespace util
 	void color_modulate(float color[3], IMaterial* material);
 	bool get_backtrack_matrix(player_t* e, matrix3x4_t* matrix);
 	void create_state(c_baseplayeranimationstate* state, player_t* e);
+	void CreateState(AnimState_s* state, player_t* e);
 	void create_state1(C_CSGOPlayerAnimationState* state, player_t* e);
 	void update_state(c_baseplayeranimationstate* state, const Vector& angles);
 	void update_state1(C_CSGOPlayerAnimationState* state, const Vector& angles);
+	void UpdateState(AnimState_s* state, const Vector& angles);
 	void reset_state(c_baseplayeranimationstate* state);
 	void copy_command(CUserCmd* cmd, int tickbase_shift);
 	float get_interpolation();

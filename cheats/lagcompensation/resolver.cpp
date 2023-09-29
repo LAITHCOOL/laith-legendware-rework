@@ -294,7 +294,7 @@ void CResolver::solve_animes()
 	player_record->type = LAYERS;
 	const float left_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[RightMatrix][6].m_flPlaybackRate);
 	const float right_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[LeftMatrix][6].m_flPlaybackRate);
-	const float zero_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[ZeroMatrix][6].m_flPlaybackRate);
+	const float zero_delta = fabs(player_record->layers[6].m_flPlaybackRate - resolver_layers[CenterMatrix][6].m_flPlaybackRate);
 
 	static float resolving_delta = 0.0f;
 	bool should_use_low_angles = false;
@@ -432,7 +432,7 @@ void CResolver::NemsisResolver()
 		return;
 	}
 
-	const auto delta0 = std::abs(cur_layer6.m_flPlaybackRate - resolver_layers[MatrixBoneSide::ZeroMatrix][6].m_flPlaybackRate);
+	const auto delta0 = std::abs(cur_layer6.m_flPlaybackRate - resolver_layers[MatrixBoneSide::CenterMatrix][6].m_flPlaybackRate);
 
 	float best_delta{};
 
@@ -484,7 +484,7 @@ void CResolver::OtLayersResolver()
 	float flLowLeftDelta = std::fabsf(resolver_layers[LowLeftMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
 	float flLowRightDelta = std::fabsf(resolver_layers[LowRightMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
 	float flRightDelta = std::fabsf(resolver_layers[RightMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
-	float flCenterDelta = std::fabsf(resolver_layers[ZeroMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
+	float flCenterDelta = std::fabsf(resolver_layers[CenterMatrix][6].m_flPlaybackRate - player_record->layers[6].m_flPlaybackRate) * 1000;
 
 	player_record->m_bAnimResolved = false;
 	{

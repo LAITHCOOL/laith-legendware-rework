@@ -12,8 +12,8 @@ public:
 
 	virtual void ResetData();
 
-	virtual std::array < matrix3x4_t, 128 > GetDesyncMatrix();
-	virtual std::array < matrix3x4_t, 128 > GetLagMatrix();
+	virtual std::array < matrix3x4_t, MAXSTUDIOBONES > GetDesyncMatrix();
+	virtual std::array < matrix3x4_t, MAXSTUDIOBONES > GetLagMatrix();
 	virtual std::array < AnimationLayer, 13 > GetAnimationLayers();
 	virtual std::array < AnimationLayer, 13 > GetFakeAnimationLayers();
 	Vector m_angViewAngles;
@@ -54,4 +54,4 @@ private:
 	} m_LocalData;
 };
 
-inline EC_LocalAnimations* g_LocalAnimations = new EC_LocalAnimations();
+inline EC_LocalAnimations* g_NewLocalAnims = new EC_LocalAnimations();

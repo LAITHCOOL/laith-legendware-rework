@@ -68,7 +68,7 @@ void C_Exploits::SetupExploits()
 		else
 		{
 			const int nRechargeTime = TIME_TO_TICKS(RechargeTime);
-			int nServerTick = networking::get().server_tick();
+			int nServerTick = g_Networking->server_tick();
 			int nTimeDelta = abs(nServerTick - m_Data.m_nShiftTick);
 
 			// set max choke
@@ -451,7 +451,7 @@ void C_Exploits::OnMovePacket(float flFrameTime)
 		return;
 
 	/* get netchannel */
-	INetChannel* m_NetChannel = SDK::Interfaces::EngineClient->GetNetChannel();
+	INetChannel* m_NetChannel = m_clientstate()->pNetChannel;
 	if (!m_NetChannel)
 		return;
 
@@ -503,7 +503,7 @@ void C_Exploits::OnMovePacket(float flFrameTime)
 
 	/* reset shift parameters */
 	m_Data.m_bRunAlternativeCreateMove = false;
-	m_Data.m_nShiftTick = networking::get().server_tick();
+	m_Data.m_nShiftTick = g_Networking->server_tick();
 	m_Data.m_bUseCLMove = false;
 
 	/* Reset */
@@ -547,7 +547,7 @@ bool C_Exploits::IsRecharging()
 	/* skip if fakeduck */
 	if (g_ctx.globals.fakeducking)
 	{
-		m_Data.m_nShiftTick = networking::get().server_tick();
+		m_Data.m_nShiftTick = g_Networking->server_tick();
 		return false;
 	}
 
@@ -561,7 +561,7 @@ bool C_Exploits::IsRecharging()
 		const int nRechargeTime = TIME_TO_TICKS(RechargeTime);
 		if (m_Data.m_bReCharging)
 		{
-			int nServerTick = networking::get().server_tick();
+			int nServerTick = g_Networking->server_tick();
 			int nTimeDelta = abs(nServerTick - m_Data.m_nShiftTick);
 
 			/* make sure that the time from last shift is out of bounds and we have to run recharge */
@@ -682,7 +682,7 @@ bool C_Exploits::RunExploits()
 		}
 
 		/* get buttons */
-		const int nButtons = g_ctx.get_command()->m_nButtons;
+		const int nButtons = g_ctx.get_command()->m_buttons;
 
 		/* if we got here due to fakeduck, then force duck in last 7 ticks */
 		if (m_Data.m_bInReset || !(g_ctx.local()->m_fFlags() & FL_ONGROUND))
@@ -691,7 +691,7 @@ bool C_Exploits::RunExploits()
 		{
 			/* Force to duck */
 			if (m_Data.m_nShift <= 7)
-				g_ctx.get_command()->m_nButtons |= IN_DUCK;
+				g_ctx.get_command()->m_buttons |= IN_DUCK;
 		}
 		else if (g_SettingsManager->B[_S("ragebot.enable")]) /* Ragebot is enabled */
 		{
@@ -700,7 +700,7 @@ bool C_Exploits::RunExploits()
 
 			/* If extended teleport is active, then boost movement until we reach ticks to stop */
 			if (g_ctx.local()->m_vecVelocity().Length2D() < 10.0f)
-				g_ctx.get_command()->m_flSideMove = g_ctx.get_command()->m_flForwardMove = 0.0f;
+				g_ctx.get_command()->m_sidemove = g_ctx.get_command()->m_forwardmove = 0.0f;
 			else
 			{
 				if (g_RageBot->GetSettings()->m_bExtendedTeleport)
@@ -751,24 +751,7 @@ bool C_Exploits::RunExploits()
 	/* do not let process default createmove */
 	return true;
 }
-#ifdef OVERSEE_DEV
-#include "../../../Interface/Renderer/Renderer.hpp"
-#include "../../Fonts/FontManager.hpp"
-void C_Exploits::DebugDrawData()
-{
-	ImFont* m_Font = g_FontManager->GetFontFromHash(FNV1A("Player ESP"));
-	if (!g_ctx.local() || !g_ctx.local()->IsAlive())
-		return;
 
-	INetChannel* m_NetChannel = SDK::Interfaces::EngineClient->GetNetChannel();
-	if (!m_NetChannel || !m_NetChannel->IsLoopback())
-		return;
-
-	g_Renderer->AddText(m_Font, 14.f, ImVec2(10, 490), "TicksAllowed ( Client ): " + std::to_string(m_Data.m_nTicksAllowed), ImColor(1.0f, 1.0f, 1.0f, 1.0f));
-	g_Renderer->AddText(m_Font, 14.f, ImVec2(10, 500), "TicksAllowed ( Server ): " + std::to_string(g_Globals->m_Packet.m_nTicksAllowed), ImColor(1.0f, 1.0f, 1.0f, 1.0f));
-	g_Renderer->AddText(m_Font, 14.f, ImVec2(10, 510), "Perspective Shift: " + std::to_string(m_Data.m_nPerspectiveShift), ImColor(1.0f, 1.0f, 1.0f, 1.0f));
-}
-#endif
 void C_Exploits::ResetData()
 {
 	m_Data.m_nPerspectiveShift = 0;

@@ -331,7 +331,7 @@ void TickbaseManipulation::double_tap() {
 		return;
 	}
 
-	if (g_Ragebot->ShouldScanPlayer(8, g_Ragebot->m_record, g_Ragebot->m_target) && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER && !g_ctx.globals.weapon->is_non_aim()) {
+	if (g_Ragebot->ShouldScanPlayer(8, g_Ragebot->m_record) && g_ctx.globals.weapon->m_iItemDefinitionIndex() != WEAPON_REVOLVER && !g_ctx.globals.weapon->is_non_aim()) {
 		if (!toggle_lag) {
 			if (!lag_shift) {
 				shift_timer = 0;

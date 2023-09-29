@@ -71,7 +71,7 @@ void DesyncCorrection::GetSide(adjust_data* Record, player_t* Player)
 		Record->type = LAYERS;
 		const float left_delta = fabsf(Record->layers[6].m_flPlaybackRate - ResolverLayers[RightMatrix][6].m_flPlaybackRate);
 		const float right_delta = fabsf(Record->layers[6].m_flPlaybackRate - ResolverLayers[LeftMatrix][6].m_flPlaybackRate);
-		const float zero_delta = fabsf(Record->layers[6].m_flPlaybackRate - ResolverLayers[ZeroMatrix][6].m_flPlaybackRate);
+		const float zero_delta = fabsf(Record->layers[6].m_flPlaybackRate - ResolverLayers[CenterMatrix][6].m_flPlaybackRate);
 
 		static float resolving_delta = 0.0f;
 		bool should_use_low_angles = false;

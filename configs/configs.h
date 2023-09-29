@@ -385,6 +385,7 @@ struct Config
 		bool use_cs_shift_amount;
 		float recharge_time;
 		int shift_amount;
+		int debug_var;
 		int fakelag_exploits;
 		bool optimizer;
 		key_bind onshot;
@@ -396,7 +397,7 @@ struct Config
 		bool autostop_fixer = false;//
 		bool enable_teleport;
 		float teleport_amount;
-
+		int record_selection_type;
 		struct weapon
 		{
 			int hitchance_amount;

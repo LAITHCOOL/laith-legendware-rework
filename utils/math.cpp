@@ -6,6 +6,8 @@
 #define CHECK_VALID( _v ) 0
 namespace math
 {
+	template<class T>
+	void Normalize3(T& vec);
 	void vectornagles_2d(const Vector& forward, QAngle& angles, Vector* up) {
 		Vector  left;
 		float   len, up_z, pitch, yaw, roll;
@@ -206,6 +208,18 @@ namespace math
 		angle = (angle < 0.f) ? angle + (360.f * rot) : angle - (360.f * rot);
 	}
 
+	template< class T >
+	void Normalize3(T& vec)
+	{
+		for (auto i = 0; i < 2; i++) {
+			while (vec[i] < -180.0f) vec[i] += 360.0f;
+			while (vec[i] > 180.0f) vec[i] -= 360.0f;
+		}
+
+		while (vec[2] < -50.0f) vec[2] += 100.0f;
+		while (vec[2] > 50.0f) vec[2] -= 100.0f;
+	}
+
 	void normalize_vector(Vector& vector) {
 		for (int i = 0; i < 3; i++) {
 			while (vector[i] < -180.0f) vector[i] += 360.0f;
@@ -288,7 +302,19 @@ namespace math
 	//--------------------------------------------------------------------------------
 	void vector_transform(const Vector& in1, const matrix3x4_t& in2, Vector& out)
 	{
-		out = Vector(in1.Dot(Vector(in2[0][0], in2[0][1], in2[0][2])) + in2[0][3], in1.Dot(Vector(in2[1][0], in2[1][1], in2[1][2])) + in2[1][3], in1.Dot(Vector(in2[2][0], in2[2][1], in2[2][2])) + in2[2][3]);
+		out =
+		{
+			in1.Dot({ in2.m_flMatVal[0][0], in2.m_flMatVal[0][1], in2.m_flMatVal[0][2] }) + in2.m_flMatVal[0][3],
+			in1.Dot({ in2.m_flMatVal[1][0], in2.m_flMatVal[1][1], in2.m_flMatVal[1][2] }) + in2.m_flMatVal[1][3],
+			in1.Dot({ in2.m_flMatVal[2][0], in2.m_flMatVal[2][1], in2.m_flMatVal[2][2] }) + in2.m_flMatVal[2][3]
+		};
+	}
+
+	void VectorTransform(const Vector& in1, const matrix3x4_t& in2, Vector& out)
+	{
+		out[0] = in1.Dot(in2[0]) + in2[0][3];
+		out[1] = in1.Dot(in2[1]) + in2[1][3];
+		out[2] = in1.Dot(in2[2]) + in2[2][3];
 	}
 	//--------------------------------------------------------------------------------
 	void vector_i_transform(const Vector& in1, const matrix3x4_t& in2, Vector& out)
@@ -738,84 +764,78 @@ namespace math
 		return m_RandomSeed(seed);
 	}
 	//--------------------------------------------------------------------------------
-	float segment_to_segment(const Vector& s1, const Vector& s2, const Vector& k1, const Vector& k2)
+	float segment_to_segment(const Vector& s1, const Vector& s2, Vector& k1, Vector& k2)
 	{
-		static auto constexpr epsilon = 0.00000001f;
+		static auto constexpr epsilon = 0.00000001;
 
 		auto u = s2 - s1;
 		auto v = k2 - k1;
-		auto w = s1 - k1;
+		const auto w = s1 - k1;
 
-		auto a = u.Dot(u); //-V525
-		auto b = u.Dot(v);
-		auto c = v.Dot(v);
-		auto d = u.Dot(w);
-		auto e = v.Dot(w);
-		auto D = a * c - b * b;
+		const auto a = u.Dot(u);
+		const auto b = u.Dot(v);
+		const auto c = v.Dot(v);
+		const auto d = u.Dot(w);
+		const auto e = v.Dot(w);
+		const auto D = a * c - b * b;
+		float sn, sd = D;
+		float tn, td = D;
 
-		auto sn = 0.0f, sd = D;
-		auto tn = 0.0f, td = D;
-
-		if (D < epsilon)
-		{
-			sn = 0.0f;
-			sd = 1.0f;
+		if (D < epsilon) {
+			sn = 0.0;
+			sd = 1.0;
 			tn = e;
 			td = c;
 		}
-		else
-		{
+		else {
 			sn = b * e - c * d;
 			tn = a * e - b * d;
 
-			if (sn < 0.0f)
-			{
-				sn = 0.0f;
+			if (sn < 0.0) {
+				sn = 0.0;
 				tn = e;
 				td = c;
 			}
-			else if (sn > sd)
-			{
+			else if (sn > sd) {
 				sn = sd;
 				tn = e + b;
 				td = c;
 			}
 		}
 
-		if (tn < 0.0f)
-		{
-			tn = 0.0f;
+		if (tn < 0.0) {
+			tn = 0.0;
 
-			if (-d < 0.0f)
-				sn = 0.0f;
+			if (-d < 0.0)
+				sn = 0.0;
 			else if (-d > a)
 				sn = sd;
-			else
-			{
+			else {
 				sn = -d;
 				sd = a;
 			}
 		}
-		else if (tn > td)
-		{
+		else if (tn > td) {
 			tn = td;
 
-			if (-d + b < 0.0f)
-				sn = 0.0f;
+			if (-d + b < 0.0)
+				sn = 0;
 			else if (-d + b > a)
 				sn = sd;
-			else
-			{
+			else {
 				sn = -d + b;
 				sd = a;
 			}
 		}
 
-		auto sc = fabs(sn) < epsilon ? 0.0f : sn / sd;
-		auto tc = fabs(tn) < epsilon ? 0.0f : tn / td;
+		const float sc = abs(sn) < epsilon ? 0.0f : sn / sd;
+		const float tc = abs(tn) < epsilon ? 0.0f : tn / td;
 
+		m128 n{};
 		auto dp = w + u * sc - v * tc;
-		return dp.Length();
+		n.f[0] = dp.Dot(dp);
+		const auto calc = _mm_sqrt_ps(n.v);
+		return reinterpret_cast<const m128*>(&calc)->f[0];
 	}
 	//--------------------------------------------------------------------------------
 	bool intersect_line_with_bb(Vector& start, Vector& end, Vector& min, Vector& max)
@@ -1369,7 +1389,7 @@ namespace math
 	}
 
 
-	void AngleVectorsAnims(QAngle angles, Vector& forward, Vector& right, Vector& up)
+	void AngleVectorsAnims(Vector angles, Vector& forward, Vector& right, Vector& up)
 	{
 		float sr, sp, sy, cr, cp, cy;
 

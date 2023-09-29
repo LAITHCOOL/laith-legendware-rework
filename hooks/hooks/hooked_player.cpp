@@ -215,9 +215,6 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
         ((PhysicsSimulateFn)original_physicssimulate)(player);
         return;
     }
-   /* g_ctx.globals.fixed_tickbase = player->m_nTickBase();
-    if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number)
-        player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);*/
 
     if (cmd_ctx->command_number == g_ctx.globals.shifting_command_number)
         player->m_nTickBase() = g_EnginePrediction->AdjustPlayerTimeBase(-g_cfg.ragebot.shift_amount);
@@ -229,13 +226,9 @@ _declspec(noinline)void hooks::physicssimulate_detour(player_t* player)
     else
         g_ctx.globals.fixed_tickbase = g_ctx.globals.backup_tickbase;
 
-
     g_Ragebot->AdjustRevolverData(cmd_ctx->command_number, cmd_ctx->cmd.m_buttons);
-   // g_EnginePrediction->RestoreNetvars();
+ 
     ((PhysicsSimulateFn)original_physicssimulate)(player);
-    //g_EnginePrediction->SaveNetvars();
-
-   
 }
 _declspec(noinline)void hooks::modifyeyeposition_detour123(C_CSGOPlayerAnimationState* state, Vector& position)
 {

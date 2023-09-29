@@ -147,7 +147,6 @@ void __cdecl hooks::Hooked_CLMove(float flAccumulatedExtraSamples, bool bFinalTi
 			g_ctx.globals.block_charge = true;
 			(clMove_fn(hooks::original_clmove)(flAccumulatedExtraSamples, bFinalTick));
 		}
-
 		//g_ctx.globals.shifted_tick = true;
 	}
 	g_ctx.globals.isshifting = false;

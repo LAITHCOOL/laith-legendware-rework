@@ -510,8 +510,8 @@ void lagcompensation::setup_matrix(player_t* e, const int& matrix , adjust_data*
 {
 	switch (matrix)
 	{
-	case MiddleMatrix:
-		e->setup_bones_latest(record->m_Matricies[MiddleMatrix].data(), false);
+	case AimbotMatrix:
+		e->setup_bones_latest(record->m_Matricies[AimbotMatrix].data(), false);
 		break;
 	case LeftMatrix:
 		e->setup_bones_latest(record->m_Matricies[LeftMatrix].data(), true);
@@ -525,8 +525,8 @@ void lagcompensation::setup_matrix(player_t* e, const int& matrix , adjust_data*
 	case LowRightMatrix:
 		e->setup_bones_latest(record->m_Matricies[LowRightMatrix].data(), true);
 		break;
-	case ZeroMatrix:
-		e->setup_bones_latest(record->m_Matricies[ZeroMatrix].data(), true);
+	case CenterMatrix:
+		e->setup_bones_latest(record->m_Matricies[CenterMatrix].data(), true);
 		break;
 	}
 }
@@ -1110,8 +1110,8 @@ void lagcompensation::SimulatePlayerAnimations(player_t* e , adjust_data* record
 
 	UpdatePlayerAnimations(e, record, animstate);
 
-	e->setup_bones_latest(record->m_Matricies[MiddleMatrix].data(), false);
-	memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[MiddleMatrix].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
+	e->setup_bones_latest(record->m_Matricies[AimbotMatrix].data(), false);
+	memcpy(e->m_CachedBoneData().Base(), record->m_Matricies[AimbotMatrix].data(), e->m_CachedBoneData().Count() * sizeof(matrix3x4_t));
 
 	if (previous_record)
 		memcpy(player_resolver[e->EntIndex()].previous_layers, previous_record->layers, e->animlayer_count() * sizeof(AnimationLayer));
